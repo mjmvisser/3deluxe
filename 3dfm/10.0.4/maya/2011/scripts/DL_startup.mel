@@ -1,0 +1,627 @@
+/*
+	Copyright (c) 2006 soho vfx inc.
+	Copyright (c) 2006 The 3Delight Team.
+*/
+
+source DL_globals.mel;
+
+source DL_aeCommon.mel;
+source DL_addRemoveAttrWindow.mel;
+source DL_aeFileHelpers.mel;
+source DL_aeShaderNodes.mel;
+source DL_attribsNodeManager.mel;
+source DL_attributeHelpers.mel;
+source DL_clippingPlaneNode.mel;
+source DL_coordSystemNode.mel;
+source DL_CSGNode.mel;
+source DL_commonUI.mel;
+source DL_explorerPanel.mel;
+source DL_geoAttribsNode.mel;
+source DL_globalPreferences.mel;
+source DL_lightAttribsNode.mel;
+source DL_optionMenuChoiceDlg.mel;
+source DL_previewShader.mel;
+source DL_profile.mel;
+source DL_ribArchive.mel;
+source DL_render.mel;
+source DL_renderCommandPort.mel;
+source DL_renderGlobals.mel;
+source DL_rendermanCode.mel;
+
+// Because we need the attributes array definitions for the default render pass
+// node
+//
+source "AEdelightRenderPassTemplate.mel";
+
+source DL_renderPass.mel;
+source DL_setSelector.mel;
+source DL_shaderCollection.mel;
+source DL_shaderAssignmentPanel.mel;
+source DL_shaderManager.mel;
+source DL_shaderNode.mel;
+source DL_shaderSelector.mel;
+source DL_shapeSet.mel;
+source DL_textEditor.mel;
+source DL_preferences.mel;
+source DL_workspace.mel;
+
+// Only needed because UI stuff is shared with geometry modifiers
+//
+source AEdelightGeoAttribsTemplate.mel;
+
+global proc
+delightCreateMenus()
+{
+  global string $gMainWindow;
+
+  if (`menu -exists delightMainWindowMenu`)
+    deleteUI delightMainWindowMenu;
+
+  if ($gMainWindow != "")
+  {
+    setParent $gMainWindow;
+
+    menu -label "3Delight" -tearOff true delightMainWindowMenu;
+
+      menuItem -label "Quick Render" -c "if(!objExists(\"quickRenderPass\"))rename(`DL_createFullRenderPassNode`, \"quickRenderPass\");delightRender quickRenderPass;delete quickRenderPass";
+      
+      menuItem -label "Render Toolbox..." -c "lm_ptcToolboxCreateWindow";
+      
+      string $cmd = "delightBuildRenderPassMenu(\"Render\", "
+        + "\"delightRenderMenuItemCommand\", 1)";
+        
+      menuItem -label "Render"
+               -subMenu true
+               -tearOff false
+               -postMenuCommand $cmd
+               delightRenderRenderPassMenu;
+      setParent -menu ..; // from submenu
+
+      $cmd = "delightBuildRenderPassMenu(\"Select\", \"select\", 1)";
+      
+      menuItem -label "Select Render Pass"
+               -subMenu true
+               -tearOff false
+               -postMenuCommand $cmd
+               delightSelectRenderPassMenu;
+      setParent -menu ..; // from submenu
+
+      $cmd = "delightBuildRenderPassMenu(\"Duplicate\", "
+        + "\"duplicate -inputConnections\", 0)";
+        
+      menuItem -label "Duplicate Render Pass"
+               -subMenu true
+               -tearOff false
+               -postMenuCommand $cmd
+               delightDuplicateRenderPassMenu;
+      setParent -menu ..; // from submenu
+
+      $cmd = "delightBuildRenderPassMenu(\"SaveAsTemplate\", "
+        + "\"DRP_saveAsTemplate\", 0)";
+        
+      menuItem -label "Save Render Pass as Template"
+               -subMenu true
+               -tearOff false
+               -postMenuCommand $cmd
+               delightSaveAsTemplateRenderPassMenu;
+      setParent -menu ..; // from submenu
+
+      menuItem -divider true;
+
+      menuItem -label "Add Render Pass"
+               -subMenu true
+               -tearOff false
+               -postMenuCommand 
+                ("delightBuildAddRenderPassMenu delightAddRenderPassMenu")
+               delightAddRenderPassMenu;
+      setParent -menu ..; // from submenu      
+
+      if (`delightAbout -packageDescription` != "3DelightForMaya")
+      {
+        menuItem -label "Add RIB archive"
+                 -annotation "Add a new RIB archive node"
+                 -command DRA_create;
+      }
+
+      menuItem -label "Add Clipping Plane"
+               -annotation "Add new clipping plane"
+               -command DCP_create;
+
+      menuItem -label "Add Coordinate System"
+               -annotation "Add new coordinate system"
+               -command DCS_create;
+
+      menuItem -label "Add CSG Node"
+               -annotation "Add new Constructive Solid Geometry node"
+               -command DCSG_create;
+
+      menuItem -divider true;
+               
+      menuItem -label "3Delight Relationship Editor"
+               -annotation "Open the 3Delight relationship editor in a floating window"
+               -command DL_explorerPanel;
+
+      menuItem -label "Assignment Panel"
+               -annotation "Open the assignment panel in a floating window"
+               -command 
+                "DL_shaderAssignmentPanel()";
+
+      menuItem -divider true;
+
+      menuItem -label "Preferences"
+               -annotation "Open 3Delight for Maya Preferences"
+               -command "DL_preferencesWindow()";
+
+      menuItem -divider true;
+
+      menuItem -label "Deprecated Editors"
+               -subMenu true
+               -tearOff false;
+               
+        menuItem -label "Attribs Node Manager"
+                 -annotation "Open attribs node editor"
+                 -command openDelightAttribsNodeManager;
+
+        menuItem -label "Shader Manager"
+                 -annotation "Open shader manager"
+                 -command 
+                  "openDelightShaderManager object surface \"<none>\" false";
+
+        setParent -menu ..;
+
+      menuItem -divider true;
+               
+      string $doc_path = (`getenv DELIGHT` + "/doc/3DelightForMaya-UserManual.pdf");
+      string $help_cmd = ("launch -pdf \"" + $doc_path + "\"");
+      menuItem -label "Help"
+               -annotation "View 3delight for Maya help"
+               -command $help_cmd;
+  }
+}
+
+global proc
+delightCreatePanelTypes()
+{
+  DL_createShaderAssignmentPanelType();
+  DEX_createPanelType();
+}
+
+global proc
+delightInstantiateScriptedPanels()
+{
+  delightCreatePanelTypes();
+
+  if (!`scriptedPanel -exists delightShaderAssignmentPanel1`)
+  {
+    scriptedPanel 
+      -unParent 
+      -type "delightShaderAssignmentPanel" 
+      -label "3Delight Assignment" 
+      delightShaderAssignmentPanel1;
+  }
+
+  if (!`scriptedPanel -exists delightExplorerPanel1`)
+  {
+    scriptedPanel 
+      -unParent 
+      -type "delightExplorerPanel" 
+      -label "3Delight Relationship Editor" 
+      delightExplorerPanel1;
+  }  
+}
+
+proc
+delightSetupOutlinerFilters()
+{
+  if (DL_haveMayaUI())
+  {
+    // Just in case this is called twice.
+    if( `objExists oldSetFilter3dfm` )
+      return;
+
+    // Add some type filters to the "Show" menu. Set them as "builtin" so they
+    // are not deleted when the scene is closed.
+    //
+    if (!`itemFilter -q -exists "delightRenderPassFilter"`)
+    {
+      string $filters[];
+      clear($filters);
+      
+      $filters[size($filters)] = `itemFilter 
+        -byType "delightSurfaceShader"
+        -byType "delightDisplacementShader"
+        -byType "delightAtmosphereShader"
+        -byType "delightImagerShader"
+        -byType "delightLightShader"
+        -byType "delightInteriorShader"
+        -text "3Delight Shaders" 
+        -classification "builtIn" 
+        -category "Lighting"
+        delightShadersFilter`;
+
+      $filters[size($filters)] = `itemFilter 
+        -byType "delightGeoAttribs"
+        -byType "delightLightAttribs"
+        -text "3Delight Attribs Nodes" 
+        -classification "builtIn" 
+        -category "Lighting"
+        delightAttribsFilter`;
+        
+      $filters[size($filters)] = `itemFilter 
+        -byType "delightRenderPass" 
+        -text "3Delight Render Passes" 
+        -classification "builtIn" 
+        -category "Lighting"
+        delightRenderPassFilter`;
+
+      filterUIAddDefaultObjectFilters($filters);
+      filterUIClearAllViews();
+    }
+
+    // Modify the set filter so the delightShapeSets are not displayed.
+    //
+    itemFilter -edit -byScript "DL_setFilterScript" "defaultSetFilter";
+  }
+}
+
+global proc int
+DL_setFilterScript(string $name)
+{
+  if (setFilterScript($name) && nodeType($name) != "delightShapeSet")
+    return 1;
+  
+  return 0;
+}
+
+global proc
+DL_startup()
+{
+  delightCreateMenus();
+  delightInstantiateScriptedPanels();
+  scriptJob -e NewSceneOpened delightInstantiateScriptedPanels;
+  scriptJob -e SceneOpened delightInstantiateScriptedPanels;
+  scriptJob -e NewSceneOpened delightUpdateDialogs;
+  scriptJob -e SceneOpened delightUpdateDialogs;
+  scriptJob -e SceneOpened delightUpdateOldNodes;
+  scriptJob -e SelectionChanged AE_selectionChanged;
+  
+  if (`delightAbout -packageDescription` != "3DelightForMaya")
+    DRA_addScriptJob();
+    
+  delightRegisterRenderer();
+  delightUpdateOldNodes();
+  delightSetupOutlinerFilters();
+  DL_attributeHelpersStartup();
+  DAR_startup();
+  DRG_startup();
+  
+  // Setup our project (workspace) paths
+  DL_createFileRules();
+  
+  // run the user's init command, if it exists
+  if (exists("DL_userStartup"))
+  {
+    eval("DL_userStartup");
+  }
+
+  global string $g_no_timing_comments;
+  $g_no_timing_comments = getenv("_3DFM_NO_TIMING_COMMENTS");
+}
+
+proc
+addLastRenderedMenuItem(string $parent, string $command)
+{
+  global string $gDelightLastRenderedPass;
+  int           $enable;
+  string        $menu_label;
+
+  if (!`objExists $gDelightLastRenderedPass`)
+  {
+    $gDelightLastRenderedPass = "";
+  }
+
+  $enable = ($gDelightLastRenderedPass != "");
+
+  if ($enable)
+  {
+    $menu_label = ("Last Rendered: " + $gDelightLastRenderedPass);
+    $command += " " + $gDelightLastRenderedPass;
+  }
+  else
+  {
+    $menu_label = "Last Rendered: <none>";
+  }
+
+  menuItem 
+    -label $menu_label
+    -enable $enable
+    -parent $parent
+    -command $command;
+
+  menuItem -parent $parent -divider true;
+}
+
+global proc 
+delightRenderMenuItemCommand(string $curr_node)
+{
+  undoInfo -stateWithoutFlush false;
+  catch(`delightRender $curr_node`);
+  undoInfo -stateWithoutFlush true;
+}
+
+global proc
+delightBuildRenderPassMenu(
+  string $partial_menu_name, 
+  string $command, 
+  int $add_last_rendered_item)
+{
+  string $menu_name = "delight" + $partial_menu_name + "RenderPassMenu";
+  
+  // Delete all existing items from the menu, since we are going to rebuild it
+  // completely.
+  //
+  menu -edit -deleteAllItems $menu_name;
+
+  // Get a list of all render pass nodes that exist in the scene.
+  //
+  string $render_passes[] = DRP_getAllRenderPasses();
+  
+  if (size($render_passes) > 0)
+  {
+    if ($add_last_rendered_item)
+    {
+      // Add to the menu a menu item that lets the user re-render the most 
+      // recently rendered pass.
+      //
+      addLastRenderedMenuItem($menu_name, $command);
+    }
+    
+    global int $gMaxNumOptionMenuItems;
+
+    if (size($render_passes) < $gMaxNumOptionMenuItems)
+    {
+      // Add to the menu a menu item for each render pass in the scene.
+      //
+      for ($render_pass in $render_passes)
+      {
+        menuItem 
+          -label $render_pass
+          -parent $menu_name
+          -annotation ($partial_menu_name + " " + $render_pass)
+          -command ($command + " " + $render_pass);
+      }
+    }
+    else
+    {
+      // There are too many items in the scene to put in one menu. 
+      // Instead, we offer the user the option of opening a dialog 
+      // from which they can choose one
+      //
+      menuItem
+        -enableCommandRepeat false
+        -label "Too many items. Choose from dialog..."
+        -parent $menu_name
+        -command
+          ("DL_optionMenuChoiceDlg "
+            + DL_stringArrayAsString($render_passes)
+            + " \"" + $partial_menu_name + "\""
+            + " \"" + $command + "\"");
+    }
+  }
+  else
+  {
+    // No render passes exist in the scene. Add only one item to the menu,
+    // which tells the user there are no render passes.
+    //
+    menuItem 
+      -label "<no render passes>"
+      -enable false
+      -annotation "No 3Delight render passes in scene"
+      -parent $menu_name;
+  }
+}
+
+global proc
+delightBuildAddRenderPassMenu(string $menu)
+{
+  // Delete all existing items from the menu, since we are going to rebuild it
+  // completely.
+  //
+  menu -edit -deleteAllItems $menu;
+
+  menuItem -label "Full"
+    -annotation "Add new render pass with all possible attributes"
+    -command "select `DL_createFullRenderPassNode`"
+    -parent $menu;
+  menuItem -label "Basic"
+    -annotation "Add new render pass with basic attributes"
+    -command "select `DL_createBasicRenderPassNode`"
+    -parent $menu;
+
+  menuItem -divider true -parent $menu;
+  
+  delightBuildRenderPassTemplatesMenuItems($menu);
+}
+
+global proc
+delightBuildRenderPassTemplatesMenuItems(string $parent_menu)
+{
+  // Get a list of the available render pass templates.
+  //
+  string $templates_folder = DL_getExpandedAbsoluteOutputPath(
+    "", 
+    "", 
+    "",
+    DL_getTemplatesPath());
+  
+  $templates_folder += "/";
+    
+  string $templates[] = `getFileList 
+    -folder $templates_folder 
+    -filespec "*_rpt.ma"`;
+  
+  string $render_passes[];
+  clear($render_passes);
+  
+  for($cur_template in $templates)
+  {
+    $render_passes[size($render_passes)] = substring(
+      $cur_template,
+      1, 
+      size($cur_template) - size("_rpt.ma"));
+  }
+
+  string $command = "DRP_createFromTemplate ";
+
+  if (size($render_passes) > 0)
+  {
+    global int $gMaxNumOptionMenuItems;
+          
+    if (size($render_passes) < $gMaxNumOptionMenuItems)
+    {
+      // Add to the menu a menu item for each render pass in the scene.
+      //
+      for ($render_pass in $render_passes)
+      {
+        menuItem 
+          -label $render_pass
+          -parent $parent_menu
+          -command ($command + " " + $render_pass);
+      }
+    }
+    else
+    {
+      // There are too many items in the scene to put in one menu. 
+      // Instead, we offer the user the option of opening a dialog 
+      // from which they can choose one
+      //
+      menuItem
+        -enableCommandRepeat false
+        -label "Too many items. Choose from dialog..."
+        -parent $parent_menu
+        -command
+          ("DL_optionMenuChoiceDlg "
+            + DL_stringArrayAsString($render_passes)
+            + " \"Create Render Pass From Template\""
+            + " \"" + $command + "\"");
+    }
+  }
+  else
+  {
+    menuItem 
+      -label "<no templates defined>"
+      -enable false
+      -parent $parent_menu;
+  }    
+}
+
+// Callback mel procedures
+//
+global proc
+delightAfterImportCallback()
+{
+  delightUpdateOldNodes();
+}
+
+global proc
+delightUpdateDialogs()
+{
+  if (`window -exists DANM_Window`)
+  {
+    updateDelightAttribsNodeManager();
+  }
+
+  // Clear this so shader UI is not carried over from scene to scene.
+  global string $g_AEdelightShaderTemplate_current_shader_description;
+  $g_AEdelightShaderTemplate_current_shader_description = "";
+}
+
+/*
+  delightUpdateOldNodes
+
+  Updates all the 3Delight for Maya nodes to ensure they have all the
+  attributes of the latest version.
+*/
+global proc
+delightUpdateOldNodes()
+{
+  string $nodes[];
+
+  $nodes = `ls -type delightShapeSet`;
+  for( $node in $nodes )
+  {
+    DL_initShapeSetNode( $node );
+  }
+
+  $nodes = `ls -type delightGeoAttribs`;
+  for( $node in $nodes )
+  {
+    DGA_init($node);
+    DL_updateObjectAttribsConnections(
+      $node,
+      "delightGeoAttribs" );
+  }
+
+  $nodes = `ls -type delightLightAttribs`;
+  for( $node in $nodes )
+  {
+    DLA_init( $node );
+    DL_updateObjectAttribsConnections(
+      $node,
+      "delightLightAttribs" );
+  }
+
+  $nodes = `ls -type delightRenderPass`;
+  for( $node in $nodes )
+  {
+    DRP_init( $node, 1 );
+  }
+
+  $nodes = `ls -type delightShaderCollection`;
+  for( $node in $nodes )
+  {
+    DL_initShaderCollectionNode( $node );
+  }
+  
+  $nodes = `ls -type delightShader`;
+  for( $node in $nodes)
+  {
+    DSN_init($node);
+  }
+  
+  DSN_hideAttributesOnAllShaderNodes();
+  
+  if (`delightAbout -packageDescription` != "3DelightForMaya")
+  {
+    $nodes = `ls -type delightRibArchive`;
+    for( $node in $nodes )
+    {
+      DRA_init($node);
+    }
+  }
+  
+  $nodes = `ls -type delightCSG`;
+  for($node in $nodes)
+  {
+    DCSG_init($node);
+  }
+  
+  $nodes = `ls -type delightClippingPlane`;
+  for($node in $nodes)
+  {
+    DCP_init($node);
+  }
+
+  $nodes = `ls -type delightRenderGlobals`;
+  for($node in $nodes)
+  {
+    DRG_init($node);
+  }
+
+  $nodes = `ls -type delightCoordinateSystem`;
+  for($node in $nodes)
+  {
+    DCS_init($node);
+  }
+  
+}

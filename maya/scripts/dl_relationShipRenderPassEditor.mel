@@ -1,0 +1,1682 @@
+// ----------------------------------------------------------------------------
+//dl_viewSelectedPassObject
+//display selected render pass object in viewport
+//switch hud display render pass info
+// ----------------------------------------------------------------------------
+global proc dl_viewSelectedPassObject()
+{
+    string $panelViews[] = `getPanel -type modelPanel`;
+    string $selection[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+
+    if(size($selection))
+    {
+        string $objectSet[] = `listConnections ($selection[0] + ".objectsToRender")`;
+        string $lightSet[] = `listConnections ($selection[0] + ".lightsToRender")`;
+        string $elementToIsolate[] = {};
+ 
+        if(size($objectSet))
+        {
+            string $objList[] = `listRelatives $objectSet`;
+            for($obj in $objList)
+            {
+                $elementToIsolate[size($elementToIsolate)] = $obj;
+            }
+        }
+
+        if(size($lightSet))
+        {
+            string $lightList[] = `listRelatives $lightSet`;
+            for($light in $lightList)
+            {
+                $elementToIsolate[size($elementToIsolate)] = $light;
+            }
+        }
+
+        if(size($elementToIsolate))
+        {
+            for($panel in $panelViews)
+            {
+                isolateSelect -state 0 $panel;
+                isolateSelect -state 1 $panel;
+                isolateSelect -update $panel;
+
+                for($elem in $elementToIsolate)
+                {
+                    isolateSelect -ado $elem $panel;
+                }
+            }
+        }
+        else
+        {
+            for($panel in $panelViews)
+            {
+                isolateSelect -state 1 $panel;
+                isolateSelect -state 0 $panel;
+                isolateSelect -update $panel;
+            } 
+        }
+        
+        string $lightSet[] = `listConnections ($selection[0] + ".lightsToRender")`;
+        string $collection[] = `listConnections ($selection[0] + ".shaderCollection")`;
+        string $camera[] = `listConnections ($selection[0] + ".camera")`;
+        string $panelViews[] = `getPanel -type modelPanel`;
+
+        if(size($selection));
+        else
+            $selection[0] = "<none>";
+        if(size($objectSet));
+        else
+            $objectSet[0] = "<All Visible Objects>";
+
+        if(size($lightSet));
+        else
+            $lightSet[0] = "<All Visible lights>";
+
+        if(size($collection));
+        else
+            $collection[0] = "<none>";
+
+        if(size($camera[0]));
+        else
+            $collection[0] = "<none>";
+
+        headUpDisplayRenderPass $selection[0] $objectSet[0] $lightSet[0] $collection[0] $camera[0];
+    }
+    else
+    {
+        for($panel in $panelViews)
+        {
+            isolateSelect -state 0 $panel;
+        }
+        headUpDisplayRenderPass "none" "none" "none" "none" "none";
+    }
+
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_viewSelectedSetObject
+//Isolate view for selected (set) object in viewport
+// ----------------------------------------------------------------------------
+global proc dl_viewSelectedSetObject()
+{
+    string $menu = `getRenderSetViewMenu`;
+    if(`strcmp "Cameras" $menu` && `strcmp "Aovs" $menu` && `strcmp "Collections" $menu`)
+    {
+        string $setSel[] = `iconTextScrollList -q -si dl_setsITSL`;
+        string $panelViews[] = `getPanel -type modelPanel`;
+        if(size($setSel))
+        {
+            string $objList[] = `listRelatives $setSel`;
+        
+            for($panel in $panelViews)
+            {
+                isolateSelect -state 0 $panel;
+                isolateSelect -state 1 $panel;
+                isolateSelect -update $panel;
+                for($elem in $objList)
+                {
+                    isolateSelect -ado $elem $panel;
+                }
+        
+            }
+            print ("View Isolate <<" + $setSel[0] + ">>");
+        }
+        else
+        {
+            for($panel in $panelViews)
+            {
+                isolateSelect -state 1 $panel;
+                isolateSelect -state 0 $panel;
+                isolateSelect -update $panel;
+            }
+        }
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_deleteRenderPassHudDisplay
+//render pass hud display delete
+// ----------------------------------------------------------------------------
+global proc dl_deleteRenderPassHudDisplay()
+{
+    if(`headsUpDisplay -exists HUDRenderPass`)
+    headsUpDisplay -rem HUDRenderPass;
+
+    if(`headsUpDisplay -exists HUDRenderPass1`)
+    headsUpDisplay -rem HUDRenderPass1;
+
+    if(`headsUpDisplay -exists HUDRenderPass2`)
+    headsUpDisplay -rem HUDRenderPass2;
+
+
+    if(`headsUpDisplay -exists HUDRenderPass3`)
+    headsUpDisplay -rem HUDRenderPass3;
+
+    if(`headsUpDisplay -exists HUDRenderPass4`)
+    headsUpDisplay -rem HUDRenderPass4;
+}
+
+
+// ----------------------------------------------------------------------------
+//headUpDisplayRenderPass
+//render pass hud display
+// ----------------------------------------------------------------------------
+global proc headUpDisplayRenderPass(string $renderPass, string $objectSet, string $lightSet, string $collection, string $camera)
+{
+    
+    if(`headsUpDisplay -exists HUDRenderPass`)
+    headsUpDisplay -rem HUDRenderPass;
+    headsUpDisplay -s        1
+                -ao 1
+                -bs "small"
+                -b        1
+                -ba       "left"
+                -dw       10
+                -l        ("Render Pass:   " + "<" + $renderPass +">")
+                HUDRenderPass;
+    if(`headsUpDisplay -exists HUDRenderPass1`)
+    headsUpDisplay -rem HUDRenderPass1;
+    headsUpDisplay -s        1
+                -ao 1
+                -bs "small"
+                -b        2
+                -ba       "left"
+                -dw       10
+                -l        ("Object Set:   " + "<" + $objectSet + ">")
+                HUDRenderPass1;
+
+    if(`headsUpDisplay -exists HUDRenderPass2`)
+    headsUpDisplay -rem HUDRenderPass2;
+    headsUpDisplay -s        1
+                -ao 1
+                -bs "small"
+                -b        3
+                -ba       "left"
+                -dw       10
+                -l        ("Light Set:   " + "<" + $lightSet + ">")
+                HUDRenderPass2;
+
+    if(`headsUpDisplay -exists HUDRenderPass3`)
+    headsUpDisplay -rem HUDRenderPass3;
+    headsUpDisplay -s        1
+                -ao 1
+                -bs "small"
+                -b        4
+                -ba       "left"
+                -dw       10
+                -l        ("Collection:   " + "<" + $collection + ">")
+                HUDRenderPass3;
+                
+    if(`headsUpDisplay -exists HUDRenderPass4`)
+    headsUpDisplay -rem HUDRenderPass4;
+    headsUpDisplay -s        1
+                -ao 1
+                -bs "small"
+                -b        5
+                -ba       "left"
+                -dw       10
+                -l        ("Camera:   " + "<" + $camera + ">")
+                HUDRenderPass4;
+
+    scriptJob -uid dl_renderPassUI dl_deleteRenderPassHudDisplay;
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_renderPassUIMenuRadioVar
+// ----------------------------------------------------------------------------
+global proc dl_uiMenuRadioVarD(string $label, string $name, string $cmd)
+{
+    menuItem -l $label -rb `optionVar -q $name` -c("optionVar -iv " + $name + " `menuItem -q -rb " + $name + "`;" + $cmd) $name;
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_renderPassUIRadioMenuGrpVar
+//save radio position
+// ----------------------------------------------------------------------------
+global proc string dl_renderPassUIRadioMenuGrpVar(string $labels[],
+                                 string $name,
+                                 string $cmd)
+{
+    int $value = `optionVar -q $name`;
+    string $menuItemReturn;
+    for ($i=0; $i < size($labels); $i++)
+    {
+        int $index = ($i + 1);
+        int $isOn = ($index == $value);
+
+        string $menuCreate = `menuItem -l $labels[$i] -rb $isOn -c("optionVar -iv " + $name + " " + $index + ";" + $cmd)`;
+    if($isOn == 1)
+    {
+        $menuItemReturn = `menuItem -q -l $menuCreate`;
+    }
+    }
+    return $menuItemReturn;
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_renderPassUpdateWindow
+//refresh render pass section
+// ----------------------------------------------------------------------------
+global proc dl_renderPassUpdateWindow()
+{
+    if(!`window -q -ex "dl_renderPassUI"`)
+        return;
+ 
+    string $passList = "dl_renderPassITSL";
+    iconTextScrollList -e -ra $passList;
+
+    string $passes[] = `ls -type delightRenderPass`;
+    for($pass in $passes){
+        if($pass != "delightDefaultRenderPass")
+                iconTextScrollList -e -a $pass $passList;
+    }
+}
+
+
+global proc string getRenderSetViewMenu()
+{
+    string $menuItems[] = `menu -q -ia dl_renderSetsViewMenu`;
+    int $pos = `optionVar -q dl_renderPassRM` - 1;
+    if($pos >= 0)
+  		return `menuItem -q -l $menuItems[$pos]`;
+    return "";
+}
+
+
+global proc dl_refreshRenderSetViewMenu()
+{
+    dl_renderPassUpdateWindow;
+    dl_setsUpdateWindow;
+    dl_relationShipSet;
+}
+
+
+
+global proc string[] dl_renderPassAovList()
+{
+
+    string $renderPassSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    if(size($renderPassSel[0]))
+    {
+        string $project_path = `workspace -fn`;
+        string $renderPassSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+        
+        string $prev_parent = `setParent -q`;
+        string $prefix = AE_getWindowBaseNameFromParent($prev_parent) + "_DRP_";
+        
+        int $index[] = `DRP_getDisplayIndices $renderPassSel[0]`;
+        string $allAov[] = {};
+        for($i in $index)
+        {
+            string $aov = `getAttr ($renderPassSel[0] + ".displayFilenames[" + $i + "]")`;
+            string $displayDriver = `getAttr ($renderPassSel[0] + ".displayDrivers[" + $i + "]")`;
+            
+            string $stripPass = `match "<pass>\.[^\.]*" $aov`;
+            if(size($stripPass))
+            {
+                $aov = $stripPass;
+            }
+
+            
+            string $stripPath = `DL_getExpandedString $aov $project_path $renderPassSel[0]`;
+            string $filepart = `match "[^/\\]*$" $stripPath`;
+            string $no_component = `match "^[^\.]*" $filepart`;
+        
+            $allAov[size($allAov)] = ($no_component + " (" + $displayDriver + ") ");
+        }
+        return $allAov;
+    }
+    else
+    {
+        return{""};
+    }
+}
+
+
+
+// ----------------------------------------------------------------------------
+// dl_renderSetsUpdateWindow
+//refresh render set section of renderpassUI
+// ----------------------------------------------------------------------------
+global proc dl_setsUpdateWindow()
+{
+
+    string $getPanelsName[] = `getPanel -type modelPanel`;
+    string $setPanelName[]={"defaultLightSet","defaultObjectSet"};
+    string $renderingSets[] = `listSets -type 1`;
+    string $delightSets[] = `ls -type "delightShapeSet"`;
+    for($panel in $getPanelsName)
+    {
+        string $setPanel = `isolateSelect -q -vo $panel`;
+        $setPanelName[size($setPanelName)] = $setPanel;
+    }
+    for($set in $renderingSets)
+    {
+        $setPanelName[size($setPanelName)] = $set;
+    }
+    
+    for($set in $delightSets)
+    {
+        $setPanelName[size($setPanelName)] = $set;
+    }
+    
+    string $allSets[] = `ls -type "objectSet"`;
+    string $sets[] = stringArrayRemove($setPanelName,$allSets);
+
+    string $category = `getRenderSetViewMenu`;
+    switch ($category)
+    {   
+        case "Objects Sets":
+            if(!`window -q -ex "dl_renderPassUI"`)
+                return;
+                
+            $sets = `selByAttrTag "objectsSetToRender" $sets`;
+            string $setList = "dl_setsITSL";
+            iconTextScrollList -e -ra $setList;
+            
+            for($set in $sets)
+            {
+                    iconTextScrollList -e -ams 0 -a $set $setList;
+            }
+            frameLayout -e -l "Objects Sets" dl_renderSetFL;
+        break;
+
+        case "Lights Sets":
+            if(!`window -q -ex "dl_renderPassUI"`)
+                return;
+                
+            $sets = `selByAttrTag "lightsSetToRender" $sets`;
+            string $setList = "dl_setsITSL";
+            iconTextScrollList -e -ra $setList;
+            
+
+            for($set in $sets)
+            {
+                    iconTextScrollList -e -ams 0 -a $set $setList;
+            }            
+            frameLayout -e -l "Lights Sets" dl_renderSetFL;
+        break;
+        case "Collections":
+            if(!`window -q -ex "dl_renderPassUI"`)
+                return;
+                
+            $sets = `selByAttrTag "shaderCollectionSet" $sets`;
+            string $setList = "dl_setsITSL";
+            iconTextScrollList -e -ra $setList;
+
+            string $sets[] = `ls -type "delightShaderCollection"`;
+            for($set in $sets)
+            {
+                    iconTextScrollList -e -ams 0 -a $set $setList;
+            }
+            frameLayout -e -l "Collections" dl_renderSetFL;
+        break;
+        
+        
+        case "Aovs":
+            if(!`window -q -ex "dl_renderPassUI"`)
+                return;
+
+            string $setList = "dl_setsITSL";
+            iconTextScrollList -e -ra $setList;
+
+            string $sets[] = `dl_renderPassAovList`;
+            for($set in $sets)
+            {
+                    iconTextScrollList -e -ams 1 -a $set $setList;
+            }
+            frameLayout -e -l "Aovs" dl_renderSetFL;
+        break;
+        
+        
+        case "Cameras":
+            if(!`window -q -ex "dl_renderPassUI"`)
+                return;
+
+            string $setList = "dl_setsITSL";
+            iconTextScrollList -e -ra $setList;
+            
+            string $sets[] = `listTransforms -cameras`;
+            for($set in $sets)
+            {
+                    iconTextScrollList -e -ams 0 -a $set $setList;
+            }
+            frameLayout -e -l "Cameras" dl_renderSetFL;
+        break;
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_relationShipSet
+// dl_relationShipSet Show related connection
+// ----------------------------------------------------------------------------
+global proc dl_relationShipSet()
+{
+    //string $menuItems[] = `menu -q -ia dl_renderSetsViewMenu`;
+    //int $pos = `optionVar -q dl_renderPassRM`-1;
+    //string $setType = `menuItem -q -l $menuItems[$pos]`;
+    string $setType =  getRenderSetViewMenu();
+    
+    string $attribute = `dl_relationShipAttribute`;
+
+    string $setSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    
+    if(size($attribute))
+    {
+        if(`strcmp "aovs" $attribute`)
+        {
+            if(size($setSel) > 0)
+            {
+                string $itemSel[] = `listConnections ($setSel[0] + "." + $attribute)`;
+        
+                if(size($itemSel) > 0)
+                {
+                    dl_setsUpdateWindow;
+                    iconTextScrollList -e -si $itemSel[0]  dl_setsITSL;
+                    iconTextScrollList -e -vis 0 dl_setsITSL;
+                    iconTextScrollList -e -vis 1 dl_setsITSL;
+                }
+                else
+                {
+                    iconTextScrollList -e -da dl_setsITSL;
+                }
+            }
+            else
+            {
+                dl_setsUpdateWindow;
+                if(`textField -exists renameRenderPassTF`)
+                {
+                    deleteUI renameRenderPassTF;
+                }
+            }
+        }
+        else
+        {
+            dl_relationShipAov;
+        }
+    }
+    else
+    {
+        dl_setsUpdateWindow;
+    }
+    dl_viewSelectedPassObject;
+
+}
+
+global proc dl_relationShipAov()
+{
+    dl_setsUpdateWindow;
+    string $aovList[] = `dl_renderPassAovList`;
+    string $renderPassSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    if(size($renderPassSel[0]))
+    {
+        int $index[] = `DRP_getDisplayIndices $renderPassSel[0]`;
+        for($ind in $index)
+        {
+            if(`getAttr ($renderPassSel[0] + ".displayRenderables[" + $ind + "]")`)
+            iconTextScrollList -e -si $aovList[$ind]  dl_setsITSL;
+        }
+    }
+    iconTextScrollList -e -vis 0 dl_setsITSL;
+    iconTextScrollList -e -vis 1 dl_setsITSL;
+}
+
+//To add custom object set created outside render pass tool
+global proc dl_addCustomObjectset(string $category)
+{
+    string $selection[] = `ls -sl`;
+    addAttr -ln $category -dt "string" $selection[0];
+    dl_setsUpdateWindow;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_makeSetConnection
+//Attach set to the render pass
+// ----------------------------------------------------------------------------
+global proc string dl_relationShipAttribute()
+{
+/*
+    string $menuItems[] = `menu -q -ia dl_renderSetsViewMenu`;
+    int $pos = `optionVar -q dl_renderPassRM`-1;
+    string $setType = `menuItem -q -l $menuItems[$pos]`;
+    */
+    string $setType = getRenderSetViewMenu();
+    switch ($setType)
+    {
+        case "Objects Sets":
+                $attrib = "objectsToRender";
+        break;
+
+        case "Lights Sets":
+                $attrib = "lightsToRender";
+        break;
+
+        case "Collections":
+                $attrib = "shaderCollection";
+        break;
+
+        case "Aovs":
+            $attrib = "aovs";
+        break;
+ 
+        case "Cameras":
+                $attrib = "camera";
+        break;        
+    }
+    return $attrib;
+}
+
+global proc dl_makeSetConnection()
+{
+    string $renderPassSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    string $setSel[] = `iconTextScrollList -q -si dl_setsITSL`;
+    string $attribute = `dl_relationShipAttribute`;
+    
+    if(`strcmp "aovs" $attribute`)
+    {
+        if(size($renderPassSel[0]))
+        {
+            string $connectionTest[] = `listConnections -sh 1 ($renderPassSel[0] + "." + $attribute)`;
+            print $connectionTest[0];
+    
+            if(size($setSel)>0)
+            {
+                if(size($connectionTest) > 0)
+                {
+    
+                    if(!`strcmp $connectionTest[0] $setSel[0]`)
+                    {
+                        AE_setConnectedNodeFromMenu ($renderPassSel[0] + "." + $attribute) AE_updateAE "";
+                        iconTextScrollList -e -da dl_setsITSL;
+                        print ($renderPassSel[0] + "." + $attribute + " Connect to --> <<All Visible objects>>");
+                    }
+                    else
+                    {
+                        switch ($attribute)
+                        {
+                            case "camera":
+                                string $camShape[] =`listRelatives -s $setSel[0]`;
+                                $setSel[0] = $camShape[0];
+                            break;
+                       }
+                        AE_setConnectedNodeFromMenu ($renderPassSel[0] + "." + $attribute) AE_updateAE $setSel[0];
+                        print ($renderPassSel[0] + "." + $attribute + " Connect to --> <<"+$setSel[0]+">>");
+                    }
+                }
+                else
+                {
+                    switch ($attribute)
+                    {
+                        case "camera":
+                            string $camShape[] =`listRelatives -s $setSel[0]`;
+                            $setSel[0] = $camShape[0];
+                        break;
+                    }
+                    AE_setConnectedNodeFromMenu ($renderPassSel[0] + "." + $attribute) AE_updateAE $setSel[0];
+                    print ($renderPassSel[0] + "." + $attribute + " Connect to --> <<"+$setSel[0]+">>");
+                }
+            }
+            else
+            {
+                dl_refreshRenderSetViewMenu;
+            }
+            
+            dl_viewSelectedPassObject;
+        }
+        else
+        {
+            dl_viewSelectedSetObject;
+        }
+    }
+    else
+    {
+
+        int $allIndex[] = `DRP_getDisplayIndices $renderPassSel[0]`;
+
+        for($i = 0; $i < size($allIndex); $i++)
+        {
+            setAttr ($renderPassSel[0] + ".displayRenderables["+ $i + "]") 0;
+        }
+        
+        int $index[] = `iconTextScrollList -q -sii dl_setsITSL`;
+
+        for($i = 0; $i < size($index); $i++)
+        {
+            setAttr ($renderPassSel[0] + ".displayRenderables["+ (($index[$i])-1) + "]") 1;
+        }
+    
+    
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_addRemoveElementToRenderSet
+//Add Remove selected object
+// ----------------------------------------------------------------------------
+global proc dl_addRemoveElementToRenderSet(int $v)
+{
+/*
+    string $menuItems[] = `menu -q -ia dl_renderSetsViewMenu`;
+    int $pos = `optionVar -q dl_renderPassRM`-1;
+    string $setType = `menuItem -q -l $menuItems[$pos]`;
+    */
+	string $setType =getRenderSetViewMenu();
+
+    switch ($setType)
+    {   
+        case "Objects Sets":
+                $attrib = "objectsToRender";
+        break;
+
+        case "Lights Sets":
+                $attrib = "lightsToRender";
+        break;
+    }
+
+
+    //1 = add
+    //0 = remove
+    //
+
+    string $renderSetSel[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    string $setSel[] = `iconTextScrollList -q -si dl_setsITSL`;
+    if(size($renderSetSel))
+    {
+        //string $objectSet[] = `listConnections ($renderSetSel[0] + ".objectsToRender")`;
+        //string $lightSet[] = `listConnections ($setSel[0] + ".lightsToRender")`;
+
+        string $selection[] = `ls -sl`;
+
+        if($v == 1)
+        {
+            sets -e -add $setSel $selection;
+            dl_viewSelectedPassObject;
+        }
+        if($v == 0)
+        {
+            sets -e -rm $setSel $selection;
+            dl_viewSelectedPassObject;
+        }
+
+    }
+    else
+    {
+
+        if(size($setSel))
+        {
+            string $selection[] = `ls -sl`;
+
+            if($v == 1)
+            {
+                sets -e -add $setSel $selection;
+                dl_viewSelectedPassObject;
+                dl_viewSelectedSetObject; 
+            }
+            if($v == 0)
+            {
+                sets -e -rm $setSel $selection;
+                dl_viewSelectedSetObject;
+            }
+
+        }
+    }
+
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_renderPassOpenInAE
+//Open Attribute editor with selected object
+// ----------------------------------------------------------------------------
+global proc dl_renderPassOpenInAE()
+{
+    string $renderPass[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    string $renderSet[] = `iconTextScrollList -q -si dl_setsITSL`;
+
+    if(size($renderPass[0]))
+    {
+        select -r -ne $renderPass[0];
+    }
+    else
+    {
+        select -r -ne $renderSet[0];
+
+    }
+
+    ShowAttributeEditorOrChannelBox;
+    if(`isAttributeEditorVisible`)
+    {
+        setChannelBoxVisible(1);
+    }
+    else
+    {
+        openAEWindow;
+    }
+}
+
+
+
+// ----------------------------------------------------------------------------
+//dl_popupMenuRenderPassUI
+//Popup menu for dl_renderPassUI
+// ----------------------------------------------------------------------------
+global proc dl_popupMenuRenderPassUI()
+{
+    popupMenu -p dl_renderPassITSL dl_renderPassPM;
+        menuItem -label "Add Secondary Display" -c "dl_editRenderPass secondary";
+        menuItem -label "Delete Render Pass" -c "dl_editRenderPass delete";
+        menuItem -label "Copy Render Pass" -c "dl_editRenderPass copy";
+        menuItem -label "Rename..." -c "dl_renameRenderPassUI";
+        menuItem -divider true;
+        menuItem -divider true;
+        menuItem -l "Add Selected Objects" -c "dl_addRemoveElementToRenderSet 1";
+        menuItem -l "Remove Selected Objects" -c "dl_addRemoveElementToRenderSet 0";
+        menuItem -l "WireFrame Color" -c "dl_renderPassWireFrameColorUI";
+        menuItem -divider true;
+        menuItem -divider true;
+        menuItem -l "Sets Editor" -c "dl_formLayoutSetViewer";
+        menuItem -l "RelationShip Editor" -c "dl_formLayoutRelationShipViewer";
+        menuItem -l "Outliner Editor" -c "dl_formLayoutOutlinerViewer";
+        menuItem -divider true;
+        menuItem -divider true;
+        menuItem -l "Attributes" -c "dl_renderPassOpenInAE";
+
+    popupMenu -p dl_setsITSL dl_renderPassPM;
+        menuItem -l "Add Selected Objects" -c "dl_addRemoveElementToRenderSet 1";
+        menuItem -l "Remove Selected Objects" -c "dl_addRemoveElementToRenderSet 0";
+        menuItem -l "Rename" -c "dl_renameSetPassUI";
+        menuItem -divider true;
+        menuItem -l "Sets Editor" -c "dl_formLayoutSetViewer";
+        menuItem -l "RelationShip Editor" -c "dl_formLayoutRelationShipViewer";
+        menuItem -l "Outliner Editor" -c "dl_formLayoutOutlinerViewer";
+        menuItem -divider true;
+        menuItem -l "WireFrame Color" -c "dl_renderPassWireFrameColorUI";
+        menuItem -divider true;
+        menuItem -l "Attributes" -c "dl_renderPassOpenInAE";
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_formLayoutSetViewer
+//Display preset for render pass UI
+//Switch to set viewer
+// ----------------------------------------------------------------------------
+global proc dl_formLayoutSetViewer()
+{
+    iconTextScrollList -e -da dl_renderPassITSL;
+    string $renderPassMBL = "renderPassListMBL";
+    string $renderSetMBL = "renderPassSetMBL";
+    string $outliner = "renderPassOutlinerMBL";
+
+
+    formLayout -edit
+    -ap $renderPassMBL top 0 0
+    -ap $renderPassMBL bottom 0 0
+    -ap $renderPassMBL left 0 0
+    -ap $renderPassMBL right 0 0
+
+    -ap $renderSetMBL top 0 0
+    -ap $renderSetMBL bottom 0 100
+    -ap $renderSetMBL left 0 0
+    -ap $renderSetMBL right 0 100
+
+    -ap $outliner top 0 0
+    -ap $outliner bottom 0 0
+    -ap $outliner left 0 0
+    -ap $outliner right 0 0
+
+    renderPassFL;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_formLayoutSetViewer
+//Display preset for render pass UI
+//Switch to Relation Ship viewer
+// ----------------------------------------------------------------------------
+global proc dl_formLayoutRelationShipViewer()
+{
+    iconTextScrollList -e -da dl_renderPassITSL;
+    string $renderPassMBL = "renderPassListMBL";
+    string $renderSetMBL = "renderPassSetMBL";
+    string $outliner = "renderPassOutlinerMBL";
+
+
+        formLayout -edit
+        -ap $renderPassMBL top 0 0
+        -ap $renderPassMBL bottom 0 100
+        -ap $renderPassMBL left 0 0
+        -ap $renderPassMBL right 0 50
+
+        -ap $renderSetMBL top 0 0
+        -ap $renderSetMBL bottom 0 100
+        -ap $renderSetMBL left 0 50
+        -ap $renderSetMBL right 0 100
+
+        -ap $outliner top 0 50
+        -ap $outliner bottom 0 100
+        -ap $outliner left 0 0
+        -ap $outliner right 0 100
+
+     renderPassFL;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_formLayoutSetViewer
+//Display preset for render pass UI
+//Switch to Outliner viewer
+// ----------------------------------------------------------------------------
+global proc dl_formLayoutOutlinerViewer()
+{
+    iconTextScrollList -e -da dl_renderPassITSL;
+    string $renderPassMBL = "renderPassListMBL";
+    string $renderSetMBL = "renderPassSetMBL";
+    string $outliner = "renderPassOutlinerMBL";
+
+
+        formLayout -edit
+        -ap $renderPassMBL top 0 0
+        -ap $renderPassMBL bottom 0 50
+        -ap $renderPassMBL left 0 0
+        -ap $renderPassMBL right 0 50
+
+        -ap $renderSetMBL top 0 0
+        -ap $renderSetMBL bottom 0 50
+        -ap $renderSetMBL left 0 50
+        -ap $renderSetMBL right 0 100
+
+        -ap $outliner top 0 50
+        -ap $outliner bottom 0 100
+        -ap $outliner left 0 0
+        -ap $outliner right 0 100
+
+     renderPassFL;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_renameRenderPassUI
+//Renamer for the renderpass section
+// ----------------------------------------------------------------------------
+global proc dl_renameRenderPassUI()
+{
+    string $selection[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    if(`textField -exists renameRenderPassTF`)
+    {
+        deleteUI renameRenderPassTF;
+    }
+
+    textField
+        -p dl_renderPassUI
+        -aie 1
+        -ec "dl_renameRenderPass"
+        renameRenderPassTF;
+
+    formLayout -edit
+        -af renameRenderPassTF top 18
+        -ap renameRenderPassTF left 0 0
+        -ap renameRenderPassTF right 0 50
+    renderPassFL;
+
+}
+
+
+global proc dl_renameRenderPass()
+{
+    string $selection[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    string $text = `textField -q -text renameRenderPassTF`;
+    if(size($text)<1)
+        $text = $selection[0];
+    
+    string $rename = `rename $selection[0] $text`;
+    
+    dl_renderPassUpdateWindow;
+
+    iconTextScrollList -e -si $rename dl_renderPassITSL;
+    iconTextScrollList -e -vis 0 dl_renderPassITSL;
+    iconTextScrollList -e -vis 1 dl_renderPassITSL;
+    if(`textField -exists renameRenderPassTF`)
+    deleteUI renameRenderPassTF;
+    dl_viewSelectedPassObject;
+}
+
+
+
+// ----------------------------------------------------------------------------
+//dl_renameSetPassUI
+//Renamer for the Set section
+// ----------------------------------------------------------------------------
+global proc dl_renameSetPassUI()
+{
+    //string $selection[] = `iconTextScrollList -q -si dl_setsITSL`;
+    if(`textField -exists renameRenderSetTF`)
+    {
+        deleteUI renameRenderSetTF;
+    }
+
+    textField
+        -p dl_renderPassUI
+        -aie 1
+        -ec "dl_renameRenderSet"
+        renameRenderSetTF;
+
+    formLayout -edit
+        -af renameRenderSetTF top 18
+        -ap renameRenderSetTF left 0 50
+        -ap renameRenderSetTF right 0 100
+
+    renderPassFL;
+
+}
+
+
+global proc dl_renameRenderSet()
+{
+    string $selection[] = `iconTextScrollList -q -si dl_setsITSL`;
+    string $text = `textField -q -text renameRenderSetTF`;
+    if(size($text)<1)
+        $text = $selection[0];
+    string $rename = `rename $selection[0] $text`;
+    dl_setsUpdateWindow;
+
+    iconTextScrollList -e -si $rename dl_setsITSL;
+    iconTextScrollList -e -vis 0 dl_setsITSL;
+    iconTextScrollList -e -vis 1 dl_setsITSL;
+    if(`textField -exists renameRenderSetTF`)
+    deleteUI renameRenderSetTF;
+    dl_viewSelectedPassObject;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_renderPassWireFrameColor
+//To change wireFrame color
+// ----------------------------------------------------------------------------
+global proc dl_renderPassWireFrameColor()
+{
+    string $setSel[] = `iconTextScrollList -q -si dl_setsITSL`;
+    if(size($setSel))
+    {
+        string $objectList[] = `listConnections $setSel`;
+        int $colorInt = `palettePort -q -scc wireFrameColorPalette` + 1;
+        if($colorInt<9)
+        {
+            color -ud $colorInt $objectList;
+        }
+        else
+        {
+            color $objectList;
+        }
+    }
+    else
+    {
+        warning "Select an object set";
+    }
+}
+
+
+global proc dl_renderPassWireFrameColorUI()
+{
+    if(`window -exists dl_renderPassWireFrameColorUI`)
+    {
+        deleteUI dl_renderPassWireFrameColorUI;
+    }
+
+    window -t "WireFrame Color" dl_renderPassWireFrameColorUI;
+    frameLayout -labelVisible 0;
+        palettePort -cc "dl_renderPassWireFrameColor" -dim 9 1 wireFrameColorPalette;
+
+    window -e -w 325 -h 10 dl_renderPassWireFrameColorUI;
+    showWindow dl_renderPassWireFrameColorUI;
+
+
+    //Color edit
+    palettePort -e -rgb 0 0.631 0.416 0.188 wireFrameColorPalette;
+    palettePort -e -rgb 1 0.620 0.631 0.188 wireFrameColorPalette;
+    palettePort -e -rgb 2 0.408 0.631 0.188 wireFrameColorPalette;
+    palettePort -e -rgb 3 0.188 0.631 0.365 wireFrameColorPalette;
+    palettePort -e -rgb 4 0.188 0.631 0.631 wireFrameColorPalette;
+    palettePort -e -rgb 5 0.188 0.404 0.631 wireFrameColorPalette;
+    palettePort -e -rgb 6 0.435 0.188 0.631 wireFrameColorPalette;
+    palettePort -e -rgb 7 0.631 0.188 0.416 wireFrameColorPalette;
+    palettePort -e -rgb 8 0 0 0 wireFrameColorPalette;
+
+    //refresh
+    palettePort -e -vis 0 wireFrameColorPalette;
+    palettePort -e -vis 1 wireFrameColorPalette;
+}
+
+
+// ----------------------------------------------------------------------------
+//Create Render Pass
+//
+//Render pass preset
+// ----------------------------------------------------------------------------
+global proc dl_CreateRenderPass(string $renderPassName, string $renderPreset, int $useUI)
+{
+    string $camera;
+    string $cameraSelection[];
+    int $useLights;
+    
+    if($useUI)
+    {
+        //if(`window -exists dl_renderPassCreateUI`)
+        //{
+            $renderPassName = `textField -q -tx renderPassCreateTF`;
+            $renderPreset = `optionMenu -q -v renderPassPresetOM`;
+            $cameraSelection = `textScrollList -q -si renderPassPresetTSL`;
+            $camera = $cameraSelection[0];
+            $useLights = `checkBox -q -v lightCategoryCB`;
+            if(size($cameraSelection))
+            {
+                $camera = $cameraSelection[0];
+            }
+            else
+            {
+                $camera = "persp";
+            }
+        //}
+        /*{
+            error "Option box are closed";
+        }*/
+    }
+    else
+    {
+        string $relationShipMenuName = `getRenderSetViewMenu`;
+        
+        if(!`strcmp "aovs" $relationShipMenuName`)
+            $cameraSelection = `iconTextScrollList -q -si dl_setsITSL`;
+
+        if(size($cameraSelection[0]))
+        {
+            string $cameraShapeSelection[] = `listRelatives -type "camera" $cameraSelection[0]`;
+            if(size($cameraShapeSelection))
+            {
+                if(`nodeType $cameraShapeSelection[0]` == "camera")
+                {
+                    $camera = $cameraSelection[0];
+                }
+            }
+
+        }
+        else
+        {
+            $camera = "persp";
+        }
+    }
+
+    //creation de la pass
+    string $renderPass[] = `dl_RenderPassCreator $renderPassName $camera 0`;
+
+    switch ($renderPreset)
+    {
+
+        case "custom":
+            dl_customRenderPassCreate $renderPass[0] $useLights;
+        break;
+
+        case "bty":
+            dl_btyRenderPassCreate $renderPass[0] $useLights;
+        break;
+
+        case "fog":
+            dl_fogRenderPass $renderPass[0] $useLights;
+        break;
+
+        case "mask":
+            dl_maskRenderPass $renderPass[0] $useLights;
+        break;
+
+        case "stage":
+            dl_stageRenderPass $renderPass[0] $useLights;
+        break;    
+    }
+
+    dl_renderPassUpdateWindow;
+    dl_setsUpdateWindow;
+}
+
+// ----------------------------------------------------------------------------
+//Edit Render Pass
+//
+//Edit render pass
+// ----------------------------------------------------------------------------
+global proc dl_editRenderPass(string $edit)
+{
+    string $renderPassSelection[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+    switch($edit)
+    {
+        case "delete":
+            if(size($renderPassSelection)>0)
+            delete $renderPassSelection[0];
+            else
+            warning "nothing selected";
+        break;
+        
+        case "copy":
+            if(size($renderPassSelection)>0)
+            duplicate -inputConnections $renderPassSelection[0];
+            else
+            warning "nothing selected";
+        break;
+        
+        case "secondary":
+            if(size($renderPassSelection)>0)
+            dl_addAllMultiExrDisplays $renderPassSelection[0] 1;
+            else
+            warning "nothing selected";
+        break;
+    }
+
+    //dl_renderPassUpdateWindow;
+    dl_refreshRenderSetViewMenu;
+
+}
+
+
+global proc dl_createSetByCategoryFromUI()
+{
+    if(`window -exists dl_renderPassSetCreateUI`)
+    {
+        string $conn;
+        string $setName = `textField -q -tx renderPassCreateTF`;
+        int $objectSet = `radioButton -q -sl objectSetRB`;
+        int $lightSet = `radioButton -q -sl lightSetRB`;
+        int $collection = `radioButton -q -sl collectionRB`;
+
+        string $radioSelected = `radioCollection -q -sl renderPassSetRC`;
+
+        if(`radioButton -q -sl objectSetRB`)
+            $conn = "objectsToRender";
+        if(`radioButton -q -sl lightSetRB`)
+            $conn = "lightsToRender";
+        if(`radioButton -q -sl collectionRB`)
+            $conn = "shaderCollection";
+        dl_createSetByCategory $conn $setName "";
+    }
+}
+
+
+global proc dl_relationShipMenuSelect(string $menuLabel)
+{
+    string $menuName[] = `menu -q -ia dl_renderSetsViewMenu`;
+    for ($i=0; $i < size($menuName); $i++)
+    {
+        string $label = `menuItem -q -l $menuName[$i]`;
+        if(!`strcmp $menuLabel $label`)
+        {
+            menuItem -e -rb 1 $menuName[$i];
+            int $index = ($i + 1);
+            optionVar -iv "dl_renderPassRM" $index;
+        }
+    }
+    dl_refreshRenderSetViewMenu;
+}
+
+
+global proc string dl_createSetByCategory(string $conn, string $setName, string $renderPass)
+{
+    if(size($renderPass));
+    else
+    {
+        string $renderPassQuery[] = `iconTextScrollList -q -si dl_renderPassITSL`;
+        $renderPass = $renderPassQuery[0];
+    }
+    string $objSel[] = `ls -sl`;
+    string $objSet = ($renderPass + $setName);
+    if(objExists($objSet))
+        delete($objSet);
+
+    switch($conn)
+    {
+        case "objectsToRender":
+            $setName = "Object";
+            $objSetCreate = `sets $objSel`;
+            addAttr -ln "objectsSetToRender" -dt "string" $objSetCreate;
+            $objSet = `rename  $objSetCreate $objSet`;
+            dl_relationShipMenuSelect "Objects Sets";
+        break;
+
+        case "lightsToRender":
+            $setName = "Light";
+            $objSetCreate = `sets $objSel`;
+            addAttr -ln "lightsSetToRender" -dt "string" $objSetCreate;
+            $objSet = `rename  $objSetCreate $objSet`;
+            dl_relationShipMenuSelect "Lights Sets";
+        break;
+
+        case "shaderCollection":
+            $setName = "Collection";
+            $objSet = rename(DL_createShaderCollectionNode(), $objSet);
+            addAttr -ln "ShaderCollectionSet" -dt "string" $objSet;
+            dl_relationShipMenuSelect "Collections";
+        break;
+    }
+    
+    if(size($renderPass))
+    {
+        AE_setConnectedNodeFromMenu ($renderPass + "." + $conn) AE_updateAE $objSet;
+        dl_setsUpdateWindow;
+        dl_relationShipSet;
+    }
+    else
+    {
+        /*if(`window -exists dl_renderPassSetCreateUI`)
+            $objSet = `textField -q -tx renderPassCreateTF`;
+        else
+            $objSet = "DefaultSet";
+
+        rename  $objSetCreate $objSet;*/
+        dl_setsUpdateWindow;
+        dl_relationShipSet;
+    }
+    return $objSet;
+}
+
+// ----------------------------------------------------------------------------
+//dl_renderPassUI
+//Main UI
+//relationShip editor for render pass
+// ----------------------------------------------------------------------------
+global proc dl_renderPassCreateUI(string $passName)
+{
+    if(`window -exists dl_renderPassCreateUI`)
+    {
+        deleteUI dl_renderPassCreateUI;
+    }
+
+    window -t "Render Pass Create" dl_renderPassCreateUI;
+    columnLayout -adj 1;
+    
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+            
+            -pcc "window -e -rtf 1 dl_renderPassCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassCreateUI" 
+            -l "Custom Pass Name";
+                columnLayout -adj 1;
+                    text -l "Custom Pass Name";
+                    string $fieldName;
+                    if(!`strcmp "none" $passName`)
+                    {
+                        $fieldName = "default";
+                    }
+                    else
+                    {
+                        $fieldName = $passName;
+                    }
+                    textField -tx $fieldName renderPassCreateTF;
+                setParent..;
+            setParent..;
+        setParent..;        
+        
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+            -pcc "window -e -rtf 1 dl_renderPassCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassCreateUI" 
+            -l "Sets Creation";
+                columnLayout -adj 1;
+                    rowColumnLayout -numberOfRows 1;
+                        checkBox -v 0 -w 100 -label "Object set"  -ann "" -align "left" createObjectSetCB;
+                        checkBox -v 0 -w 100 -label "Light set" -ann ""  -align "left" createLightSetCB;
+                        checkBox -v 0 -w 100 -label "Collection" -ann ""  -align "left" CreateCollectionCB;
+                    setParent..;
+                setParent ..;
+            setParent ..;
+        setParent ..;
+
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+            -pcc "window -e -rtf 1 dl_renderPassCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassCreateUI" 
+            -l "Render Pass Preset";
+                columnLayout -adj 1;
+                    rowColumnLayout -rh 1 30 -numberOfRows 1;
+                        text -l "Preset";
+                        optionMenu renderPassPresetOM;
+                            menuItem -label "none";
+                            menuItem -label "custom";
+                            menuItem -label "bty";
+                            menuItem -label "fog";
+                            menuItem -label "mask";
+                            menuItem -label "stage";
+                        checkBox -v 0 -w 150 -label "Light Category Bty" -ann "Use Light Category for beauty aov" -align "left" lightCategoryCB;
+                    setParent..;
+                setParent ..;
+            setParent ..;
+        setParent ..;
+        
+
+        
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+            -pcc "window -e -rtf 1 dl_renderPassCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassCreateUI" 
+            -l "Camera Selection";
+                textScrollList -h 180 renderPassPresetTSL;
+            setParent ..;
+        setParent ..;
+        
+        columnLayout -adj 1;
+            frameLayout -lv 0
+            -pcc "window -e -rtf 1 dl_renderPassCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassCreateUI" 
+            -l "Ready to go";
+                button -l "Create" -c "dl_CreateRenderPass \"\" \"\" 1";
+            setParent ..;
+        setParent ..;
+        
+        
+
+    setParent..;
+    
+    showWindow dl_renderPassCreateUI;
+    window -e -w 300 -h 400 dl_renderPassCreateUI;
+    optionMenu -e -v $passName renderPassPresetOM;
+    string $cameras[] =`listTransforms -cameras`;
+    for($cam in $cameras)
+    {
+        textScrollList -e -a $cam renderPassPresetTSL;
+    }
+    
+}
+
+//renderset create
+global proc dl_renderPassSetCreateUI(string $passName)
+{
+    if(`window -exists dl_renderPassSetCreateUI`)
+    {
+        deleteUI dl_renderPassSetCreateUI;
+    }
+
+    window -t "Set Create" dl_renderPassSetCreateUI;
+    columnLayout -adj 1;
+
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+
+            -pcc "window -e -rtf 1 dl_renderPassSetCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassSetCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -l "Custom Set Name";
+                columnLayout -adj 1;
+                    text -l "Custom Set Name";
+                    string $fieldName;
+                    if(!`strcmp "none" $passName`)
+                    {
+                        $fieldName = "default";
+                    }
+                    else
+                    {
+                        $fieldName = $passName;
+                    }
+                    textField -tx $fieldName renderPassCreateTF;
+                setParent..;
+            setParent..;
+        setParent..;
+
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 0
+            -pcc "window -e -rtf 1 dl_renderPassSetCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassSetCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -l "Sets Creation";
+                columnLayout -adj 1;
+                    rowColumnLayout -numberOfRows 1;
+                        rowColumnLayout -numberOfRows 1;
+                        radioCollection renderPassSetRC;
+                        if(!`strcmp $passName "Object"`)
+                        {
+                            radioButton -label "Object set" -sl objectSetRB;
+                        }
+                        else
+                        {
+                            radioButton -label "Object set" objectSetRB;
+                        }
+
+                        if(!`strcmp $passName "Light"`)
+                        {
+                            radioButton -label "Light set" -sl lightSetRB;
+                        }
+                        else
+                        {
+                            radioButton -label "Light set" lightSetRB;
+                        }
+                        if(!`strcmp $passName "Collection"`)
+                        {
+                            radioButton -label "Collection" -sl collectionRB;
+                        }
+                        else
+                        {
+                            radioButton -label "Collection" collectionRB;
+                        }
+                    setParent..;
+                setParent ..;
+            setParent ..;
+        setParent ..;
+
+        columnLayout -adj 1;
+            frameLayout -cll 1 -cl 1
+            -pcc "window -e -rtf 1 dl_renderPassSetCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassSetCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -l "Help";
+                columnLayout -adj 1;
+
+                        text -al left -l "Create Set with connection:";
+                        text -al left -l " >Select Render pass than create";
+                        text -al left -l "Create set without connection:";
+                        text -al left -l " >Create without Selected render pass";
+
+                setParent ..;
+            setParent ..;
+        setParent ..;
+
+        columnLayout -adj 1;
+            frameLayout -lv 0
+            -pcc "window -e -rtf 1 dl_renderPassSetCreateUI"  
+            -pec "window -e -rtf 1 dl_renderPassSetCreateUI" 
+            -ec "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -cc "window -e -rtf 0 dl_renderPassSetCreateUI" 
+            -l "Ready to go";
+                button -l "Create" -c "dl_createSetByCategoryFromUI";
+            setParent ..;
+        setParent ..;
+    setParent..;
+
+    showWindow dl_renderPassSetCreateUI;
+    window -e -w 241 -h 168 dl_renderPassSetCreateUI;
+}
+
+
+// ----------------------------------------------------------------------------
+//dl_renderPassUI
+//Main UI
+//relationShip editor for render pass
+// ----------------------------------------------------------------------------
+global proc dl_renderPassUI()
+{
+/*
+    if(`panel -exists dl_renderPassEditor`)
+    {
+        deleteUI -panel dl_renderPassEditor;
+    }
+
+    if(`panel -exists dl_renderPassEditor02`)
+    {
+        deleteUI -panel dl_renderPassEditor02;
+    }
+*/
+    if(`window -exists dl_renderPassUI`)
+    {
+        deleteUI dl_renderPassUI;
+    }
+
+    window -t "Render Pass" dl_renderPassUI;
+        string $renderPassFL = `formLayout renderPassFL`;
+
+            string $renderPassMBL = `menuBarLayout renderPassListMBL`;
+            
+                menu -aob 1 -label "Create";
+                    menuItem -label "Default" -c "dl_CreateRenderPass \"default\" \"none\" 0";
+                    menuItem -ob 1 -c "dl_renderPassCreateUI none";
+                    menuItem -label "Custom..." -c "dl_renderPassCreateUI custom";
+                    menuItem -divider true;
+                    menuItem  -label "Bty" -c "dl_CreateRenderPass \"bty\" \"bty\" 0";
+                    menuItem -ob 1 -c "dl_renderPassCreateUI bty";
+                    menuItem -label "Fog" -c "dl_CreateRenderPass \"fog\" \"fog\" 0";
+                    menuItem -ob 1 -c "dl_renderPassCreateUI fog";
+                    menuItem -label "Mask" -c "dl_CreateRenderPass \"mask\" \"mask\" 0";
+                    menuItem -ob 1 -c "dl_renderPassCreateUI mask";
+                    menuItem -label "Stage" -c "dl_CreateRenderPass \"stage\" \"stage\" 0";
+                    menuItem -ob 1 -c "dl_renderPassCreateUI stage";
+
+                
+                menu -label "Edit";
+                    menuItem -label "Add Secondary Display" -c "dl_editRenderPass secondary";
+                    menuItem -divider true;
+                    menuItem -label "Delete Render Pass" -c "dl_editRenderPass delete";
+                    menuItem -label "Copy Render Pass" -c "dl_editRenderPass copy";
+                    menuItem -label "Rename Render Pass" -c "dl_renameRenderPassUI";
+                    menuItem -divider true;
+                    menuItem -label "Attributes" -c dl_renderPassOpenInAE;
+
+                frameLayout -l "Render Pass";
+
+                iconTextScrollList
+                -allowMultiSelection false
+                -selectCommand dl_relationShipSet
+                dl_renderPassITSL;
+                setParent..;
+            setParent..;
+
+            string $renderSetMBL =`menuBarLayout renderPassSetMBL`;
+
+                menu -aob 1 -label "Create";
+                    menuItem -label "Object Set" -c "dl_createSetByCategory objectsToRender Object \"\"";
+                    menuItem -ob 1 -c "dl_renderPassSetCreateUI \"Object\"";
+                    menuItem -label "Light Set" -c "dl_createSetByCategory lightsToRender Light \"\"";
+                    menuItem -ob 1 -c "dl_renderPassSetCreateUI \"Light\"";
+                    menuItem -label "Collection" -c "dl_createSetByCategory shaderCollection Collection \"\"";
+                    menuItem -ob 1 -c "dl_renderPassSetCreateUI \"Collection\"";
+
+                menu -label "Edit";
+                    menuItem -label "Add Selected Objects" -c "dl_addRemoveElementToRenderSet 1";
+                    menuItem -label "Remove Selected Objects" -c "dl_addRemoveElementToRenderSet 0";
+                    menuItem -divider true;
+                    menuItem -subMenu true -label "Add Custom Set to";
+                        menuItem -label "Objects Sets" -c "dl_addCustomObjectset objectsSetToRender";
+                        menuItem -label "Lights Sets" -c "dl_addCustomObjectset lightsSetToRender";
+                    setParent -menu..;
+                menu -label "RelationShip" dl_renderSetsViewMenu;
+                //string $cmd = ("dl_setsUpdateWindow " + "\"Objects Sets\"");iconTextScrollList -q -si dl_setsITSL
+                radioMenuItemCollection;
+                    dl_renderPassUIRadioMenuGrpVar({"Objects Sets","Lights Sets", "Collections", "Aovs","Cameras"},"dl_renderPassRM","dl_refreshRenderSetViewMenu");
+                frameLayout -l "Render Sets" dl_renderSetFL;
+                    iconTextScrollList
+                    -allowMultiSelection false
+                    -selectCommand dl_makeSetConnection
+                    dl_setsITSL;
+                setParent..;
+            setParent..;
+
+
+           string $outliner =`menuBarLayout renderPassOutlinerMBL`;
+
+                menu -label "Filter";
+                    menuItem -label "All";
+                    menuItem -label "Light";
+                    menuItem -label "set";
+                    menuItem -label "In Selected Set";
+
+
+                frameLayout -l "OutLiner" dl_outLinerFL;
+                string $outlinerPanel = `outlinerEditor renderPassOL`;
+                outlinerEditor -edit
+                    -mainListConnection "worldList"
+                    -selectionConnection "modelList"
+                    -showShapes false
+                    -showAttributes false
+                    -showConnected false
+                    -showAnimCurvesOnly false
+                    -autoExpand false
+                    -showDagOnly true
+                    -ignoreDagHierarchy false
+                    -expandConnections false
+                    -showNamespace true
+                    -showCompounds true
+                    -showNumericAttrsOnly false
+                    -highlightActive false
+                    -autoSelectNewObjects false
+                    -doNotSelectNewObjects false
+                    -transmitFilters false
+                    -showSetMembers true
+                    -setFilter defaultSetFilter
+                    $outlinerPanel;
+
+                setParent..;
+            setParent..;
+
+        setParent..;
+
+        formLayout -edit
+        -ap $renderPassMBL top 0 0
+        -ap $renderPassMBL bottom 0 100
+        -ap $renderPassMBL left 0 0
+        -ap $renderPassMBL right 0 50
+
+
+        -ap $renderSetMBL top 0 0
+        -ap $renderSetMBL bottom 0 100
+        -ap $renderSetMBL left 0 50
+        -ap $renderSetMBL right 0 100
+
+
+        -ap $outliner top 0 50
+        -ap $outliner bottom 0 100
+        -ap $outliner left 0 0
+        -ap $outliner right 0 100
+
+        $renderPassFL;
+
+    showWindow dl_renderPassUI;
+    window -e -w 380 -h 450 dl_renderPassUI;
+    
+    dl_renderPassUpdateWindow;
+    dl_setsUpdateWindow;
+    dl_popupMenuRenderPassUI;
+}
+
+
+
+//NOTE
+//Besoin des shader compile compatible avec les light categories
+//System pour override avec attrib a marc-antoine (marche po override)
+//terminer dl_utilPass add light category bty
+//Shader fog et shadow pas compatible avec les light categories
+//Utiliser le render pass create link sur shotgun
+//export import light rig a tester
+//garder la selection quand on change de categorie ex obj set a light set aov 
+//double clic sur la render pass pour selectionner la pass

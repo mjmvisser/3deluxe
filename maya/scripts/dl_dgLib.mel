@@ -1,0 +1,2617 @@
+global string $g_dl_dgExcludeLinkList[];
+
+
+// ================================================================================
+//- GENERAL METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDeleteNonDeletable
+// --------------------------------------------------------------------------------
+global proc dl_dgDeleteNonDeletable(string $node)
+{
+    string $sel[] = dl_dgMergeSelectLists(`ls -sl`, {$node}, "remove");
+    select -r $node;
+    string $namespace = "dl_dgDelete";
+    string $filename = `workspace -q -fn` + "/." + $namespace + ".mb";
+    file -type "mayaBinary" -f -ns $namespace -er $filename;
+    file -rr -rfn($namespace + "RN");
+    sysFile -del $filename;
+    select -r $sel;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgIsType
+//
+// Checks if node is of specified type or inherits from it.
+// --------------------------------------------------------------------------------
+global proc int dl_dgIsType(string $node, string $type)
+{
+    return (size(`ls -type $type $node`) != 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgIsDefault
+//
+// Checks if node is a non-deletable default node.
+// --------------------------------------------------------------------------------
+global proc int dl_dgIsDefault(string $node)
+{
+    if (`dl_getAttr -nid $node`)
+        return 1;
+
+    return dl_strInArray(dl_dgListDefaultNodes(1), $node);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInList
+// --------------------------------------------------------------------------------
+global proc int dl_dgInList(string $node, string $list[])
+{
+    return size(dl_dgMergeSelectLists($list, {$node}, "remove")) != size($list);
+}
+
+//-
+// ================================================================================
+//- QUERY ATTRIBUTES METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetNewAttrs
+//
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetNewAttrs(string $node, int $skipChildren)
+{
+    string $newAttrs[];
+    string $userDefined[] = `listAttr -sn -ud $node`;
+    for ($i = 0, $c = 0, $s = size($userDefined); $i < $s; $i++)
+    {
+
+        string $plug = ($node + "." + $userDefined[$i]);
+
+        if (!`dl_getAttr -ina $plug`)
+            continue;
+
+        if ($skipChildren && size(`attributeQuery -n $node -lp $userDefined[$i]`))
+            continue;
+
+        $newAttrs[$c++] = $userDefined[$i];
+    }
+
+
+    return $newAttrs;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgPlugIsMessage
+//
+// Return true if plug is a message attribute
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugIsMessage(string $plug)
+{
+    return (size(`listAttr -sn -hd $plug`) == 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgPlugIsWritable
+//
+// Return true if plug is a writable attribute
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugIsWritable(string $plug)
+{
+    return (size(`listAttr -sn -w $plug`) != 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgPlugIsOutput
+//
+// Return true if plug is an output attribute
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugIsOutput(string $plug)
+{
+    return (size(`listAttr -sn -o $plug`) != 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgPlugIsReadOnly
+//
+// Return true if plug is a read only attribute
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugIsReadOnly(string $plug)
+{
+    return (size(`listAttr -sn -ro $plug`) != 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgPlugIsCompound
+// Returns true if node.attribute plug is a compound
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugIsCompound(string $plug)
+{
+
+    // Trap message attribute first, will cause error with getAttr -type
+    if (dl_dgPlugIsMessage($plug))
+        return 0;
+
+    // Get attr type
+    string $attrType = `getAttr -type $plug`;
+
+    // List of compound attributes
+    string $compoundAttrTypes[] = { "compound",
+                                    "TdataCompound",
+                                    "short2",
+                                    "short3",
+                                    "long2",
+                                    "long3",
+                                    "float2",
+                                    "float3",
+                                    "double2",
+                                    "double3",
+                                    "reflectanceRGB",
+                                    "reflectance",
+                                    "spectrumRGB",
+                                    "spectrum"
+    };
+
+    // If attribute type is in array, its a compound
+    int $isCompound = dl_strInArray($compoundAttrTypes, $attrType);
+
+    return $isCompound;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetNamespacedAttr
+// Get attributes
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetNamespacedAttr(string $node, string $attr)
+{
+    string $nodes[] = dl_dgListNamespacedNode($node);
+
+    if (size($nodes) != 1)
+        return "";
+
+    string $plug = ($nodes[0] + "." + $attr);
+    if (!objExists($plug))
+        return "";
+
+    string $value = getAttr($plug);
+
+    return $value;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetStringAttr
+// Get attributes
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetStringAttr(string $node, string $attr, int $warning)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+    {
+        if ($warning)
+            warning($nodeAttr + " does not exists.");
+        return "";
+    }
+    return string(getAttr($nodeAttr));
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetEnumAttr
+// Get attributes
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetEnumAttr(string $node, string $attr)
+{
+
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        return "";
+
+    int $enumIndex = getAttr($nodeAttr);
+    string $enumStr = `addAttr -q -en $nodeAttr`;
+    string $enumList[] = dl_strTokenize($enumStr, ":");
+
+    int $index = 0;
+    for ($item in $enumList)
+    {
+
+        string $value = $item;
+        string $buf[] = dl_strTokenize($value, "=");
+
+        if (dl_strIsUnsigned($buf[1]))
+        {
+            $index = int($buf[1]);
+            $value = $buf[0];
+        }
+
+        if ($enumIndex == $index++)
+            return $value;
+    }
+
+    return "";
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetAttrAsString
+// Return the value of specified "node.attribute" as a string whatever the type.
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetAttrAsString(string $plug, int $encode)
+{
+
+    // Build a string value to be able to get all types of attributes
+    string $value = "";
+
+    string $node = dl_strGetNode($plug);
+    string $attr = dl_strGetAttr($plug);
+    if (dl_dgIsEnumMapAttr($node, $attr))
+    {
+        $value = dl_dgGetEnumMapAttr($node, $attr);
+    }
+
+    // Test message attribute to avoid error
+    else if (dl_dgPlugIsMessage($plug))
+    {
+        $value = dl_dgInNode($plug);
+    }
+    else
+    {
+
+        // Get attribute type
+        string $type = `getAttr -typ $plug`;
+
+        // short2, short3, long 2, long3, float2, float3, double2, double3, matrix
+        if (match("[0-9]+$", $type) != "" || $type == "matrix")
+            for ($item in getAttr($plug))
+                $value += ($item + " ");
+
+        // Int Array
+        else if ($type == "Int32Array")
+        {
+            int $array[] = `dl_getAttr -aa $plug`;
+            $value = (size($array) + " ");
+            for ($item in $array)
+                $value += ($item + " ");
+        }
+
+        // Double, Vector, Point Arrays
+        else if ($type == "doubleArray" ||
+                 $type == "vectorArray" ||
+                 $type == "pointArray")
+        {
+
+            // Number of components
+            int $by = 1;
+            if ($type == "vectorArray")
+                $by = 3;
+            else if ($type == "pointArray")
+                $by = 4;
+
+            // Get the float array
+            float $array[] = `dl_getAttr -aa $plug`;
+
+            // Begin with size
+            $value = ((size($array) / $by) + " ");
+
+            for ($item in $array)
+                $value += ($item + " ");
+        }
+
+        // String Array
+        else if ($type == "stringArray")
+        {
+            string $array[] = `dl_getAttr -aa $plug`;
+            $value = (size($array) + " ");
+            if ($encode)
+                for ($item in $array)
+                    $value += ("\"" + encodeString($item) + "\"" + " ");
+            else
+                for ($item in $array)
+                    $value += ($item + " ");
+        }
+
+        // String
+        else if ($type == "" || $type == "string")
+        {
+            $value = getAttr($plug);
+            if ($encode)
+                $value = ("\"" + encodeString($value) + "\"");
+        }
+
+        // Simple attribute
+        else if ($type != "TdataCompound")
+            $value = getAttr($plug);
+    }
+
+    return $value;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetAttrChanAsString
+// Return the specified channel of specified "node.attribute" as a string whatever the type.
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetAttrChanAsString(string $plug,
+                                            int $chan,
+                                            int $encode)
+{
+
+    // Build a string value to be able to get all types of attributes
+    string $value = "";
+
+    string $node = dl_strGetNode($plug);
+    string $attr = dl_strGetAttr($plug);
+    if (dl_dgIsEnumMapAttr($node, $attr))
+    {
+        $value = dl_dgGetEnumMapAttr($node, $attr);
+    }
+
+    // Test message attribute to avoid error
+    else if (dl_dgPlugIsMessage($plug))
+    {
+        $value = dl_dgInNode($plug);
+    }
+    else
+    {
+        // Get attribute type
+        string $type = `getAttr -typ $plug`;
+
+        // short2, short3, long 2, long3, float2, float3, double2, double3, matrix
+        if (match("[0-9]+$", $type) != "" || $type == "matrix")
+        {
+            $items = getAttr($plug);
+            $value = $items[$chan];
+        }
+        // Int Array
+        else if ($type == "Int32Array")
+        {
+            int $array[] = `dl_getAttr -aa $plug`;
+            $value = $array[$chan];
+        }
+
+        // Double, Vector, Point Arrays
+        else if ($type == "doubleArray" ||
+                 $type == "vectorArray" ||
+                 $type == "pointArray")
+        {
+
+            // Get the float array
+            float $array[] = `dl_getAttr -aa $plug`;
+            $value = $array[$chan];
+        }
+
+        // String Array
+        else if ($type == "stringArray")
+        {
+            string $array[] = `dl_getAttr -aa $plug`;
+            if ($encode)
+                $value = ("\"" + encodeString($array[$chan]) + "\"");
+            else
+                $value = $array[$chan];
+        }
+
+        // String
+        else if ($type == "" || $type == "string")
+        {
+            $value = getAttr($plug);
+            if ($encode)
+                $value = ("\"" + encodeString($value) + "\"");
+        }
+
+        // Simple attribute
+        else if ($type != "TdataCompound")
+            $value = getAttr($plug);
+    }
+
+    return $value;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetAttr(string $node, string $attr)
+{
+    string $plug = $node + "." + $attr;
+    if (!objExists($plug))
+        return "";
+    return dl_dgGetAttrAsString($plug, 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetAttrAsString
+// --------------------------------------------------------------------------------
+global proc dl_dgSetAttrAsString(string $plug, string $value)
+{
+
+
+    string $node = dl_strGetNode($plug);
+    string $attr = dl_strGetAttr($plug);
+    if (dl_dgIsEnumMapAttr($node, $attr))
+    {
+        dl_dgSetEnumMapAttr($node, $attr, $value);
+    }
+    else if (!dl_dgPlugIsMessage($plug)) // Test message attribute to avoid error
+    {
+
+        // Build setAttr command according to attr type
+        string $cmd = ("setAttr " + $plug);
+
+        // Add type flag when needed
+        string $type = `getAttr -type $plug`;
+
+        // If none use string
+        if ($type == "")
+            $type = "string";
+
+        // If type is needed
+        if ($type == "string")
+            $cmd += " -type \"string\" ";
+        else if (gmatch($type, "*Array"))
+            $cmd += " -type \"" + $type + "\" ";
+
+        // Add value
+        $cmd += (" " + $value)  ;
+
+        // Call
+        eval($cmd);
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAreNodesSimilar
+// Compares values of all attrs. Returns true if all matches.
+// Both input node MUST be of the same type.
+// --------------------------------------------------------------------------------
+global proc int dl_dgAreNodesSimilar(string $node1, string $node2,
+                                     string $skipAttrs[])
+{
+    for ($attr in `listAttr -w $node1`)
+        if (!dl_strInArray($skipAttrs, $attr))
+            if (!catch (getAttr(($node1 + "." + $attr))))
+                if (dl_dgGetAttrAsString(($node1 + "." + $attr), 0) !=
+                    dl_dgGetAttrAsString(($node2 + "." + $attr), 0))
+                    return false;
+    return true;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetPathPlugs
+// Lists plugs with string value representing a file path.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetPathPlugs(string  $nodes[],
+                                       string  $basePath,
+                                       int     $skipReferenced,
+                                       int     $skipConnected,
+                                       int     $skipDirectories)
+{
+    string $pathPlugs[];
+    int $count;
+
+    for ($node in $nodes)
+    {
+
+        // Check node existense
+        if (!objExists($node))
+            continue;
+
+        // Check if node is referenced
+        if ($skipReferenced && `reference -q -inr $node`)
+            continue;
+
+        // List string attributes
+        string $strAttrs[] = `dl_getAttr -ls $node`;
+
+        for ($strAttr in $strAttrs)
+        {
+
+            // Check plug existense
+            string $plug = ($node + "." + $strAttr);
+            if (!objExists($plug))
+                continue;
+
+            // NOT YET SUPPORTED
+            string $attrType = "";
+            if (catch ($attrType = `getAttr -type $plug`) ||
+                    $attrType == "stringArray")
+                continue;
+
+            // Check if plug is connected
+            if ($skipConnected && dl_dgInPlug($plug) != "")
+                continue;
+
+            // Get plug value
+            string $value = getAttr($plug);
+
+            //
+            if (!gmatch($value, "*/*"))
+                continue;
+
+            // Check if value is an absolute or relative path
+            if ($skipDirectories)
+            {
+                if (!`filetest -f $value`) // Absolute path
+                {
+                    $value = ($basePath + "/" + $value);
+                    if ($basePath != "" && // Relative path
+                        !`filetest -f($basePath + "/" + $value)`)
+                        continue;
+                }
+            }
+            else
+            {
+                if (!`filetest -r $value`) // Absolute path
+                {
+                    $value = ($basePath + "/" + $value);
+                    if ($basePath != "" && // Relative path
+                        !`filetest -r($basePath + "/" + $value)`)
+                        continue;
+                }
+            }
+
+            // Plug contains a path
+            $pathPlugs[$count++] = $plug;
+            $pathPlugs[$count++] = $value;
+        }
+    }
+
+    return $pathPlugs;
+}
+
+
+//-
+// ================================================================================
+//- EDIT ATTRIBUTES METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgUnlockTransformAttrs
+// --------------------------------------------------------------------------------
+global proc dl_dgUnlockTransformAttrs(string $node)
+{
+
+    if (dl_dgIsType($node, "transform"))
+        for ($attr in {  "t", "tx", "ty", "tz",
+                     "r", "rx", "ry", "rz",
+                     "s", "sx", "sy", "sz",
+                     "sh", "shxy", "shxz", "shyz"
+                     })
+            catch (`setAttr -l 0($node + "." + $attr)`);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgUnlockAttr
+// Sets attributes
+// --------------------------------------------------------------------------------
+global proc int dl_dgUnlockAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    int $lockState = `getAttr -l $nodeAttr`;
+    if (!`reference -q -inr $node` && !dl_dgIsLocked($node))
+        setAttr -l 0 $nodeAttr;
+    return $lockState;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDeleteAttr
+// --------------------------------------------------------------------------------
+global proc dl_dgDeleteAttr(string $node, string $attr)
+{
+    string $plug = $node + "." + $attr;
+    if (objExists($plug))
+        catch (deleteAttr($plug));
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddNumericAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddNumericAttr(string $node, string $attr, string $type,
+                                       float $softMin, float $softMax)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -k 1 -at $type -ln $attr
+            -softMinValue $softMin -softMaxValue $softMax $node;
+
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddEnumAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddEnumAttr(string $node, string $attr,
+                                    string $items[], string $default)
+{
+    // Build a string reperesenting enum
+    string $enumStr = dl_strConcatenateArray($items, ":", 1, size($items));
+
+    // Add or edit attribute
+    string $nodeAttr = ($node + "." + $attr);
+    if (objExists($nodeAttr)) // Attribute already exists, set new items
+        addAttr -e -en $enumStr $nodeAttr;
+    else // Attribute does'nt exists, add it
+        addAttr -ln $attr -at "enum" -en $enumStr -k 1 $node;
+
+    // Set default value
+    if ($default != "")
+    {
+
+        // Attempt to find default item in items list
+        int $defaultIndex = dl_strFirstMatchIndex($items, $default);
+
+        // Default item not found in item list
+        if ($defaultIndex == -1)
+            $defaultIndex = 0;
+
+        // Set attribute to index
+        setAttr($nodeAttr, $defaultIndex);
+    }
+
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddMatrixAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddMatrixAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -ln $attr -at "matrix" $node;
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddVectorAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddVectorAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+    {
+        addAttr -ln $attr -at float3 -k 1 $node;
+        addAttr -ln($attr + "X") -at "float" -p $attr -k 1 $node;
+        addAttr -ln($attr + "Y") -at "float" -p $attr -k 1 $node;
+        addAttr -ln($attr + "Z") -at "float" -p $attr -k 1 $node;
+    }
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddColorAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddColorAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+    {
+        addAttr -ln $attr -at float3 -uac -k 1 $node;
+        addAttr -ln($attr + "R") -at "float" -p $attr -k 1 $node;
+        addAttr -ln($attr + "G") -at "float" -p $attr -k 1 $node;
+        addAttr -ln($attr + "B") -at "float" -p $attr -k 1 $node;
+    }
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddStringAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddStringAttr(string $node, string $attr, string $value)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -dt "string" -ln $attr $node;
+    dl_dgSetStringAttr($node, $attr, $value, 0);
+
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddIntArrayAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddIntArrayAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -dt "Int32Array" -ln $attr $node;
+    setAttr -type "Int32Array" $nodeAttr 0;
+
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddDoubleArrayAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddDoubleArrayAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -dt "doubleArray" -ln $attr $node;
+    setAttr -type "doubleArray" $nodeAttr 0;
+
+    return $nodeAttr;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddVectorArrayAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddVectorArrayAttr(string $node, string $attr)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        addAttr -dt "vectorArray" -ln $attr $node;
+    setAttr -type "vectorArray" $nodeAttr 0;
+
+    return $nodeAttr;
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_dgAddMultiStringIndex
+// ----------------------------------------------------------------------------
+global proc string dl_dgAddMultiStringIndex(string $node,
+                                            string $attr)
+{
+    string $indexPlug;
+    string $plug = $node + "." + $attr;
+    if (objExists($plug) && `getAttr -type $plug` == "TdataCompound")
+    {
+        int $index = 0;
+        string $multi[] = `listAttr -m $plug`;
+        int $nbMulti = size($multi);
+        if ($nbMulti)
+        {
+            string $indexStr = match("[0-9]+", $multi[size($multi)-1]);
+            if (dl_strIsUnsigned($indexStr))
+                $index = int($indexStr) + 1;
+        }
+        $indexPlug = $plug + "[" + $index + "]";
+        setAttr -type "string" $indexPlug "";
+    }
+
+    return $indexPlug;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetNumericAttr
+// Sets attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgSetNumericAttr(string $node, string $attr, float $value,
+                                int $warning)
+{
+
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        return;
+
+    if (size(`listConnections -d 0 $nodeAttr`))
+    {
+        if ($warning)
+            warning($nodeAttr + " cannot be set since it is already connected.");
+        return;
+    }
+
+    int $lockState = dl_dgUnlockAttr($node, $attr);
+    if (!`reference -q -inr $node` && !dl_dgIsLocked($node))
+        setAttr $nodeAttr -l $lockState $value;
+    else if (!$lockState)
+        setAttr $nodeAttr $value;
+    else if ($warning)
+        warning($nodeAttr + " cannot be set since it is locked in a reference file.");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetStringAttr
+// Sets attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgSetStringAttr(string $node, string $attr, string $value,
+                               int $warning)
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        return;
+
+    if (size(`listConnections -d 0 $nodeAttr`))
+    {
+        if ($warning)
+            warning($nodeAttr + " cannot be set since it is already connected.");
+        return;
+    }
+
+    int $lockState = dl_dgUnlockAttr($node, $attr);
+
+    if (!`reference -q -inr $node` && !dl_dgIsLocked($node))
+        setAttr -type "string" $nodeAttr -l $lockState $value;
+    else if (!$lockState)
+        setAttr -type "string" $nodeAttr $value;
+    else if ($warning)
+        warning($nodeAttr + " cannot be set since it is locked in a reference file.");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInitFloatArrayAttr
+// --------------------------------------------------------------------------------
+global proc dl_dgInitFloatArrayAttr(string  $node,
+                                    string  $attr,
+                                    float $default,
+                                    int  $size)
+{
+
+    string $nodeAttr = ($node + "." + $attr);
+    if (objExists($nodeAttr))
+    {
+        string $valueStr = string($size);
+        for ($i = 0; $i < $size; $i++)
+            $valueStr += " " + string($default);
+        eval("setAttr " + $nodeAttr + " -type \"doubleArray\" " + $valueStr);
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetDoubleArrayAttr
+// Sets double array attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgSetDoubleArrayAttr(string $node, string $attr, float $values[])
+{
+    string $nodeAttr = ($node + "." + $attr);
+    if (objExists($nodeAttr))
+    {
+        int $size = size($values);
+        string $valueStr = string($size);
+        for ($value in $values)
+            $valueStr += " " + $value;
+        eval("setAttr -type doubleArray " + $nodeAttr + " " + $valueStr);
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetVectorArrayAttr
+// Sets vector array attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgSetVectorArrayAttr(string $node, string $attr, vector $values[],
+                                    int $warning)
+{
+
+    string $nodeAttr = ($node + "." + $attr);
+    if (!objExists($nodeAttr))
+        return;
+
+    if (size(`listConnections -d 0 $nodeAttr`))
+    {
+        if ($warning)
+            warning($nodeAttr + " cannot be set since it is already connected.");
+        return;
+    }
+
+    int $lockState = dl_dgUnlockAttr($node, $attr);
+
+    // Build a string with all the vector values
+
+    int $numVectors = size($values);
+    vector $v;
+    string $vectors = string($numVectors);
+    for ($i=0 ; $i<$numVectors ; $i++)
+    {
+        $v = $values[$i];
+        $vectors = $vectors +  " " + $v.x + " " + $v.y + " " + $v.z;
+    }
+
+    // Set the attribute
+
+    if (!`reference -q -inr $node` && !dl_dgIsLocked($node))
+        eval("setAttr -type vectorArray " + $nodeAttr + " -l " +
+             $lockState + " " + $vectors);
+    else if (!$lockState)
+        eval("setAttr -type vectorArray " + $nodeAttr + " " + $vectors);
+    else if ($warning)
+        warning($nodeAttr + " cannot be set since it is locked in a reference file.");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetKeyableAttr
+// Set all keyable attributes.
+// --------------------------------------------------------------------------------
+global proc dl_dgSetKeyableAttr(string $node, string $except[], int $key, int $lock)
+{
+    string $attrList[] = `listAttr -k $node`;
+    for ($attr in $attrList)
+        if (objExists(($node + "." + $attr)))
+            if (!dl_strInArray($except, $attr))
+                setAttr -k $key -l $lock($node + "." + $attr);
+}
+
+// --------------------------------------------------------------------------------
+// dl_dgDeleteUserAttrs
+// Delete all user defined attributes
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgDeleteUserAttrs(string $node, string $except[])
+{
+    string $attrList[] = `listAttr -ud $node`;
+    for ($attr in $attrList)
+    {
+        string $nodeAttr = ($node + "." + $attr);
+        if (objExists($nodeAttr))
+            if (!dl_strInArray($except, $attr))
+                if (!catch (`setAttr -l 0 $nodeAttr`))
+                    catch (deleteAttr($nodeAttr));
+    }
+
+    return $attrList;
+}
+
+
+//-
+// ================================================================================
+//- ENUM MAP ATTRIBUTES METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetEnumMapBaseName
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetEnumMapBaseName(string $attr)
+{
+    return $attr + "_enum_map_";
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetEnumMapIndexName
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetEnumMapIndexName(string $attr,
+                                            int $index)
+{
+    return dl_dgGetEnumMapBaseName($attr) + $index;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetEnumMapIndexNames
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetEnumMapIndexNames(string $node,
+                                               string $attr)
+{
+    string $enumMapRegEx = dl_dgGetEnumMapBaseName($attr) + "*";
+    return `listAttr -w -st $enumMapRegEx $node`;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgIsEnumMapAttr
+// --------------------------------------------------------------------------------
+global proc int dl_dgIsEnumMapAttr(string $node,
+                                   string $attr)
+{
+    return (objExists($node + "." + $attr) &&
+            size(dl_dgGetEnumMapIndexNames($node, $attr)) != 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgAddEnumMapAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgAddEnumMapAttr(string $node,
+                                       string $attr,
+                                       string $labels[],
+                                       string $values[],
+                                       string $types[],
+                                       string $default,
+                                       int $hidden)
+{
+    string $plug = $node + "." + $attr;
+
+    if (!objExists($plug))
+    {
+
+        dl_dgAddEnumAttr($node, $attr, $labels, $default);
+
+        for ($i = 0, $nbL = size($labels), $nbV = size($values), $nbT = size($types);
+             $i < $nbL && $i < $nbV && $i < $nbT; $i++)
+        {
+
+            //
+            string $enumMapAttr = dl_dgGetEnumMapIndexName($attr, $i);
+            string $enumMapPlug = $node + "." + $enumMapAttr;
+
+            if ($types[$i] == "int")
+                $types[$i] = "long";
+
+            switch ($types[$i])
+            {
+
+            case "bool":
+            case "long":
+            case "short":
+            case "byte":
+            case "char":
+            case "float":
+            case "double":
+            case "doubleAngle":
+            case "doubleLinear":
+            case "time":
+            case "fltMatrix":
+                catch (`addAttr -h $hidden -ln $enumMapAttr -at $types[$i] $node`);
+                break;
+
+            case "string":
+            case "stringArray":
+            case "matrix":
+            case "float2":
+            case "float3":
+            case "double2":
+            case "double3":
+            case "long2":
+            case "long3":
+            case "short2":
+            case "short3":
+            case "doubleArray":
+            case "Int32Array":
+            case "vectorArray":
+            case "nurbsCurve":
+            case "nurbsSurface":
+            case "mesh":
+            case "lattice":
+            case "pointArray":
+                catch (`addAttr -h $hidden -ln $enumMapAttr -dt $types[$i] $node`);
+                break;
+            }
+
+            string $value = $values[$i];
+            if ($types[$i] == "string")
+                $value = "\"" + $value + "\"";
+
+            catch (dl_dgSetAttrAsString($enumMapPlug, $value));
+        }
+
+        // Set default value
+        int $defaultIndex = dl_strFirstMatchIndex($values, $default);
+        if ($defaultIndex != -1)
+            setAttr($plug, $defaultIndex);
+    }
+
+    return $plug;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDeleteEnumMapAttr
+// --------------------------------------------------------------------------------
+global proc dl_dgDeleteEnumMapAttr(string $node,
+                                   string $attr)
+{
+    deleteAttr($node + "." + $attr);
+    for ($enumMapName in dl_dgGetEnumMapIndexNames($node, $attr))
+        deleteAttr($node + "." + $enumMapName);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgSetEnumMapAttr
+// --------------------------------------------------------------------------------
+global proc dl_dgSetEnumMapAttr(string $node,
+                                string $attr,
+                                string $value)
+{
+    string $enumMapNames[] = dl_dgGetEnumMapIndexNames($node, $attr);
+    for ($i = 0; $i < size($enumMapNames); $i++)
+    {
+        if (dl_dgGetAttrAsString($node + "." + $enumMapNames[$i], 0) == $value)
+        {
+            setAttr(($node + "." + $attr), $i);
+            return;
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetEnumMapAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetEnumMapAttr(string $node,
+                                       string $attr)
+{
+    string $value;
+    string $plug = $node + "." + $attr;
+
+    if (objExists($plug))
+    {
+
+        int $index = getAttr($plug);
+        string $enumMapName = dl_dgGetEnumMapIndexName($attr, $index);
+        $value = dl_dgGetAttrAsString($node + "." +  $enumMapName, 0);
+    }
+
+    return $value;
+}
+
+
+
+//-
+// ================================================================================
+//- QUERY CONNECTIONS METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListInConnections
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListInConnections(string $node)
+{
+    return `listConnections -sh 1 -d 0 $node`;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListOutConnections
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListOutConnections(string $node)
+{
+    return `listConnections -sh 1 -s 0 $node`;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInNode
+// --------------------------------------------------------------------------------
+global proc string dl_dgInNode(string $plug)
+{
+    string $inList[];
+    if (objExists($plug))
+        $inList = `listConnections -sh 1 -d 0 $plug`;
+    return $inList[0];
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInNodeAttr
+// --------------------------------------------------------------------------------
+global proc string dl_dgInNodeAttr(string $plug, string $attr)
+{
+    string $in_node = dl_dgInNode($plug);
+    return dl_dgGetAttrAsString(($in_node+"."+$attr), 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInNodeAttrChan
+// --------------------------------------------------------------------------------
+global proc string dl_dgInNodeAttrChan(string $plug, string $attr, int $chan)
+{
+    string $in_node = dl_dgInNode($plug);
+    return dl_dgGetAttrChanAsString(($in_node+"."+$attr), $chan, 0);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgInPlug
+// --------------------------------------------------------------------------------
+global proc string dl_dgInPlug(string $plug)
+{
+    string $inList[];
+    if (objExists($plug))
+        $inList = `listConnections -sh 1 -d 0 -p 1 $plug`;
+    return $inList[0];
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgEvalCmdParseResultsByNodeTypes
+// First eval command with nodes as args, then parse results by node types.
+// --------------------------------------------------------------------------------
+proc string[] dl_dgEvalCmdParseResultsByNodeTypes(string $cmd, string $nodes[],
+                                                  string $nodeTypes[])
+{
+    string $parsed[], $result[];
+    if ($cmd != "" && size($nodes))
+        $result = eval(($cmd + " " + dl_strGetArrayAsString($nodes)));
+    else
+        $result = $nodes;
+
+    for ($type in $nodeTypes)
+        $parsed = dl_strAddArrayToArray(
+            dl_dgParseNodesByType($result, $type), $parsed);
+
+    return $parsed;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgLinkExcludeCheck
+// --------------------------------------------------------------------------------
+global proc int dl_dgLinkExcludeCheck(string $node)
+{
+
+    global string $g_dl_dgExcludeLinkList[];
+
+    if (!dl_strInArray($g_dl_dgExcludeLinkList, $node))
+    {
+        $g_dl_dgExcludeLinkList[size($g_dl_dgExcludeLinkList)] = $node;
+        return 1;
+    }
+
+    return 0;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListUpLinks
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListUpLinks(string $node, string $exclude[])
+{
+    global string $g_dl_dgExcludeLinkList[];
+    $g_dl_dgExcludeLinkList = $exclude;
+    return dl_strBreathFirstSearch($node, "dl_dgListInConnections", "dl_dgLinkExcludeCheck");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListDownLinks
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListDownLinks(string $node, string $exclude[])
+{
+    global string $g_dl_dgExcludeLinkList[];
+    $g_dl_dgExcludeLinkList = $exclude;
+    return dl_strBreathFirstSearch($node, "dl_dgListOutConnections", "dl_dgLinkExcludeCheck");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListAllLinks
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListAllLinks(string $nodes[], string $exclude[])
+{
+
+    string $results[];
+    for ($node in $nodes)
+    {
+
+        string $up[] = dl_dgListUpLinks($node, $exclude);
+        $results = dl_dgMergeSelectLists($up, $results, "merge");
+
+        string $down[] = dl_dgListDownLinks($node, $exclude);
+        $results = dl_dgMergeSelectLists($down, $results, "merge");
+    }
+
+    return $results;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetRelatedNodes
+// Select nodes of defined types from dependency and/or acyclic graph
+// of specifed nodes.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetRelatedNodes(string $nodes[], string $types[],
+                                          int $getFrom[])
+{
+    // Keep only existing nodes.
+    string $exNodes[] = dl_dgParseExisting($nodes);
+
+    // Parse input (may contains wanted node type).
+    string $allNodes[] = dl_dgEvalCmdParseResultsByNodeTypes("", $exNodes, $types);
+
+    int $size = size($getFrom);
+    // Hierarchy
+    if ($getFrom[0])
+    {
+        string $hierNodes[] = dl_dagDescendentsFromArray($exNodes, 1, 1);
+        $exNodes = dl_strAddArrayToArray($hierNodes, $exNodes);
+        if (size($hierNodes))
+            $allNodes = dl_strAddArrayToArray(
+                dl_dgEvalCmdParseResultsByNodeTypes(
+                    "", $hierNodes, $types), $allNodes);
+    }
+
+    // Upstream
+    if ($getFrom[1])
+        $allNodes = dl_strAddArrayToArray(
+            dl_dgEvalCmdParseResultsByNodeTypes(
+                "listHistory", $exNodes, $types), $allNodes);
+
+    // Downstream
+    if ($getFrom[2])
+        $allNodes = dl_strAddArrayToArray(
+            dl_dgEvalCmdParseResultsByNodeTypes(
+                "listHistory -f 1 ", $exNodes, $types), $allNodes);
+
+    // Shading Network
+    if ($getFrom[3])
+    {
+        string $shaders[] = `listConnections -type shadingEngine $exNodes`;
+        if (size($shaders))
+            $allNodes = dl_strAddArrayToArray(
+                dl_dgEvalCmdParseResultsByNodeTypes(
+                    "listHistory", $shaders, $types), $allNodes);
+    }
+
+    // Connection Source
+    if ($getFrom[4])
+        $allNodes = dl_strAddArrayToArray(
+            dl_dgEvalCmdParseResultsByNodeTypes(
+                "listConnections -d 0 -scn 1 ", $exNodes, $types), $allNodes);
+
+    // Connection Destination
+    if ($getFrom[5])
+        $allNodes = dl_strAddArrayToArray(
+            dl_dgEvalCmdParseResultsByNodeTypes(
+                "listConnections -s 0 -scn 1 ", $exNodes, $types), $allNodes);
+
+    return dl_strRemoveCopiesFromArray($allNodes);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListTextureFilesOfSelDAGNode
+// List the texture files connected to the currently selected DAG nodes.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListTextureFilesOfSelDAGNode(int $isVerbose)
+{
+    string $texFileList[];
+    string $dagNodeList[] = `ls -sl`;
+
+    if (size($dagNodeList) > 0)
+    {
+        string $tmpList[];
+
+        if ($isVerbose)
+            print("\nDeriving the texture file list:\n\n");
+
+
+        // Select all nodes in the hierarchy below the listed
+        // dag nodes, and keep only the shape nodes.
+        // --------------------------------------------------
+        select -hi $dagNodeList;
+        string $shapeNodeList[] = `ls -sl -typ shape`;
+
+        if ($isVerbose)
+            dl_strPrintList("Shape Node List\n---------------\n", $shapeNodeList);
+
+
+        // Find out the shading engines that are connected to the shape nodes.
+        // -------------------------------------------------------------------
+        string $shadingEngineList[];
+        int    $nbShadingEngines = 0;
+
+        for ($shape in $shapeNodeList)
+        {
+            $tmpList              = `listConnections -t shadingEngine $shape`;
+            string $cleanedList[] = dl_strRemoveCopiesFromArray($tmpList);
+            for ($cleanedItem in $cleanedList)
+            {
+                $shadingEngineList[$nbShadingEngines] = $cleanedItem;
+                ++$nbShadingEngines;
+            }
+        }
+
+        if ($isVerbose)
+            dl_strPrintList("Shading Engine List\n-------------------\n", $shadingEngineList);
+
+
+        // Find out the shaders that are connected to the shading engines.
+        // ---------------------------------------------------------------
+        string $shaderList[];
+        int    $nbShaders = 0;
+
+        for ($shadingEngine in $shadingEngineList)
+        {
+            string $cmd = ("listConnections -d true " + $shadingEngine + ".surfaceShader;\n");
+            $tmpList    = `eval $cmd`;
+            for ($tmpShader in $tmpList)
+            {
+                $shaderList[$nbShaders] = $tmpShader;
+                ++$nbShaders;
+            }
+        }
+
+        if ($isVerbose)
+            dl_strPrintList("Shader List\n-----------\n", $shaderList);
+
+
+        // Find out the texture files that are connected to the shaders.
+        // (Make sure there is no duplicated elements in the texture
+        // file list.)
+        // -------------------------------------------------------------
+        string $tmpTexFileList[];
+        int    $tmpNbTexFiles = 0;
+
+        for ($shader in $shaderList)
+        {
+            $tmpList = `listConnections -t file $shader`;
+            for ($texFile in $tmpList)
+            {
+                $tmpTexFileList[$tmpNbTexFiles] = $texFile;
+                ++$tmpNbTexFiles;
+            }
+        }
+
+        $texFileList = dl_strRemoveCopiesFromArray($tmpTexFileList);
+
+        if ($isVerbose)
+            dl_strPrintList("Texture File List\n-----------------\n", $texFileList);
+
+        select $dagNodeList;  // Restore original selection.
+    }
+    else
+        error "No DAG node is selected.";
+
+    return $texFileList;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetDeformerSet
+// Returns the objectSet related to a deformer
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetDeformerSet(string $deformer)
+{
+
+    string $outMsg[] = `listConnections -s 0 -type "objectSet"
+        ($deformer + ".message")`;
+    return $outMsg[0];
+}
+
+
+//-
+// ================================================================================
+//- EDIT CONNECTIONS METHODS
+// ================================================================================
+
+
+global proc dl_dgDisconnectDestination(string $destName)
+{
+    if (`connectionInfo -isDestination $destName`)
+    {
+        string $destination = `connectionInfo -getExactDestination $destName`;
+
+        // delete -icn doesn't work if destination attr is readOnly
+        // so use disconnectAttr in this case
+        //
+        string $sArr[1] = `ls -ro $destination`;
+        if (size($sArr))
+        {
+            string $src = `connectionInfo -sourceFromDestination $destination`;
+            disconnectAttr $src $destination;
+        }
+        else
+        {
+            delete -icn $destination;
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgConnectNextMultiAttr
+// Safe connects attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgConnectNextMultiAttr(string $out, string $in)
+{
+    int $inNextIndex = 0;
+    string $inMulti[] = `listAttr -m $in`;
+    int $nbInMulti = size($inMulti);
+    if ($nbInMulti)
+    {
+        string $inLastIndex = match("[0-9]+",  $inMulti[$nbInMulti - 1]);
+        $inNextIndex = int($inLastIndex) + 1;
+    }
+
+    connectAttr -f $out($in + "[" + $inNextIndex + "]") ;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDisconnectMultiAttr
+// Safe connects attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgDisconnectMultiAttr(string $out, string $in)
+{
+
+    // Get destination deformers
+    string $dstPlugs[] = `listConnections -s 0 -p 1 $out`;
+
+    // Check for deformer in list
+    for ($dstPlug in $dstPlugs)
+        if (gmatch($dstPlug, ($in + "\\[*\\]")))
+            disconnectAttr($out, $dstPlug);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgConnectAttr
+// Safe connects attributes
+// --------------------------------------------------------------------------------
+global proc int dl_dgConnectAttr(string $out, string $in)
+{
+
+    if (!objExists($out) || !objExists($in))
+        return 0;
+
+    if (isConnected($out, $in))
+        return 0;
+
+    connectAttr -f $out $in;
+    return 1;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDisconectAttr
+// Safe disconnects attributes
+// --------------------------------------------------------------------------------
+global proc int dl_dgDisconectAttr(string $out, string $in)
+{
+    if (!isConnected($out, $in))
+        return 0;
+    disconnectAttr($out, $in);
+    return 1;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgReplaceNode
+// --------------------------------------------------------------------------------
+global proc dl_dgReplaceNode(string $node, string $otherNode)
+{
+
+    string $srcPlugs[] = `listConnections -d 0 -sh 1 -p 1 -c 1 $node`;
+
+    for ($i = 0; $i < size($srcPlugs); $i += 2)
+    {
+
+        string $inPlug = ($otherNode + "." + dl_strGetAttr($srcPlugs[$i]));
+        disconnectAttr $srcPlugs[$i + 1] $srcPlugs[$i];
+        catch (`connectAttr -f $srcPlugs[$i + 1] $inPlug`);
+
+    }
+
+    string $dstPlugs[] = `listConnections -s 0 -sh 1 -p 1 -c 1 $node`;
+    for ($i = 0; $i < size($dstPlugs); $i += 2)
+    {
+        string $outPlug = ($otherNode + "." + dl_strGetAttr($dstPlugs[$i]));
+        disconnectAttr $dstPlugs[$i] $dstPlugs[$i + 1];
+        catch (`connectAttr -f $outPlug  $dstPlugs[$i + 1]`);
+    }
+
+
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgBakeConnected
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgBakeConnected(float $start,
+                                        float $end,
+                                        string $nodes[])
+{
+    // Storage for actually baked plugs
+    string $bakedPlugs[];
+    int $bakedPlugsCount;
+
+    // Time stamp
+    string $time = ($start + ":" + $end);
+
+    //
+    for ($node in $nodes)
+    {
+
+        // Check plug
+        if (!objExists($node))
+            continue;
+
+        // List incomming connections
+        string $plugs[] = `listConnections -p 1 -c 1 -sh 1 -d 0 $node`;
+
+        // Bake node's connected plugs
+        for ($i = 0, $s = size($plugs); $i < $s; $i += 2)
+        {
+
+            // Parse unlocked scalar attributes
+            string $attrs[] = `listAttr -u -s -c $plugs[$i]`;
+
+            for ($attr in $attrs)
+            {
+
+                // Check plug
+                string $plug = ($node + "." + $attr);
+                if (!objExists($plug))
+                    continue;
+
+                int $result = 0;
+
+                int $error = catch ($result = `bakeResults -t $time $plug`);
+
+                // Plug has been baked only if no error and result is not zero
+                if (!$error && $result)
+                    $bakedPlugs[$bakedPlugsCount++] = $plug;
+            }
+        }
+    }
+
+    return $bakedPlugs;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgBakeSimulation
+//
+// Runs a simulation baking into an empty model panel to make process faster.
+// --------------------------------------------------------------------------------
+global proc int dl_dgBakeSimulation(float $start, float $end, string $plugs[])
+{
+    // Build a bogus panel window to "trap" refresh into an invisible panel
+    string $window  = `window -s 0 -t "Baking Simulation..." `;
+    string $layout  = `paneLayout -vis 0`;
+    string $panel   = `modelPanel`;
+    showWindow($window);
+    window -e -wh 175 25 $window;
+
+    // Set focus on invisible panel
+    catch (setFocus($panel));
+
+    // Do baking
+    int $bakeResults;
+    catch ($bakeResults = `bakeResults -sm 1 -t($start + ":" + $end) $plugs`);
+
+    // Delete window
+    evalDeferred("deleteUI \"" + $window + "\"");
+
+    return $bakeResults;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgBatchDynExport
+// --------------------------------------------------------------------------------
+global proc dl_dgBatchDynExport(float $start,
+                                float $end,
+                                float $overSampling,
+                                string $name,
+                                string $attributes[],
+                                string $particles[])
+{
+    // Find lowest runup start
+    float $runUpStart = $start;
+    for ($particle in $particles)
+    {
+        float $startFrame = getAttr($particle + ".startFrame");
+        if ($startFrame < $runUpStart)
+            $runUpStart = $startFrame;
+    }
+
+    // Set oversampling
+    setAttr("dynGlobals1.overSamples", $overSampling);
+
+    // Turn off cache
+    setAttr("dynGlobals1.useParticleDiskCache", 0);
+
+    // Delete old cache
+    string $cacheDir = (`workspace -q -o` + "/particles/" + $name);
+    for ($particle in $particles)
+    {
+        string $cacheFiles[] = dl_fileRegExList($cacheDir, $particle, "", 0, "pdc", 1);
+        for ($cacheFile in $cacheFiles)
+            sysFile -del $cacheFile;
+    }
+
+    //
+    string $cmd = ("dynExport -p " + $name + " -f pdc -atr " +
+                   dl_strConcatenateArray($attributes, " -atr ", 1, size($attributes)) + " " +
+                   dl_strConcatenateArray($particles, " ", 1, size($particles)));
+
+    //
+    float $step = 1.0 / $overSampling;
+    float $frame = $runUpStart;
+
+    for (; $frame < $end + $step; $frame += $step)
+    {
+
+        // Goto frame
+        catch (currentTime($frame));
+
+        // Force eval
+        for ($particle in $particles)
+            catch (getAttr($particle + ".count"));
+
+
+        int $isFrame = dl_strIsSigned(string($frame));
+
+        //
+        if ($frame >= $start)
+        {
+
+            if ($isFrame)
+                print("Caching frame: " + $frame + "\n");
+
+            catch (eval($cmd));
+        }
+        else if ($isFrame)
+            print("Running frame: " + $frame + "\n");
+    };
+}
+
+
+//-
+// ================================================================================
+//- PARSING METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgParseExisting
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgParseExisting(string $objects[])
+{
+    int $count;
+    string $existObj[];
+    for ($obj in $objects)
+        if (objExists($obj))
+            $existObj[$count++] = $obj;
+
+    return $existObj;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgParseNodesByType
+// Return an array containing nodes parsed by type.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgParseNodesByType(string $nodes[], string $type)
+{
+    int $i;
+    string $parsedNodes[];
+    for ($node in $nodes)
+        if (dl_dgIsType($node, $type))
+            $parsedNodes[$i++] = $node;
+
+    return $parsedNodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgParseNodesByComponentType
+// Return an array containing nodes parsed by component type.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgParseNodesByComponentType(string $nodes[], string $type)
+{
+    int $i;
+    string $parsedNodes[];
+    for ($node in $nodes)
+    {
+        string $nodeAttr[] = dl_strSplitNodeAttr($node);
+        string $attrIndex[] = dl_strSplitAttrIndex($nodeAttr[1]);
+        if ($attrIndex[0] == $type)
+            $parsedNodes[$i++] = $node;
+    }
+
+    return $parsedNodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgParseNodesByAttribute
+// Returns an array containing nodes that have this attribute.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgParseNodesByAttribute(string $nodes[], string $attr)
+{
+    int $i;
+    string $parsedNodes[];
+    for ($node in $nodes)
+        if (objExists(($node + "." + $attr)))
+            $parsedNodes[$i++] = $node;
+
+    return $parsedNodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgParseNodesByAttributeValue
+// Returns an array containing nodes that attribute value is the same as arg.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgParseNodesByAttributeValue(string $nodes[],
+                                                     string $attr,
+                                                     string $value)
+{
+    int $i;
+    string $parsedNodes[];
+    for ($node in $nodes)
+        if (objExists(($node + "." + $attr)))
+            if (dl_dgGetAttrAsString(($node + "." + $attr), 0) == $value)
+                $parsedNodes[$i++] = $node;
+
+    return $parsedNodes;
+}
+
+
+//-
+// ================================================================================
+//- QUERY TYPE METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetSetMembersByType
+// Return the set members of specified type
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetSetMembersByType(string $set, string $type)
+{
+    string $members[] = `sets -q $set`;
+    return dl_dgParseNodesByType($members, $type);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetSetMembersByComponentType
+// Return the set members of specified component type
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetSetMembersByComponentType(string $set, string $type)
+{
+    string $members[] = `sets -q $set`;
+    return dl_dgParseNodesByComponentType($members, $type);
+}
+
+
+//-
+// ================================================================================
+//- NAMESPACE METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListNamespacedNode
+//
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListNamespacedNode(string $node)
+{
+    string $filter = `itemFilter -bn("*" + $node)`;
+    string $nodes[] = lsThroughFilter($filter);
+    delete($filter);
+
+    return $nodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgNamespaceExists
+//
+// Checks if given namespace exists into current namespace
+// --------------------------------------------------------------------------------
+global proc int dl_dgNamespaceExists(string $namespace)
+{
+    return dl_strInArray(`namespaceInfo -lon`, $namespace);
+}
+
+// --------------------------------------------------------------------------------
+//-     dl_dgGetNamespaceNamespaces
+// Get all nodes contained into given namespace.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetNamespaceNamespaces(string $namespace)
+{
+    // Store current namespace
+    string $currentNamespace = `namespaceInfo -cur`;
+
+    // Set (only way to query !) given namespace
+    namespace -set $namespace;
+
+    // List nodes in it
+    string $namespaces[] = `namespaceInfo -lon`;
+
+    // Restore previous namespace
+    namespace -set $currentNamespace;
+
+    return $namespaces;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetNodesNamespaces
+//
+// Get all namespaces contained into given nodes.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetNodesNamespaces(string $nodes[])
+{
+    int $count = 0;
+    string $namespaces[];
+    for ($node in $nodes)
+    {
+        string $namespace = dl_strGetNamespace($node);
+        if (!dl_strInArray($namespaces, $namespace))
+            $namespaces[$count++] = $namespace;
+    }
+
+    return $namespaces;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetNamespaceNodes
+//
+// Get all nodes contained into given namespace.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetNamespaceNodes(string $namespace)
+{
+    return ls($namespace + ":*");
+
+//    // Store current namespace
+//    string $currentNamespace = `namespaceInfo -cur`;
+//
+//    // Set (only way to query !) given namespace
+//    namespace -set $namespace;
+//
+//    // List nodes in it
+//    string $nodes[] = `namespaceInfo -lod`;
+//
+//    // Restore previous namespace
+//    namespace -set $currentNamespace;
+//
+//    return $nodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetNamespaceNodesRecurse
+//
+// Get all nodes contained into given namespace.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetNamespaceNodesRecurse(string $namespace)
+{
+    string $nodes[] = dl_dgGetNamespaceNodes($namespace);
+    string $namespaces[] = dl_strBreathFirstSearch($namespace, "dl_dgGetNamespaceNamespaces", "");
+    for ($i = size($namespaces) - 1; $i >= 0; $i--)
+        $nodes = dl_strAddArrayToArray(dl_dgGetNamespaceNodes($namespaces[$i]), $nodes);
+    return $nodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDeleteNamespace
+// --------------------------------------------------------------------------------
+global proc dl_dgDeleteNamespace(string $namespace)
+{
+    if ($namespace == "UI")
+        return;
+
+    string $nodes[] = dl_dgGetNamespaceNodes($namespace);
+
+    for ($node in $nodes)
+    {
+        if (objExists($node))
+        {
+            if (gmatch($node, "*:lightLinker1"))
+            {
+                dl_dgDeleteNonDeletable($node);
+            }
+            else
+            {
+                catch (delete($node));
+            }
+        }
+    }
+
+    catch (`namespace -rm $namespace`);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgDeleteNamespaceRecurse
+// --------------------------------------------------------------------------------
+global proc dl_dgDeleteNamespaceRecurse(string $namespace)
+{
+    string $namespaces[] = dl_strDepthFirstSearch($namespace, "dl_dgGetNamespaceNamespaces", "");
+    for ($i = size($namespaces) - 1; $i >= 0; $i--)
+        dl_dgDeleteNamespace($namespaces[$i]);
+    dl_dgDeleteNamespace($namespace);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgRemoveNamespace
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgRemoveNamespace(string $namespace)
+{
+    if ($namespace == "UI")
+        return {};
+
+    string $nodes[] = dl_dgGetNamespaceNodes($namespace);
+
+    for ($i = 0, $s = size($nodes); $i < $s; $i++)
+    {
+        if (objExists($nodes[$i]))
+        {
+            if (gmatch($nodes[$i], "*:lightLinker1"))
+            {
+                dl_dgDeleteNonDeletable($nodes[$i]);
+            }
+            else
+            {
+                string $name = substitute(("^" + $namespace + ":"), $nodes[$i], "");
+                if (nodeType($nodes[$i]) == "transform")
+                    catch ($nodes[$i] = `rename -is $nodes[$i] $name`);
+                else
+                {
+                    catch ($nodes[$i] = `rename $nodes[$i] $name`);
+                }
+            }
+        }
+    }
+
+    catch (`namespace -rm $namespace`);
+
+    return $nodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgRemoveNamespaceRecurse
+// --------------------------------------------------------------------------------
+global proc dl_dgRemoveNamespaceRecurse(string $namespace)
+{
+    string $namespaces[] = dl_strDepthFirstSearch($namespace, "dl_dgGetNamespaceNamespaces", "");
+    for ($i = size($namespaces) - 1; $i >= 0; $i--)
+        dl_dgRemoveNamespace($namespaces[$i]);
+    dl_dgRemoveNamespace($namespace);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetUniqueNamespace
+//
+// Increment gven namespace until its unique in current namespace.
+// --------------------------------------------------------------------------------
+global proc string dl_dgGetUniqueNamespace(string $namespace)
+{
+    return dl_strConditionIncrement($namespace, "dl_dgNamespaceExists", 1, "");
+}
+
+
+//-
+// ================================================================================
+//- QUERY SCENE METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgUniqueNodeName
+// --------------------------------------------------------------------------------
+global proc string dl_dgUniqueNodeName(string $base)
+{
+
+    // Make sure base name is path free
+    $base = match("[^|]+$", $base);
+
+    // Loop until objExists is false
+    return dl_strConditionIncrement($base, "objExists", 1, "");
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListPossibleUnknownNodes
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListPossibleUnknownNodes(string $type, string $idAttr)
+{
+    if (dl_strInArray(`ls -nt`, $type))
+        return `ls -typ $type`;
+    string $unknown[] = `ls -typ "unknown"`;
+    return dl_dgParseNodesByAttribute(`ls -typ "unknown"`, $idAttr);
+}
+
+
+// ----------------------------------------------------------------------------
+//-    dl_dgListPluginNodes
+// ----------------------------------------------------------------------------
+global proc string[] dl_dgListPluginNodes()
+{
+    // List currently used plugin node types
+    string $typesStr;
+    string $plugins[] = `pluginInfo -q -ls`;
+    for ($plugin in $plugins)
+    {
+        string $types[] = `pluginInfo -q -dn $plugin`;
+        for ($type in $types)
+            $typesStr += (" -type " + $type);
+    }
+
+    // List all nodes of types owned by current scene
+    return eval("ls " + $typesStr);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListDefaultNodes
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListDefaultNodes(int $cameras)
+{
+
+    string $defaultCameras[] =
+        {
+            "persp",
+            "perspShape",
+            "top",
+            "topShape",
+            "front",
+            "frontShape",
+            "side",
+            "sideShape"
+        };
+
+    string $defaultManagers[] = {   "lightLinker1",
+                                    "layerManager",
+                                    "defaultLayer",
+                                    "renderLayerManager",
+                                    "defaultRenderLayer",
+                                    "globalRender"
+    };
+    if ($cameras)
+        return dl_strAddArrayToArray($defaultManagers, $defaultCameras);
+
+    return $defaultManagers;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListOwnedNodes
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListOwnedNodes()
+{
+
+    // First keep current selection, to reset it after
+    string $currentSelection[] = `ls -sl`;
+
+    // Turn off manip trigger
+    dl_iconManip -s 0;
+
+    // Select all deletable nodes with hierarchy and no expand sets
+    // This is done because there is no other way to prune read only nodes
+    select -r -ne -hi -all;
+
+    // Add these since they are not selected by "select -r -ne -hi -all"
+    select -add -ne `ls -io -dag`;
+
+    // Remove referenced nodes
+    select -d -ne `ls -ro`;
+
+    // Remove objectFilter and selectionListOperator nodes
+    select -d -ne `ls -type "objectFilter" -type "selectionListOperator"`;
+
+    // List left selected nodes
+    string $ownedNodes[] = `ls -sl`;
+
+    // Reset current selection
+    select -r $currentSelection;
+
+    // Turn on manip trigger
+    dl_iconManip -s 1;
+
+    return $ownedNodes;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgValidNodeTypes
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgValidNodeTypes(string $types[])
+{
+    string $results[] = dl_strIntersect(`ls -nt`, $types);
+    return $results;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgListNodesByType
+// Return an array containing nodes of a type found in current scene.
+// Skip inexistant node types.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgListNodesByType(string $type)
+{
+    if (dl_strInArray(`ls -nt`, $type))
+        return `ls -typ $type`;
+    return {};
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgGetSimilarNodes
+// Return a list of nodes similar to input node.
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgGetSimilarNodes(string $node, string $skipAttrs[])
+{
+    string $nodeType = nodeType($node);
+    string $listType[] = `ls -type $nodeType`, $listSmilar[];
+    int $count;
+    for ($obj in $listType)
+        if ($obj != $node)
+            if (dl_dgAreNodesSimilar($obj, $node, $skipAttrs))
+                $listSmilar[$count++] = $obj;
+
+    return $listSmilar;
+}
+
+
+//-
+// ================================================================================
+//- EDIT SCENE METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgRenameAllToRootNamespace
+// --------------------------------------------------------------------------------
+global proc dl_dgRenameAllToRootNamespace()
+{
+
+    string $nodes[] = dl_dgListOwnedNodes();
+    for ($node in $nodes)
+    {
+        if (objExists($node))
+        {
+            string $newName = match("[^:]+$", $node);
+            catch (`rename -is $node $newName`);
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgCreateNodeKeepSelection
+// Create a node with specified name|type and reselect previous selection.
+// This is a workaround because createNode command always select created node.
+// --------------------------------------------------------------------------------
+global proc string dl_dgCreateNodeKeepSelection(string $name, string $type)
+{
+    string $sel[] = `ls -sl`;
+    string $node = `createNode -n $name $type`;
+    select -r $sel;
+    return $node;
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgCreateNodeWithID
+// Create a node of specified type and add an ID attribute.
+// --------------------------------------------------------------------------------
+global proc string dl_dgCreateNodeWithID(string $name, string $type, string $attr)
+{
+    string $node = dl_dgCreateNodeKeepSelection($name, $type);
+    addAttr -ln $attr -at bool -dv true $node;
+    return $node;
+}
+
+// --------------------------------------------------------------------------------
+//-     dl_dgRepatriateAll
+// --------------------------------------------------------------------------------
+global proc dl_dgRepatriateAll(string $homeDir,
+                               int $copy)
+{
+    string $plugsPaths[] = dl_dgGetPathPlugs(`ls -dep`, $homeDir, 1, 1, 1);
+    for ($i = 0, $s = size($plugsPaths); $i < $s; $i+=2)
+    {
+        string $plug = $plugsPaths[$i];
+        string $value = $plugsPaths[$i + 1];
+        string $homePath = dl_fileRepatriate($value, $homeDir, $copy);
+        if ($homePath != $value)
+        {
+            if (`getAttr -l $plug`)
+                catch (`setAttr -l 0 $plug`);
+            catch (`setAttr -type "string" $plug $homePath`);
+        }
+    }
+}
+
+//-
+// ================================================================================
+//- OTHER METHODS
+// ================================================================================
+
+// --------------------------------------------------------------------------------
+//-    dl_dgIsLocked
+// --------------------------------------------------------------------------------
+global proc int dl_dgIsLocked(string $node)
+{
+    int $locked[] = `lockNode -q -l $node`;
+    return $locked[0];
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgUnlockAllNodes
+// Unlocks all nodes
+// --------------------------------------------------------------------------------
+global proc dl_dgUnlockAllNodes()
+{
+    string $allNodes[] = `ls -dep`;
+    catch (`lockNode -l 0 $allNodes`);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgUnlock
+// Unlocks node and attributes
+// --------------------------------------------------------------------------------
+global proc dl_dgUnlock(string $node, int $unlockNode, int $unlockAttrs)
+{
+
+    if (!$unlockNode && !$unlockAttrs)
+        return; // Nothing to do
+
+    // Get current node lock state
+    int $locked[] = `lockNode -q -l $node`;
+
+    // Unlock node
+    if ($locked[0])
+        catch (`lockNode -l 0 $node`);
+
+    // Unlock all attributes
+    if ($unlockAttrs)
+    {
+        string $lockedAttrs[] = `listAttr -l -hd $node`;
+        for ($attr in $lockedAttrs)
+        {
+            string $nodeAttr = ($node + "." + $attr);
+            if (objExists($nodeAttr))
+                catch (`setAttr -l 0 $nodeAttr`);
+        }
+    }
+
+    // Relock node if was locked and nunlockNode was false
+    if (!$unlockNode && $locked[0])
+        catch (`lockNode -l 1 $node`);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgLock
+// --------------------------------------------------------------------------------
+global proc dl_dgLock(string $node, int $lockNode, int $lockAttrs)
+{
+
+    if (!$lockNode && !$lockAttrs)
+        return; // Nothing to do
+
+    // Get current node lock state
+    int $locked[] = `lockNode -q -l $node`;
+    if ($locked[0]) // Currently locked
+    {
+        if ($lockAttrs)
+            catch (`lockNode -l 0 $node`); // Unlock node to lock attributes
+        else
+            return; // Nothing to do
+    }
+
+    // Lock all writable attributes
+    for ($attr in `listAttr -w -hd $node`)
+    {
+        string $nodeAttr = ($node + "." + $attr);
+        if (objExists($nodeAttr))
+            catch (`setAttr -l 1 $nodeAttr`);
+    }
+
+    // Lock node
+    if ($lockNode)
+        catch (`lockNode -l 1 $node`);
+}
+
+// --------------------------------------------------------------------------------
+//-    dl_dgMergeSelectLists
+// --------------------------------------------------------------------------------
+global proc string[] dl_dgMergeSelectLists(string $list1[], string $list2[],
+                                           string $type)
+{
+    switch ($type)
+    {
+    case "merge":
+    case "remove":
+    case "xor":
+        int $flag = 0; // Merge
+        if ($type == "xor")
+            $flag = 1;
+        else if ($type == "remove")
+            $flag = 2;
+        return `dl_mergeSelection -mt $flag -l1 $list1 -l2 $list2`;
+
+    case "inter":
+        string $xorList[] = `dl_mergeSelection -mt 1 -l1 $list1 -l2 $list2`;
+        string $remList[] = `dl_mergeSelection -mt 2 -l1 $list1 -l2 $xorList`;
+        return $remList;
+    }
+
+    return {};
+}
+
+// mathieube 27/01/09
+
+// --------------------------------------------------------------------------------
+//-    dl_dgLibIntArrayCount
+//
+// Count the number of occurences of a value in an array of int
+// --------------------------------------------------------------------------------
+global proc int dl_dgLibIntArrayCount(int $item, int $list[])
+{
+    int $result = 0;
+    int $listItem;
+    for ($listItem in $list) {
+        if ($item == $listItem) $result++;
+    }
+    return $result;
+}
+// --------------------------------------------------------------------------------
+//-    dl_dgLibIntArrayRemoveDuplicates
+//
+// Remove duplicate values  in an array of int
+// --------------------------------------------------------------------------------
+global proc int[] dl_dgLibIntArrayRemoveDuplicates(int $list[])
+{
+    int $item, $result[];
+    int    $index = 0;
+    for ($item in $list) {
+        if (0 == dl_dgLibIntArrayCount($item, $result)) {
+            $result[$index++] = $item;
+        }
+    }
+    return $result;
+}
+
+// --------------------------------------------------------------------------------
+//-   dl_dgCopyAttrSrcConnections
+//
+// Connects all plugs connected to <$inSrcPlugName> as src plugs to <$inDstPlugName>
+// as well.
+// --------------------------------------------------------------------------------
+
+
+global proc dl_dgCopyAttrSrcConnections(string $inSrcPlugName, string $inDstPlugName)
+{
+    string $connected_plugs[] = `listConnections -d false -s true -p true $inSrcPlugName`;
+
+    int $num_plugs = size($connected_plugs);
+    int $i;
+    for ($i=0; $i<$num_plugs; $i++)
+    {
+        connectAttr -f $connected_plugs[$i] $inDstPlugName;
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-   dl_dgCopyAttrDestConnections
+//
+// Connects all plugs connected to <$inSrcPlugName> as dest plugs to <$inDstPlugName>
+// as well.
+// --------------------------------------------------------------------------------
+global proc dl_dgCopyAttrDestConnections(string $inSrcPlugName, string $inDstPlugName)
+{
+    string $connected_plugs[] = `listConnections -d true -s false -p true $inSrcPlugName`;
+
+    int $num_plugs = size($connected_plugs);
+    int $i;
+    for ($i=0; $i<$num_plugs; $i++)
+    {
+        connectAttr -f $inDstPlugName $connected_plugs[$i];
+    }
+}
+
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayGetIndices
+//
+// Get the array of indices of elements that actually exists in the plug array
+// --------------------------------------------------------------------------------
+
+global proc int[] dl_dgPlugArrayGetIndices(string $plug)
+{
+    int $raw_indices[] = {};
+    int $indices[] = {};
+    string $buffer;
+    if( `getAttr -s $plug` > 0 )
+    {
+        string $multi[] = `listAttr -multi $plug`;
+        for($m in $multi)
+        {
+            //    Find index [n]
+            $buffer = match("\[[0-9]+\]", $m);
+            //    Find n. Use implicate data type conversion. string "15" is converted to int 15
+            int $index = match("[0-9]+", $buffer);
+            int $i = size($raw_indices);
+            $raw_indices[$i] = $index;
+        }
+    }
+    $indices = dl_dgLibIntArrayRemoveDuplicates ($raw_indices);
+    return $indices;
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayGetLength
+//
+// Returns the number of distinct elements in the plug array
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugArrayGetLength(string $plug)
+{
+    return size(dl_dgPlugArrayGetIndices($plug));
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayAddNew
+//
+// Add a new element at the end of the plug array and returns its index
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugArrayAddNew(string $plug)
+{
+    int $indices[] = dl_dgPlugArrayGetIndices($plug);
+    int $new_index = 0;
+    int $size = size($indices);
+    if ($size)
+    {
+        $new_index = $indices[$size-1] + 1;
+    }
+    string $plugName = $plug + "[" + $new_index + "]";
+    catchQuiet( `getAttr -type $plugName`);
+    return $new_index;
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayCopyTo
+//
+// Tries to copy attributes and connection at <$index_from> to <$index_to>
+// in the plug array
+// --------------------------------------------------------------------------------
+
+global proc  dl_dgPlugArrayCopyTo(string $plug , int $index_from, int $index_to)
+{
+    string $src_plug = $plug + "[" + $index_from + "]";
+    string $dest_plug = $plug + "[" + $index_to + "]";
+    catchQuiet( `getAttr -type $dest_plug`);
+    string $plug_list[] =  `listAttr -lf $src_plug`;
+    stringArrayRemoveAtIndex( 0, $plug_list);//first attribute is invalide;
+    string $subAttr;
+    for ($subAttr in $plug_list )
+    {
+        string $src_attr  = $src_plug +"."+$subAttr;
+        string $dest_attr = $dest_plug +"."+$subAttr;
+        if (`getAttr -settable $dest_attr`)
+        {
+            string $value = dl_dgGetAttrAsString( $src_attr,0);
+            dl_dgSetAttrAsString($dest_attr,$value);
+            dl_dgCopyAttrSrcConnections($src_attr,$dest_attr);
+            dl_dgCopyAttrDestConnections($src_attr,$dest_attr);
+        }
+    }
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayMoveTo
+//
+// Tries to move attributes and connection at <$index_from> to <$index_to>
+// in the plug array
+// --------------------------------------------------------------------------------
+global proc  dl_dgPlugArrayMoveTo(string $plug , int $index_from, int $index_to)
+{
+    dl_dgPlugArrayCopyTo($plug ,$index_from,$index_to);
+    string $src_plug = $plug + "[" + $index_from + "]";
+    removeMultiInstance -b true $src_plug;
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArrayMoveAtEnd
+//
+// Moves the specified item <$index> at the end of the plug array,
+// returns its new index
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugArrayMoveAtEnd(string $plug , int $index )
+{
+    int $new_index = dl_dgPlugArrayAddNew($plug);
+    dl_dgPlugArrayMoveTo($plug ,  $index,  $new_index);
+    return $new_index;
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArraySwapWithNext
+//
+// Swaps position of the specified item <$index> with the next item in the array,
+// returns its new index
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugArraySwapWithNext(string $plug,int $index)
+{
+    int $next = $index;
+    int $new_index = $index;
+    int $indices[] = dl_dgPlugArrayGetIndices($plug);
+    int $size = size($indices);
+
+    if (!$size)
+    {
+        return $new_index;
+    }
+    if ($indices[$size-1] == $index)
+    {
+        return $new_index;
+    }
+    int $i;
+    for ($i in $indices)
+    {
+        if ($i==$index)
+        {
+            $new_index = dl_dgPlugArrayMoveAtEnd($plug,$index);
+        }
+        else if ($i>$index)
+        {
+            if ($next==$index)
+            {
+                $next = $i;
+            }
+            else
+            {
+                dl_dgPlugArrayMoveAtEnd($plug,$i);
+            }
+        }
+    }
+
+    return $new_index;
+}
+// --------------------------------------------------------------------------------
+//-   dl_dgPlugArraySwapWithPrev
+//
+// Swaps position of the specified item <$index> with the previous item in the array,
+// returns its new index
+// --------------------------------------------------------------------------------
+global proc int dl_dgPlugArraySwapWithPrev(string $plug,int $index)
+{
+    int $prev;
+    int $indices[] = dl_dgPlugArrayGetIndices($plug);
+    int $size = size($indices);
+
+    if (!$size)
+    {
+        return $index;
+    }
+    if ($indices[0] == $index)
+    {
+        return $index;
+    }
+    int $i;
+    for ($i in $indices)
+    {
+        if ($i >= $index)
+        {
+            break;
+        }
+        else
+        {
+            $prev = $i;
+        }
+    }
+
+    dl_dgPlugArraySwapWithNext($plug,$prev);
+    return $index;
+
+}
+
+
+
+
+
+

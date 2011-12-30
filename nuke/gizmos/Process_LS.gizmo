@@ -1,0 +1,194 @@
+#! /opt/Nuke6.0v3/Nuke6.0 -nx
+version 6.0 v3
+Gizmo {
+ inputs 2
+ addUserKnob {20 User}
+ addUserKnob {20 Global n 1}
+ addUserKnob {7 globallightintensity l "light intensity" R 0 2}
+ globallightintensity 1
+ addUserKnob {7 globallightsaturation l "light saturation"}
+ globallightsaturation 1
+ addUserKnob {7 globallighthue l "light hue" R -180 180}
+ addUserKnob {18 globallightcolor l "light color"}
+ globallightcolor {1 1 1}
+ addUserKnob {7 globalshadowintensity l "shadow intensity"}
+ globalshadowintensity 1
+ addUserKnob {7 globalsurfacesaturation l "surface saturation"}
+ globalsurfacesaturation 1
+ addUserKnob {7 globalsurfacehue l "surface hue" R -180 180}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 Intensity n 1}
+ addUserKnob {7 diffuseintensity l "diffuse intensity" R 0 2}
+ diffuseintensity 1
+ addUserKnob {7 specularintensity l "specular intensity" R 0 2}
+ specularintensity 1
+ addUserKnob {7 translucenceintensity l "translucence intensity" R 0 2}
+ translucenceintensity 1
+ addUserKnob {20 endGroup_1 l endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 Shadow n 1}
+ addUserKnob {7 diffuseshadowintensity l "diffuse shadow intensity"}
+ diffuseshadowintensity 1
+ addUserKnob {7 specularshadowintensity l "specular shadow intensity"}
+ specularshadowintensity 1
+ addUserKnob {7 translucenceshadowintensity l "translucence shadow intensity"}
+ translucenceshadowintensity 1
+ addUserKnob {20 endGroup_5 l endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 Saturation n 1}
+ addUserKnob {7 diffusesaturation l "diffuse saturation"}
+ diffusesaturation 1
+ addUserKnob {7 specularsaturation l "specular saturation"}
+ specularsaturation 1
+ addUserKnob {7 translucencesaturation l "translucence saturation"}
+ translucencesaturation 1
+ addUserKnob {20 endGroup_2 l endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 Hue n 1}
+ addUserKnob {7 diffusehue l "diffuse hue" R -180 180}
+ addUserKnob {7 speculahue l "specular hue" R -180 180}
+ addUserKnob {7 translucencehue l "translucence hue" R -180 180}
+ addUserKnob {20 endGroup_3 l endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 Color n 1}
+ addUserKnob {18 diffusecolor l "diffuse color"}
+ diffusecolor {1 1 1}
+ addUserKnob {18 specularcolor l "specular color"}
+ specularcolor {1 1 1}
+ addUserKnob {18 translucencecolor l "translucence color"}
+ translucencecolor {1 1 1}
+ addUserKnob {20 endGroup_4 l endGroup n -1}
+}
+ Input {
+  inputs 0
+  name LS
+  xpos -390
+  ypos -187
+  number 1
+ }
+set N1ddf2200 [stack 0]
+ Dot {
+  name Dot3
+  xpos -356
+  ypos -127
+ }
+set N1ddf6e30 [stack 0]
+ Dot {
+  name Dot1
+  xpos -356
+  ypos -70
+ }
+ Input {
+  inputs 0
+  name SURF
+  xpos -123
+  ypos -315
+ }
+set N1dde3550 [stack 0]
+ Dot {
+  name Dot5
+  xpos -164
+  ypos -255
+ }
+set N1dd79a70 [stack 0]
+ Dot {
+  name Dot6
+  xpos -233
+  ypos -210
+ }
+add_layer {translucence_unocc_ls translucence_unocc_ls.red translucence_unocc_ls.green translucence_unocc_ls.blue}
+add_layer {translucence_shad_ls translucence_shad_ls.red translucence_shad_ls.green translucence_shad_ls.blue}
+add_layer {translucence_surf translucence_surf.red translucence_surf.green translucence_surf.blue}
+add_layer {translucence translucence.red translucence.green translucence.blue}
+ SurfaceLighting {
+  inputs 2
+  name SurfaceLighting3
+  xpos -267
+  ypos -75
+  lightgroup 1
+  brightness {{"globallightintensity * translucenceintensity"}}
+  saturation {{"globallightsaturation * translucencesaturation"}}
+  hue_rotation {{"globallighthue* translucencehue"}}
+  value {{"globallightcolor.r * translucencecolor.r"} {"globallightcolor.g * translucencecolor.g"} {"globallightcolor.b * translucencecolor.b"} 1}
+  shadowgroup 1
+  value_1 {{"globalshadowintensity * translucenceshadowintensity"}}
+  surfacegroup 1
+  saturation_1 {{globalsurfacesaturation}}
+  hue_rotation_1 {{globalsurfacehue}}
+  Channels 1
+  in translucence_unocc_ls
+  in_1 translucence_shad_ls
+  in_2 translucence_surf
+  out translucence
+ }
+push 0
+push $N1ddf2200
+push $N1dde3550
+add_layer {diffuse_unocc_ls diffuse_unocc_ls.red diffuse_unocc_ls.green diffuse_unocc_ls.blue}
+add_layer {diffuse_shad_ls diffuse_shad_ls.red diffuse_shad_ls.green diffuse_shad_ls.blue}
+add_layer {diffuse_surf diffuse_surf.red diffuse_surf.green diffuse_surf.blue}
+add_layer {diffuse diffuse.red diffuse.green diffuse.blue}
+ SurfaceLighting {
+  inputs 2
+  name SurfaceLighting1
+  xpos -123
+  ypos -187
+  lightgroup 1
+  brightness {{"globallightintensity * diffuseintensity"}}
+  saturation {{"globallightsaturation * diffusesaturation"}}
+  hue_rotation {{"globallighthue + diffusehue"}}
+  value {{"globallightcolor.r * diffusecolor.r"} {"globallightcolor.g * diffusecolor.g"} {"globallightcolor.b * diffusecolor.b"} 1}
+  shadowgroup 1
+  value_1 {{"globalshadowintensity * diffuseshadowintensity"}}
+  surfacegroup 1
+  saturation_1 {{globalsurfacesaturation}}
+  hue_rotation_1 {{globalsurfacehue}}
+  Channels 1
+  in diffuse_unocc_ls
+  in_1 diffuse_shad_ls
+  in_2 diffuse_surf
+  out diffuse
+ }
+push $N1ddf6e30
+push $N1dd79a70
+add_layer {specular_unocc_ls specular_unocc_ls.red specular_unocc_ls.green specular_unocc_ls.blue}
+add_layer {specular_shad_ls specular_shad_ls.red specular_shad_ls.green specular_shad_ls.blue}
+add_layer {specular_surf specular_surf.red specular_surf.green specular_surf.blue}
+add_layer {specular specular.red specular.green specular.blue}
+ SurfaceLighting {
+  inputs 2
+  name SurfaceLighting2
+  xpos -198
+  ypos -132
+  lightgroup 1
+  brightness {{"globallightintensity * specularintensity"}}
+  saturation {{"globallightsaturation * specularsaturation"}}
+  hue_rotation {{"globallighthue * specularhue"}}
+  value {{"globallightcolor.r * specularcolor.r"} {"globallightcolor.g * specularcolor.g"} {"globallightcolor.b * specularcolor.b"} 1}
+  shadowgroup 1
+  value_1 {{"globalshadowintensity * specularshadowintensity"}}
+  surfacegroup 1
+  saturation_1 {{globalsurfacesaturation}}
+  hue_rotation_1 {{globalsurfacehue}}
+  Channels 1
+  in specular_unocc_ls
+  in_1 specular_shad_ls
+  in_2 specular_surf
+  out specular
+ }
+ Merge2 {
+  inputs 3+1
+  operation plus
+  also_merge all
+  name Plus
+  xpos -123
+  ypos -75
+ }
+ Output {
+  name Output1
+  selected true
+  xpos -123
+  ypos 20
+ }
+end_group

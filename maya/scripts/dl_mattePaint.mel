@@ -1,0 +1,563 @@
+global string $dl_mattePaintLayersScroll;
+global int $dl_mattePaintLayersScrollWidth = 315;
+
+global int $dl_mattePaintCurrentLayerIndex;
+global string $dl_mattePaintCurrentLayerPlugs[];
+
+global string $dl_mattePaintCameras[];
+
+// UTILS
+    
+// ----------------------------------------------------------------------------
+// disconnectAllChildrens
+// ----------------------------------------------------------------------------
+proc disconnectAllChildrens(string $plug)
+{
+	string $nodeattr[];
+	tokenize($plug, ".", $nodeattr);
+	string $node=$nodeattr[0];
+	string $attrs[] = `listAttr $plug`;
+	for($attr in $attrs){
+		string $childPlug = $node + "." + $attr;
+		if(objExists($childPlug)){
+			string $connect[] = `listConnections -p 1 -c 1 -d 0 $childPlug`;
+			if(size($connect) == 2){
+				disconnectAttr($connect[1], $connect[0]);
+			}
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// getSelectedLayerPlug
+// ----------------------------------------------------------------------------
+proc string getSelectedLayerPlug()
+{
+	global string $dl_mattePaintCurrentLayerPlugs[];
+	global int $dl_mattePaintCurrentLayerIndex;
+	
+	return $dl_mattePaintCurrentLayerPlugs[$dl_mattePaintCurrentLayerIndex - 1];
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintGetCamera
+// ----------------------------------------------------------------------------
+global proc string dl_mattePaintGetCamera(string $layerPlug)
+{
+	string $msgPlug = $layerPlug + ".cameraMessage";
+	string $msgConnect[] = `listConnections -d 0 $msgPlug`;
+	return $msgConnect[0];
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintNewCamera
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintNewCamera(string $layerPlug)
+{
+	string $sl[] = `ls -sl`;
+	
+	string $layerName = getAttr($layerPlug + ".layerName"); 
+	string $camera[] = `camera`;
+	
+	$camera[0] = rename($camera[0], ($layerName + "_camera"));
+	
+	dl_mattePaintConnectCamera($camera[0], $layerPlug);
+	
+	select $sl;
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintSelectCamera
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintSelectCamera(string $layerPlug)
+{
+	string $camera = dl_mattePaintGetCamera($layerPlug);
+	if(objExists($camera))
+		select($camera);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintConnectCamera
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintConnectCamera(string $camera, string $layerPlug)
+{
+	string $msgPlug = $layerPlug + ".cameraMessage";
+	string $mtxPlug = $layerPlug + ".cameraMatrix";
+	string $focalPlug = $layerPlug + ".cameraFocalLength";
+	string $filmPlug = $layerPlug + ".cameraFilmAperture";
+	
+	string $msgConnect[] = `listConnections -p 1 -c 1 -d 0 $msgPlug`;
+		if(size($msgConnect) == 2)
+			disconnectAttr($msgConnect[1], $msgConnect[0]);
+			
+	string $mtxConnect[] = `listConnections -p 1 -c 1 -d 0 $mtxPlug`;
+	if(size($mtxConnect) == 2)
+		disconnectAttr($mtxConnect[1], $mtxConnect[0]);
+		
+	string $focalConnect[] = `listConnections -p 1 -c 1 -d 0 $focalPlug`;
+		if(size($focalConnect) == 2)
+			disconnectAttr($focalConnect[1], $focalConnect[0]);
+		
+	string $filmConnect[] = `listConnections -p 1 -c 1 -d 0 $filmPlug`;
+	if(size($filmConnect) == 2)
+		disconnectAttr($filmConnect[1], $filmConnect[0]);
+		
+	if(objExists($camera)){
+		connectAttr -f ($camera + ".message") $msgPlug;
+		connectAttr -f ($camera + ".worldInverseMatrix") $mtxPlug;
+		connectAttr -f ($camera + ".focalLength") $focalPlug;
+		connectAttr -f ($camera + ".horizontalFilmAperture") $filmPlug;
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintSetCamera
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintSetCamera(string $layerPlug)
+{
+	string $camera = `optionMenu -q -v "dl_mattePaintParamCameraControl"`;
+	dl_mattePaintConnectCamera($camera, $layerPlug);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintLayersControlsNew
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintLayersControlsNew(string $input)
+{
+	global string $dl_mattePaintLayersScroll;
+	global int $dl_mattePaintLayersScrollWidth;
+	
+    setUITemplate -pst "attributeEditorTemplate";
+    
+    string $node = plugNode($input);
+    string $phonyFloat = $node + ".phonyFloat";
+    separator -st "none" -h 5;
+    
+    columnLayout -adj 1;
+    
+    columnLayout -cat left 50 -cw $dl_mattePaintLayersScrollWidth;
+    
+    rowLayout -nc 2 -cw 1 $dl_mattePaintLayersScrollWidth -cw 2 75;
+    $dl_mattePaintLayersScroll = `textScrollList -ams 0 -nr 4 -w $dl_mattePaintLayersScrollWidth`;
+    columnLayout -adj 1;
+    button -l "Move Up" "dl_mattePaintUpLayerButton";
+    separator -st none -h 20;
+    button -l "Move Down" "dl_mattePaintDownLayerButton";
+    setParent ..;
+    setParent ..;
+    
+    gridLayout -nc 4 -cw 100;
+    button -l "Add" "dl_mattePaintAddLayerButton";
+    button -l "Remove" "dl_mattePaintRemoveLayerButton";
+    button -l "View" "dl_mattePaintViewLayerButton";
+    setParent ..;
+    setParent ..;
+    
+    separator -st none -h 10;
+    
+    checkBoxGrp -l "Enable Layer" "dl_mattePaintParamEnableControl";
+    
+    separator -st none -h 6;
+    rowLayout -nc 2 -cw 2 193;
+    text -l "Layer Name";
+    textField "dl_mattePaintParamNameControl";
+    setParent..;
+    
+    separator -st none -h 5;
+    
+    rowLayout -nc 3 -cw 2 193;
+    text -l "Texture File";
+    textField  "dl_mattePaintParamTextureControl";
+    symbolButton -image "navButtonBrowse.xpm"  "dl_mattePaintParamTextureBrowseControl";
+    setParent..;
+    
+    separator -st none -h 3;
+    
+    rowLayout -nc 5 -cw 2 193 -cw 3 50 -cw 4 50 -cw 5 50;
+    text -l "Projection Camera";
+    optionMenu "dl_mattePaintParamCameraControl";
+    button -l "Select" "dl_mattePaintParamSelectCameraButton";
+    button -l "New" "dl_mattePaintParamNewCameraButton";
+    setParent..;
+    
+    separator -st none -h 20;
+    
+    setUITemplate -ppt;
+
+    dl_mattePaintLayersControlsReplace($input);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintGetLayerAttributes
+// ----------------------------------------------------------------------------
+global proc string[] dl_mattePaintGetLayerAttributes(string $node)
+{
+	string $multi[] = `listAttr -m ($node + ".layers")`;
+	string $layers[];
+	int $c;
+	for($attr in $multi)
+		if(!gmatch($attr, "*.*"))
+			$layers[$c++] = $attr;
+	
+	return $layers;
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintUpdateLayerScroll
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintUpdateLayerScroll(string $node)
+{
+	global string $dl_mattePaintLayersScroll;
+	global string $dl_mattePaintCurrentLayerPlugs[];
+	global int $dl_mattePaintCurrentLayerIndex;
+	global int $dl_mattePaintLayersScrollWidth;
+	
+	clear($dl_mattePaintCurrentLayerPlugs);
+	
+	string $layerAttrs[] = dl_mattePaintGetLayerAttributes($node);
+	
+	textScrollList -e -ra $dl_mattePaintLayersScroll;
+	textScrollList -e 
+		-dcc ("dl_mattePaintViewLayer " + $node) 
+		-dkc ("dl_mattePaintRemoveLayer " + $node) 
+		-sc ("dl_mattePaintSelectLayer " + $node) 
+		$dl_mattePaintLayersScroll;
+	
+	int $c;
+	for($i=size($layerAttrs)-1; $i >= 0; $i--){
+		string $layerPlug = $node + "." + $layerAttrs[$i];
+		string $name = getAttr($layerPlug + ".layerName");
+		if($name == "")
+			$name = $layerAttrs[$i];
+		textScrollList -e -a  $name  -w $dl_mattePaintLayersScrollWidth $dl_mattePaintLayersScroll;
+		$dl_mattePaintCurrentLayerPlugs[$c++] = $layerPlug;
+	}
+	
+	int $nbItems = `textScrollList -q -ni $dl_mattePaintLayersScroll`;
+	
+	if($dl_mattePaintCurrentLayerIndex < 1)
+		$dl_mattePaintCurrentLayerIndex = 1;
+	else if($dl_mattePaintCurrentLayerIndex > $nbItems)
+		$dl_mattePaintCurrentLayerIndex = $nbItems;
+	
+	if($nbItems)
+		textScrollList -e -sii $dl_mattePaintCurrentLayerIndex $dl_mattePaintLayersScroll;
+	
+	dl_mattePaintSelectLayer($node);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintSelectLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintSelectLayer(string $node)
+{
+	global string $dl_mattePaintLayersScroll;
+	global string $dl_mattePaintCameras[];
+	global int $dl_mattePaintCurrentLayerIndex;
+	
+	int $index[] = `textScrollList -q -sii $dl_mattePaintLayersScroll`;
+	
+	int $enableControls = size($index) != 0;
+	
+	if($enableControls){
+		
+		$dl_mattePaintCurrentLayerIndex = $index[0];
+		
+		string $layerPlug = getSelectedLayerPlug();
+		
+		connectControl "dl_mattePaintParamNameControl" ($layerPlug + ".layerName");
+		connectControl "dl_mattePaintParamTextureControl" ($layerPlug + ".textureFile");
+		connectControl -in 2 "dl_mattePaintParamEnableControl" ($layerPlug + ".enableState");
+		
+		button -e -c ("dl_mattePaintNewCamera " + $layerPlug)  "dl_mattePaintParamNewCameraButton";
+		button -e -c ("dl_mattePaintSelectCamera " + $layerPlug)  "dl_mattePaintParamSelectCameraButton";
+		
+		string $items[] = `optionMenu -q -ils "dl_mattePaintParamCameraControl"`;
+		for($menu in $items)
+			deleteUI($menu);
+		
+		string $cameras[] = sort(`ls -type "camera"`);
+		menuItem -p "dl_mattePaintParamCameraControl" -l "None";
+		optionMenu -e -cc ("dl_mattePaintSetCamera \"" + $layerPlug + "\"" ) "dl_mattePaintParamCameraControl";
+		for( $camera in $cameras ){
+			if(!getAttr($camera + ".orthographic") && !gmatch($camera, "*persp*")){
+				string $cameraTrs[] = `listRelatives -p -pa $camera`;
+				$dl_mattePaintCameras[size($dl_mattePaintCameras)] = $cameraTrs[0];
+				menuItem -p "dl_mattePaintParamCameraControl" -l $cameraTrs[0];
+			}
+		}
+		
+		string $cam = dl_mattePaintGetCamera($layerPlug);
+		if(objExists($cam))
+			optionMenu -e -v $cam "dl_mattePaintParamCameraControl";
+		
+		symbolButton -e -c  ("AEfileBrowser(\"" + $layerPlug + ".textureFile\", \"image\", 0)")  "dl_mattePaintParamTextureBrowseControl";
+	}
+	else{
+		textField -e -tx "" "dl_mattePaintParamNameControl";
+	}
+	
+	textField -e -ed $enableControls  "dl_mattePaintParamNameControl";
+	
+	textField -e -ed $enableControls  "dl_mattePaintParamNameControl";
+	textField -e -ed $enableControls  "dl_mattePaintParamTextureControl";
+	symbolButton -e -en $enableControls  "dl_mattePaintParamTextureBrowseControl";
+	button -e -en $enableControls "dl_mattePaintParamNewCameraButton";
+	button -e -en $enableControls "dl_mattePaintParamSelectCameraButton";
+	button -e -en $enableControls "dl_mattePaintRemoveLayerButton";
+	button -e -en $enableControls "dl_mattePaintUpLayerButton";
+	button -e -en $enableControls "dl_mattePaintDownLayerButton";
+	optionMenu -e -en $enableControls "dl_mattePaintParamCameraControl";
+	checkBoxGrp -e -en $enableControls  "dl_mattePaintParamEnableControl";
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintAddLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintAddLayer(string $node)
+{
+	global int $dl_mattePaintCurrentLayerIndex;
+	
+	int $newIndex = 0;
+
+	string $layerAttrs[] = dl_mattePaintGetLayerAttributes($node);
+	if(size($layerAttrs)){
+		string $element_tokens[];
+		tokenize($layerAttrs[size($layerAttrs)-1], "[]", $element_tokens);
+		$newIndex = int($element_tokens[size($element_tokens)-1]) + 1;
+	}
+	
+	string $layerPlug = $node + ".layers[" + $newIndex + "]";
+			
+	setAttr -type "string" ($layerPlug + ".layerName") ("layer"+ $newIndex);
+
+	$dl_mattePaintCurrentLayerIndex = 1;
+	
+	//dl_mattePaintNewCamera($layerPlug);
+	dl_mattePaintUpdateLayerScroll($node);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintRemoveLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintRemoveLayer(string $node)
+{
+	string $layerPlug = getSelectedLayerPlug();
+	disconnectAllChildrens($layerPlug);
+	evalDeferred("removeMultiInstance -b true " + $layerPlug);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintViewLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintViewLayer(string $node)
+{
+	string $layerPlug = getSelectedLayerPlug();
+	string $camera = dl_mattePaintGetCamera($layerPlug);
+	if(!objExists($camera))
+		return;
+	
+	// Try to use previous panel
+	string $panels[] = `getPanel -type modelPanel`;
+	string $layerAttrs[] = dl_mattePaintGetLayerAttributes($node);
+	for($panel in $panels){
+		string $panelCamera = `modelEditor -q -camera $panel`;
+		for($layerAttr in $layerAttrs){
+			string $curLayerPlug = $node + "." + $layerAttr;
+			string $curCamera = dl_mattePaintGetCamera($curLayerPlug);
+			if($curCamera == $panelCamera){
+				modelEditor -e -camera $camera $panel;
+				return;
+			}
+		}
+	}
+	
+	// Fallback to first ortho
+	for($panel in $panels){
+		string $panelCamera = `modelEditor -q -camera $panel`;
+		if(getAttr($panelCamera + ".orthographic")){
+			modelEditor -e -camera $camera $panel;
+			return;
+		}
+	}
+	
+	// fallback to first
+	modelEditor -e -camera $camera $panels[0];
+}
+
+
+// ----------------------------------------------------------------------------
+// swapPlugs
+// ----------------------------------------------------------------------------
+proc swapPlugs(string $curPlug, string $newPlug, string $childAttr)
+{
+	string $curChildPlug = $curPlug + "." + $childAttr;
+	string $newChildPlug = $newPlug + "." + $childAttr;
+	
+	string $curConnect[] = `listConnections -d 0 -p 1 -c 1 $curChildPlug`;
+	string $newConnect[] = `listConnections -d 0 -p 1 -c 1 $newChildPlug`;
+		
+	if(size($curConnect))
+		disconnectAttr($curConnect[1], $curConnect[0]);
+			
+	if(size($newConnect))
+		disconnectAttr($newConnect[1], $newConnect[0]);
+		
+	string $attrType = `getAttr -type $curChildPlug`;
+	if($attrType == "string"){
+		string $curValue = getAttr($curChildPlug);
+		string $newValue = getAttr($newChildPlug);
+		setAttr -type "string" $curChildPlug $newValue;
+		setAttr -type "string" $newChildPlug $curValue;
+	}
+	else if ($attrType == "matrix"){
+		float $cm[] = getAttr($curChildPlug);
+		float $nm[] = getAttr($newChildPlug);
+		setAttr -type "matrix" $curChildPlug $cm[0] $cm[1] $cm[2] $cm[3] $cm[4] $cm[5] $cm[6] $cm[7] $cm[8] $cm[9] $cm[10] $cm[11] $cm[12] $cm[13] $cm[14] $cm[15];
+		setAttr -type "matrix" $newChildPlug $nm[0] $nm[1] $nm[2] $nm[3] $nm[4] $nm[5] $nm[6] $nm[7] $nm[8] $nm[9] $nm[10] $nm[11] $nm[12] $nm[13] $nm[14] $nm[15];
+	}
+	else if ($attrType != "message"){
+		$curValue = getAttr($curChildPlug);
+		$newValue = getAttr($newChildPlug);
+		setAttr($curChildPlug, $newValue);
+		setAttr($newChildPlug, $curValue);
+	}
+	
+	if(size($curConnect))
+		connectAttr($curConnect[1], $newChildPlug);
+			
+	if(size($newConnect))
+		connectAttr($newConnect[1], $curChildPlug);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintMoveLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintMoveLayer(string $node, int $direction)
+{
+	global string $dl_mattePaintLayersScroll;
+	global string $dl_mattePaintCurrentLayerPlugs[];
+	
+	global int $dl_mattePaintCurrentLayerIndex;
+	
+	int $selIdxs[] = `textScrollList -q -sii $dl_mattePaintLayersScroll`;
+	int $nbLayers = `textScrollList -q -ni $dl_mattePaintLayersScroll`;
+	
+	int $curPos = $selIdxs[0] - 1;
+	int $newPos = $curPos + $direction;
+	
+	if($newPos >= 0 && $newPos < $nbLayers){
+		
+		string $curPlug = $dl_mattePaintCurrentLayerPlugs[$curPos];
+		string $newPlug = $dl_mattePaintCurrentLayerPlugs[$newPos];
+		
+		swapPlugs($curPlug, $newPlug, "enableState");
+		swapPlugs($curPlug, $newPlug, "layerName");
+		swapPlugs($curPlug, $newPlug, "textureFile");
+		swapPlugs($curPlug, $newPlug, "cameraMessage");
+		swapPlugs($curPlug, $newPlug, "cameraMatrix");
+		swapPlugs($curPlug, $newPlug, "cameraFocalLength");
+		swapPlugs($curPlug, $newPlug, "cameraFilmAperture");
+		
+		$dl_mattePaintCurrentLayerIndex = ($selIdxs[0] + $direction);
+		
+		dl_mattePaintUpdateLayerScroll($node);
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintUpLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintUpLayer(string $node)
+{
+	dl_mattePaintMoveLayer($node, -1);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintDownLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintDownLayer(string $node)
+{
+	dl_mattePaintMoveLayer($node, 1);
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintRenameLayer
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintRenameLayer(string $node)
+{
+	string $layerPlug = getSelectedLayerPlug();
+	string $layerName = getAttr($layerPlug + ".layerName");
+	string $camera = dl_mattePaintGetCamera($layerPlug);
+	
+	if(objExists($camera)){
+		
+		int $renameCamera = 1;
+		string $layerAttrs[] = dl_mattePaintGetLayerAttributes($node);
+		for($layerAttr in $layerAttrs){
+			string $plug = $node + "." + $layerAttr;
+			if($plug != $layerPlug && $camera == dl_mattePaintGetCamera($plug)){
+				$renameCamera = 0;
+				break;
+			}
+		}
+		
+		if($renameCamera)
+			rename($camera, $layerName + "_camera");
+	}
+	
+	dl_mattePaintUpdateLayerScroll($node); 
+			
+}
+
+// ----------------------------------------------------------------------------
+// dl_mattePaintLayersControlsReplace
+// ----------------------------------------------------------------------------
+global proc dl_mattePaintLayersControlsReplace(string $input)
+{
+	global int $dl_mattePaintCurrentLayerIndex;
+	
+	string $node = plugNode($input);
+	
+	dl_mattePaintUpdateLayerScroll($node);
+	
+	dl_mattePaintSelectLayer($node);
+	
+	button -e -c ("dl_mattePaintAddLayer " + $node) "dl_mattePaintAddLayerButton";
+	button -e -c ("dl_mattePaintRemoveLayer " + $node) "dl_mattePaintRemoveLayerButton";
+	button -e -c ("dl_mattePaintViewLayer " + $node)  "dl_mattePaintViewLayerButton";
+	button -e -c ("dl_mattePaintUpLayer " + $node) "dl_mattePaintUpLayerButton";
+	button -e -c ("dl_mattePaintDownLayer " + $node) "dl_mattePaintDownLayerButton";
+	
+	textField -e  -cc ("dl_mattePaintRenameLayer " + $node) "dl_mattePaintParamNameControl";
+	
+}
+
+// ----------------------------------------------------------------------------
+// AEdl_mattePaintTemplate
+// ----------------------------------------------------------------------------
+global proc AEdl_mattePaintTemplate(string $nodeName)
+{
+    AEswatchDisplay($nodeName);
+    
+    editorTemplate -bsl;
+
+    editorTemplate -bl "Layers" -cl 0;
+		editorTemplate -ccu "dl_mattePaintLayersControlsNew" "dl_mattePaintLayersControlsReplace" "layers";
+	editorTemplate -el;
+	
+    editorTemplate -bl "General" -cl 0;
+		editorTemplate -ac "defaultColor";
+		editorTemplate -ac "defaultTransparency";
+	editorTemplate -el;
+	
+	editorTemplate -bl "Display" -cl 0;
+		editorTemplate -ac "resolution" ;
+	editorTemplate -el;
+	
+		
+    AEdependNodeTemplate $nodeName;
+    editorTemplate -aec;
+    editorTemplate -esl;
+}

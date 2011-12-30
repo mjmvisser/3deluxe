@@ -1,0 +1,138 @@
+#! /opt/Nuke6.0v1/Nuke6.0 -nx
+version 6.0 v1
+Gizmo {
+ inputs 2
+ addUserKnob {20 User}
+ addUserKnob {7 shadowintensity l "shadow intensity"}
+ shadowintensity 1
+ addUserKnob {41 value_1 l "indirect intensity" T IndirectIntensity.value}
+ addUserKnob {41 value l "ambient intensity" T AmbientIntensity.value}
+ addUserKnob {41 value_2 l "environment intensity" T EnvironmentIntensity.value}
+}
+ Input {
+  inputs 0
+  name ENV
+  xpos -260
+  ypos -425
+ }
+set Nb8912d0 [stack 0]
+add_layer {ambient ambient.red ambient.green ambient.blue}
+ Remove {
+  operation keep
+  channels ambient
+  name Channel_ambient
+  xpos -370
+  ypos -363
+ }
+ Multiply {
+  channels ambient
+  name AmbientIntensity
+  xpos -370
+  ypos -307
+ }
+ Dot {
+  name Dot2
+  xpos -336
+  ypos -125
+ }
+ Input {
+  inputs 0
+  name SURF
+  xpos 3
+  ypos -425
+  number 1
+ }
+ Dot {
+  name Dot1
+  xpos 37
+  ypos -166
+ }
+push $Nb8912d0
+add_layer {indirect_unocc indirect_unocc.red indirect_unocc.green indirect_unocc.blue}
+ Remove {
+  operation keep
+  channels indirect_unocc
+  name Channel_indirect_unocc
+  xpos -260
+  ypos -365
+ }
+push $Nb8912d0
+add_layer {indirect_shad indirect_shad.red indirect_shad.green indirect_shad.blue}
+ Remove {
+  operation keep
+  channels indirect_shad
+  name Channel_indirect_shad
+  xpos -144
+  ypos -363
+ }
+ Multiply {
+  channels indirect_shad
+  value {{shadowintensity}}
+  name ShadowIntensity
+  xpos -144
+  ypos -262
+ }
+add_layer {indirect indirect.red indirect.green indirect.blue}
+ Merge2 {
+  inputs 2
+  operation difference
+  Achannels indirect_unocc
+  Bchannels indirect_shad
+  output indirect
+  also_merge all
+  name Channel_indirect
+  xpos -260
+  ypos -262
+ }
+ Multiply {
+  channels indirect
+  name IndirectIntensity
+  xpos -260
+  ypos -220
+ }
+add_layer {diffuse_surf diffuse_surf.red diffuse_surf.green diffuse_surf.blue}
+ Merge2 {
+  inputs 2
+  operation multiply
+  Achannels diffuse_surf
+  Bchannels indirect
+  output indirect
+  name Multiply
+  xpos -260
+  ypos -178
+ }
+add_layer {environment environment.red environment.green environment.blue environment.alpha}
+ Merge2 {
+  inputs 2
+  operation plus
+  Achannels ambient
+  Bchannels indirect
+  output environment
+  also_merge all
+  name Channel_environment
+  xpos -260
+  ypos -137
+ }
+ Multiply {
+  name EnvironmentIntensity
+  xpos -260
+  ypos -78
+ }
+ Shuffle {
+  in environment
+  name environment_to_rgba
+  xpos -260
+  ypos -25
+ }
+ Output {
+  name Output1
+  xpos -260
+  ypos 21
+ }
+ Viewer {
+  input_process false
+  name Viewer1
+  xpos -250
+  ypos 111
+ }
+end_group

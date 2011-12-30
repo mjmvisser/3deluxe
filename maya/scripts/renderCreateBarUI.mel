@@ -1,0 +1,622 @@
+// Copyright (C) 1997-2010 Autodesk, Inc., and/or its licensors.
+// All rights reserved.
+//
+// The coded instructions, statements, computer programs, and/or related
+// material (collectively the "Data") in these files contain unpublished
+// information proprietary to Autodesk, Inc. ("Autodesk") and/or its licensors,
+// which is protected by U.S. and Canadian federal copyright law and by
+// international treaties.
+//
+// The Data is provided for use exclusively by You. You have the right to use,
+// modify, and incorporate this Data into other products for purposes authorized 
+// by the Autodesk software license agreement, without fee.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. AUTODESK
+// DOES NOT MAKE AND HEREBY DISCLAIMS ANY EXPRESS OR IMPLIED WARRANTIES
+// INCLUDING, BUT NOT LIMITED TO, THE WARRANTIES OF NON-INFRINGEMENT,
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, OR ARISING FROM A COURSE 
+// OF DEALING, USAGE, OR TRADE PRACTICE. IN NO EVENT WILL AUTODESK AND/OR ITS
+// LICENSORS BE LIABLE FOR ANY LOST REVENUES, DATA, OR PROFITS, OR SPECIAL,
+// DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES, EVEN IF AUTODESK AND/OR ITS
+// LICENSORS HAS BEEN ADVISED OF THE POSSIBILITY OR PROBABILITY OF SUCH DAMAGES.
+
+//
+//
+//  Creation Date:  March 5, 2001
+//
+
+global proc renderCreateBarUIManage(
+	string $renderCreateBarUI,
+	int $manage)
+{
+	//
+	// Description:
+	//	This procedure is called to cause the render create bar UI to be shown
+	//	or hidden.
+	//	This procedure causes the formLayout which contains the render create
+	//	bar UI to be managed or unmanaged, according to the $manage argument.
+	//
+	formLayout
+		-edit
+		-manage $manage
+		$renderCreateBarUI;
+}
+
+global proc int renderCreateBarUIIsManaged(
+	string $renderCreateBarUI)
+{
+	//
+	// Description:
+	//	This procedure is called to determine whether or not the create bar UI
+	//	is being shown.
+	//
+	// Returns: 
+	//	true if the render create bar UI is shown, false if not.
+	//
+
+	return (`formLayout -query -manage $renderCreateBarUI`);
+
+}
+
+global proc addToRenderNodeTreeLister(
+	string $renderNodeTreeLister,
+	string $postCommand,
+	string $frame,
+	string $classification,
+	string $as,
+	string $flag)
+{
+	//
+	// Description:
+	//	This procedure is called as the render create bar UI is
+	//	being built. 
+	//	This procedure adds each node type that is classified according to
+	//	$classification to the nodeTreeLister. The item command is configured
+	//	create a node of that type using the $as and $flag arguments to
+	//	createRenderNodeCB().
+	//
+
+	// some of mental ray shaders are registered as both 
+	// rendernode/mentalray/material and shaders/surface
+	// For those node, this function is called twice : 
+	// once with $classification = shader/surface, 
+	// once with $classification = rendernode/mentalray/material
+	// We want to create buttons/menus in mental ray section
+
+	string $nodes[];
+	string $mentalrayClassfication = "rendernode/mentalray";
+    string $delightClassfication = "rendernode/3delight";
+
+	if( startsWith($classification, $mentalrayClassfication) ) 
+	{
+		$nodes = `listNodeTypes $classification`;
+	}
+	else if ( startsWith($classification, $delightClassfication) )
+	{
+        $nodes = `listNodeTypes $classification`;
+	}
+	else
+	{
+	   // mark: intersect the exclusion of mentalray and 3delight nodes from the classification 
+	   string $intersector = `stringArrayIntersector`;
+	    
+	   string $nodes1[] = `listNodeTypes -ex $mentalrayClassfication $classification`;
+	   string $nodes2[] = `listNodeTypes -ex $delightClassfication $classification`;
+		
+       stringArrayIntersector -edit -intersect $nodes1 $intersector;
+	   stringArrayIntersector -edit -intersect $nodes2 $intersector;
+		
+	   $nodes = `stringArrayIntersector -q $intersector`;
+	}
+
+	int $dynamicsIsLicensed = `licenseCheck -mode edit -type fx`;
+	int $completeLicense = `licenseCheck -mode edit -type complete`;
+
+    string $annotation = "";
+
+    python("import maya.app.general.tlfavorites as _fav");
+
+	for ($type in $nodes) 
+	{
+
+		// Check whether node should appear in this UI, based on 
+		// certain variables			
+		if (!shouldAppearInNodeCreateUI($type)) {
+			continue;
+		}
+
+		string $command;
+		string $labelName;
+       
+	    if( startsWith($classification, $mentalrayClassfication) ) 
+	    {
+            $command = 
+				("mrCreateCustomNode"
+					+ " "
+					+ $as 
+					+ " \""
+					+ encodeString($postCommand)
+					+ "\" "
+					+ $type);
+			$labelName = $type;
+        }
+        else if( startsWith($classification, $delightClassfication) )
+        {
+            $command = 
+                ("dlCreateCustomNode"
+                    + " "
+                    + $as 
+                    + " \""
+                    + encodeString($postCommand)
+                    + "\" "
+                    + $type);
+            $labelName = $type;
+        }
+        else
+        {
+			$command = 
+				("createRenderNodeCB"
+					+ " "
+					+ $as 
+					+ " \""
+					+ $flag
+					+ "\" "
+					+ $type
+					+ " \""
+					+ encodeString($postCommand)
+					+ "\" ");
+			$labelName = `nodeTypeNiceName $type`;
+        }
+
+		string $buffer[];
+		int $numTokens = `tokenize $labelName "/" $buffer`;
+		if($numTokens > 1) {
+			$labelName = stringArrayToString($buffer, "|");
+		}
+		string $nodePath = $frame + "/" + $labelName;
+		nodeTreeLister -e -add $nodePath ("render_" + $type + ".png") $command $renderNodeTreeLister;
+        python(("_fav.addPath('" + $nodePath + "','" + $type + "')"));
+
+// QT_TODO - Probably need to be able to disable if necessary
+//		if(		(!$dynamicsIsLicensed) 
+//			&&	(	($type == "particleCloud") 
+//				||  ($classification == "utility/particle"))) 
+//		{
+//			// The node is a particle node, but the user does not have a
+//			// license for dynamics. We will disable the button for the 
+//			// node.
+//			//
+//			nodeIconButton 
+//				-edit
+//				-enable false 
+//				("createBar" + $type + "Button");
+//		} 
+//
+//		if (	(!$completeLicense)
+//			&&	($classification == "imageplane"))
+//		{
+//			// The node is a image plane, but the user does not have a
+//			// license for complete. We will disable the button for the 
+//			// node.
+//			//
+//			nodeIconButton 
+//				-edit
+//				-enable false 
+//				("createBar" + $type + "Button");
+//		}
+	}
+    python ("del _fav");
+}
+
+global proc initializeMayaNodeTypeInfo ()
+//
+// Description:  This procedure creates an array storing Maya node
+//               categories and the info needed to create a node of 
+//               each type.
+//
+{
+    global string $mayaNodeTypeInfo[];
+    
+    if( size( $mayaNodeTypeInfo ) == 0 ) 
+    {
+        int $index = 0;
+
+		//	Materials.
+		//
+		$mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Surface" );
+        $mayaNodeTypeInfo[$index++] = "shader/surface";
+        $mayaNodeTypeInfo[$index++] = "-asShader";
+		$mayaNodeTypeInfo[$index++] = "surfaceShader";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Volumetric" );
+        $mayaNodeTypeInfo[$index++] = "shader/volume";
+        $mayaNodeTypeInfo[$index++] = "-asShader";
+        $mayaNodeTypeInfo[$index++] = "volumeShader";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Displacement" );
+        $mayaNodeTypeInfo[$index++] = "shader/displacement";
+        $mayaNodeTypeInfo[$index++] = "-asShader";
+        $mayaNodeTypeInfo[$index++] = "displacementShader";
+
+		//	Textures.
+		//
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "2D Textures" );
+        $mayaNodeTypeInfo[$index++] = "texture/2d";
+        $mayaNodeTypeInfo[$index++] = "-as2DTexture";
+        $mayaNodeTypeInfo[$index++] = "";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "3D Textures" );
+        $mayaNodeTypeInfo[$index++] = "texture/3d";
+        $mayaNodeTypeInfo[$index++] = "-as3DTexture";
+        $mayaNodeTypeInfo[$index++] = "";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Env Textures" );
+        $mayaNodeTypeInfo[$index++] = "texture/environment";
+        $mayaNodeTypeInfo[$index++] = "-asEnvTexture";
+        $mayaNodeTypeInfo[$index++] = "";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Other Textures" );
+        $mayaNodeTypeInfo[$index++] = "texture/other";
+        $mayaNodeTypeInfo[$index++] = "-asTexture";
+        $mayaNodeTypeInfo[$index++] = "";
+
+		//	Lights.
+		//
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Lights" );
+        $mayaNodeTypeInfo[$index++] = "light";
+        $mayaNodeTypeInfo[$index++] = "-asLight";
+        $mayaNodeTypeInfo[$index++] = "";
+
+		//	Utilities.
+		//
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Utilities" );
+        $mayaNodeTypeInfo[$index++] = "utility";
+        $mayaNodeTypeInfo[$index++] = "-asUtility";
+        $mayaNodeTypeInfo[$index++] = "";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Image Planes" );
+        $mayaNodeTypeInfo[$index++] = "imageplane";
+        $mayaNodeTypeInfo[$index++] = "-asUtility";
+        $mayaNodeTypeInfo[$index++] = "";
+
+        $mayaNodeTypeInfo[$index++] = "Maya/" + localizedNodeClassificationLabel( "Glow" );
+        $mayaNodeTypeInfo[$index++] = "postprocess/opticalFX";
+        $mayaNodeTypeInfo[$index++] = "-asPostProcess";
+        $mayaNodeTypeInfo[$index++] = "";
+    }    
+}
+
+global proc int mayaNumNodeCategories()
+//
+//	Description: Returns the number of Maya node categories.
+//
+{
+	//
+	// Make sure all the Maya node categories are filled in before we use them.
+	//
+	initializeMayaNodeTypeInfo();
+	global string $mayaNodeTypeInfo[];
+
+	return( size($mayaNodeTypeInfo)/4 );
+}
+
+global proc string[] mayaGetNodeCategory( int $whichCat )
+//
+//	Description: Retrieves information about the specified category.
+//
+//	Arguments: $whichCat - the numeric identifier for the category.
+//
+//	Returns:	A 4-element string array containing the title string, 
+//				ui base name, static classification, and runtime classification
+//				for the category.
+//
+{
+	//
+	// Make sure all the Maya node categories are filled in before we use them.
+	//
+	initializeMayaNodeTypeInfo();
+	global string $mayaNodeTypeInfo[];
+
+	string $categoryName = $mayaNodeTypeInfo[4*$whichCat];
+	string $categoryClassification = $mayaNodeTypeInfo[4*$whichCat+1];
+	string $categoryAs = $mayaNodeTypeInfo[4*$whichCat+2];
+	string $categoryFlag = $mayaNodeTypeInfo[4*$whichCat+3];
+
+	return	{	$categoryName, 
+				$categoryClassification, 
+				$categoryAs, 
+				$categoryFlag 
+			};
+}
+
+global proc createMayaNodesTreeLister_Content(string $renderNodeTreeLister, string $postCommand, string $filterClasses[])
+//
+//	Description:
+//		This procedure contains code for adding Maya nodes
+//		to the treeLister.
+{
+	if(size($filterClasses) == 0) {
+		// Create all categories
+		//
+		int $numCategories = mayaNumNodeCategories();
+		int $i;
+		for( $i = 0; $i < $numCategories; $i++ )
+		{
+			string $categoryInfo[] = mayaGetNodeCategory( $i );
+			string $title = $categoryInfo[0];
+			string $classification = $categoryInfo[1];
+			string $as = $categoryInfo[2];
+			string $flag = $categoryInfo[3];
+
+			// add to the treeLister
+			//
+			addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, $title, $classification, $as, $flag);
+
+		}
+	} else {
+		// Create only the categories in the filter array
+		//
+		for($filterClass in $filterClasses) {
+			int $numCategories = mayaNumNodeCategories();
+			int $i;
+			for( $i = 0; $i < $numCategories; $i++ )
+			{
+				string $categoryInfo[] = mayaGetNodeCategory( $i );
+				string $title = $categoryInfo[0];
+				string $classification = $categoryInfo[1];
+				string $as = $categoryInfo[2];
+				string $flag = $categoryInfo[3];
+
+				if(startsWith($filterClass, $classification)) {
+					// If the filter classification is a subclass of
+					// a default, only add the subclass nodes to the
+					// treeLister.
+					//
+					addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, $title, $filterClass, $as, $flag);
+					break;
+				} else if(startsWith($classification, $filterClass)) {
+					// If the filter classification is a superclass of
+					// a default, we can add all the default nodes to the
+					// treeLister.
+					//
+					addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, $title, $classification, $as, $flag);
+					break;
+				}
+			}
+		}
+	}
+}
+
+proc string renderCreateBarFavoritesFile()
+// Description: Returns the full path to the favorites file
+//
+{
+	return (`internalVar -userPrefDir` + "renderNodeTypeFavorites");
+}
+
+proc renderCreateBarInitDefaultFavorites(string $fname)
+// Description:  Create the default favorites file
+//
+{
+    // This default set is only created if the file doesn't already exist.
+    string $defaultNodeTypes[] = {"blinn","lambert","layeredShader", "phong","phongE","rampShader","surfaceShader","useBackground"};
+    string $defaultFavs = "[";
+    string $basePath = ("Maya/" + localizedNodeClassificationLabel( "Surface" ));
+    string $nodeType;
+    for ($nodeType in $defaultNodeTypes) {
+        string $suffix = `nodeTypeNiceName($nodeType)`;
+        string $fullPath = ($basePath + "/" + $suffix) ;
+        string $tuple = ("('" + $fullPath + "','" + $nodeType + "')");
+        $defaultFavs += ($tuple + ",");
+    }
+    $defaultFavs += "]";
+
+    $fileId=`fopen $fname "w"`;
+    if ($fileId != 0) {
+        fprint $fileId $defaultFavs;
+        fclose $fileId;
+    }
+}
+
+global proc string[] renderCreateBarFavorites()
+// Description:  This procedure returns the list of renderCreateBar favorites
+//              as a list like: {"Maya/Surface/Blinn","blinn","Maya/Volume/... }
+//
+{
+    string $fname = renderCreateBarFavoritesFile();
+    if (!`file -q -ex $fname`) {
+        // No favorites.  Create a default set
+        renderCreateBarInitDefaultFavorites($fname);
+    }
+    string $favs[] = python("import maya.app.general.tlfavorites as _fav;_fav.readFavorites('" + $fname + "')");
+    python("del _fav");
+    return $favs;
+}
+
+proc renderCreateBarInitFavorites(string $lister)
+// Description:  This procedure is called to hook up the treeLister to 
+// a Favorites store.
+//
+{
+    string $fname = renderCreateBarFavoritesFile();
+    if (!`file -q -ex $fname`) {
+        // No favorites.  Create a default set
+        renderCreateBarInitDefaultFavorites($fname);
+    }
+    string $py = ( "import maya.app.general.tlfavorites as _fav;" +
+                   "_fav.attachStore('" + $lister + "','" + $fname + "');" + 
+                   "del _fav");
+    python($py);
+}
+
+global proc renderCreateBarPopupCreate2DTexture(string $path, string $lister, string $texType)
+// Description:  This procedure is called to create a 2D texture with a particular
+//               type by temporarily changing create2DTextureType optionVar
+//
+{
+    string $oldTexType = `optionVar -query create2dTextureType`;
+    optionVar -stringValue create2dTextureType $texType;
+    treeLister -e -executeItem $path $lister;
+    optionVar -stringValue create2dTextureType $oldTexType;
+    refreshCreateNodeUI();
+}
+    
+global proc renderCreateBarPopupMenuCB(string $lister, string $menu)
+// Description:  This procedure is called to populate the treeLister
+//               result items RMB menu. 
+//
+{
+    // delete our old items first
+    string $items[] = `menu -q -ia $menu`;
+    if (`size $items` >= 3) {
+        catchQuiet( `deleteUI -menuItem normalItem2 projectionItem2 stencilItem2` );
+    }
+    $path = `treeLister -q -resultsPathUnderCursor $lister`;
+    if (0 == `size $path`) return;
+    // query the lang and command string
+    string $item[] = `treeLister -q -itemScript $path $lister`;
+    // if -as2DTexture is in the command then populate the 2d texture options
+    if (`gmatch $item[1] "*-as2DTexture*"`) {
+        setParent -menu $menu;
+        menuItem -label (uiRes("m_renderCreateBarUI.kCreateTexture"))
+            -command ("renderCreateBarPopupCreate2DTexture \""
+                      + $path + "\" " + $lister + " \"normal\"" )
+            normalItem2;
+    
+        menuItem  -label (uiRes("m_renderCreateBarUI.kCreateAsProjection"))
+            -command ("renderCreateBarPopupCreate2DTexture \""
+                      + $path + "\" " + $lister + "\"projection\"" )
+            projectionItem2;
+    
+        menuItem  -label (uiRes("m_renderCreateBarUI.kCreateAsStencil"))
+            -command ("renderCreateBarPopupCreate2DTexture \""
+                      + $path + "\" " + $lister + "\"stencil\"" )
+            stencilItem2;
+    }
+}
+
+proc renderCreateBarInitPopupMenu(string $lister)
+// Description:  This procedure is called to create a popupMenu
+// on the treelister to handle creation options.
+//
+{
+    string $menuName = "renderCreateBarPopupMenu";
+    popupMenu -parent $lister -pmc ("renderCreateBarPopupMenuCB \""+ $lister + "\" \"" + $menuName +"\"") $menuName;
+}
+
+global proc buildRenderNodeTreeListerContent(string $renderNodeTreeLister, string $postCommand, string $filterString)
+//
+// Description:  This procedure is to populate the treeLister with render nodes.      
+//
+{
+    string $createContentProc;
+    global int $WantProtein; // TO DO: Bug 339986 Temporary code until we can check if the library is loaded
+
+	string $filterClassArray[];
+	$filterClassArray = stringToStringArray($filterString, " ");
+	
+	createMayaNodesTreeLister_Content($renderNodeTreeLister, $postCommand, $filterClassArray);
+
+	if (`pluginInfo -query -loaded Mayatomr`)
+	{
+		mrRenderNode_CreateTreeLister_Content($renderNodeTreeLister, $postCommand, $filterClassArray);
+	}
+	
+	// mark: add delight nodes
+	string $maya_version = substring(string(`about -api`), 1, 4);
+	if (`pluginInfo -query -loaded ("3delight_for_maya"+$maya_version)`)
+	{
+	   dlRenderNode_CreateTreeLister_Content($renderNodeTreeLister, $postCommand, $filterClassArray);
+	}
+	
+	if(`adskAssetListUI -q -materialLoaded`) 
+    {
+		$createContentProc = "adskAssetListUI -uiCommand \"nodeTreeLister -e -add\" -commandSuffix \"" + $renderNodeTreeLister + "\"";
+        eval $createContentProc;
+    }
+    
+    // If there is a user initialize procedure defined, then call it
+    if (`optionVar -exists "renderNodeTypeTreeInitializeUserProc"`)
+    {
+        string $userInitProcedure = `optionVar -query "renderNodeTreeInitializeUserProc"`;
+        string $fname = renderCreateBarFavoritesFile();
+        // User procedure is called as: fn(treeListerName, favoritesFileName);
+        // The procedure should populate the treeLister with items, and update the
+        // favorites pathToStoredKey dict, as in done by addToRenderNodeTreeLister()
+        //
+        eval(($userInitProcedure + " " + $renderNodeTreeLister + "\"" + $fname + "\""));
+    }
+
+    // Init treeLister
+    renderCreateBarInitPopupMenu($renderNodeTreeLister);
+    renderCreateBarInitFavorites($renderNodeTreeLister);
+
+    treeLister -e -expandToDepth 0 $renderNodeTreeLister;
+}
+
+global proc string createRenderNodeTreeLister(string $postCommand, string $filterString)
+//
+// Description:  This procedure is to create a new treeLister for render nodes.
+//
+{
+	string $renderNodeTreeLister = `nodeTreeLister`;
+	buildRenderNodeTreeListerContent($renderNodeTreeLister, $postCommand, $filterString);
+	return $renderNodeTreeLister;
+}
+
+global proc refreshRenderNodeTreeLister(string $renderNodeTreeLister, string $postCommand, string $filterString)
+//
+// Description:  This procedure is to refresh a render node treeLister
+//               by clearing its contents and repopulating it.
+//
+{
+	treeLister -e -clearContents $renderNodeTreeLister;
+	buildRenderNodeTreeListerContent($renderNodeTreeLister, $postCommand, $filterString);
+}
+
+global proc string renderCreateBarUI(
+	string $parentForm)
+{
+	//
+	// Description:
+	//	This procedure is called to build the UI on the left of the Hypershade
+	//	panel which allows the user to create new render nodes.
+	//
+	// Returns:
+	//	The name of the renderCreateBarUI that has been created. This name
+	//	should be stored and used later as an argument to other procedures in
+	//	this file which require it.
+	//
+
+	setParent $parentForm;
+
+		string $renderCreateBarUI = `formLayout -manage false`;
+		string $renderNodeTreeLister = createRenderNodeTreeLister("", "");
+			formLayout
+				-edit
+				-af $renderNodeTreeLister top 0 
+				-af $renderNodeTreeLister left 0 
+				-af $renderNodeTreeLister bottom 0 
+				-af $renderNodeTreeLister right 0
+				$renderCreateBarUI;
+		
+	setParent ..; // from $renderCreateBarUI
+
+	formLayout
+		-edit
+		-af $renderCreateBarUI top 0
+		-af $renderCreateBarUI bottom 0
+		-af $renderCreateBarUI left 0
+		-af $renderCreateBarUI right 0
+		$parentForm;
+
+    // Now the formLayouts are created, we can fill in the content.
+    // Calling the content creation after specifying how things are
+    // attached to the the formLayout
+    // give us the option of speeding up the content building process
+    // by unmanaging the layout, create the content, then manage the 
+    // layout.
+    // 
+    formLayout -edit -manage true $renderCreateBarUI;
+
+	return $renderCreateBarUI;
+}

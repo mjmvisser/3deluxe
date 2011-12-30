@@ -1,0 +1,3623 @@
+global string $g_nodes[];
+global string $g_node_scopes[];
+global int $g_max_node_depths[];
+global int $g_max_node_depth;
+global string $g_src_plugs[];
+global string $g_src_plug_types[];
+global string $g_dst_plugs[];
+global string $g_final_color_plug;
+global string $g_final_transparency_plug;
+
+/*
+  An array of all plugs which will be inputs to the generated shader (ie.
+  parameters which can be set when instantiating the shader).
+  
+  The plug names can have a special prefix surrounded by #. It is used to get
+  special behavior in the function which uses this variable to generate the
+  parameters.
+*/
+global string $g_shader_input_plugs[];
+
+/*
+  For each shader with variable inputs (ie. when the above array isn't empty),
+  the first of these arrays contains the shader's name and the second a snippet
+  of mel to be appended to the Ri call to add the required parameters.
+*/
+global string $g_shaders_with_params_name[];
+global string $g_shaders_with_params_flags[];
+
+proc 
+printArrays()
+{
+  //
+  // Description:
+  // This procedure prints out the information gathered about the network 
+  // during the traversal. This information includes the names of the nodes in 
+  // the network, their depths, and the sources and destinations of all the
+  // connections in the network.
+  // This procedure is useful for debugging purposes, to diagnose the network
+  // traversal.
+  //
+
+  global string $g_nodes[];
+  global int $g_max_node_depths[];
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+  global string $g_dst_plugs[];
+
+  print("\nNodes and depths:\n");
+
+  for ($i = 0; $i < size($g_nodes); $i++)
+  {
+    print($g_nodes[$i]);
+    print(" has max depth ");
+    print($g_max_node_depths[$i]);
+    print("\n");
+  }
+
+  print("\n\nConnections:\n");
+
+  for ($i = 0; $i < size($g_src_plugs); $i++)
+  {
+    print($g_src_plug_types[$i]);
+    print(" ");
+    print($g_src_plugs[$i]);
+    print(" -> ");
+    print($g_dst_plugs[$i]);
+    print("\n");
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Begin utility procedures defined here only for the purpose of keeping
+// all translation stuff in one file.
+// ----------------------------------------------------------------------------
+
+proc int
+stringArrayIndexOf2(string $item1, string $array1[], string $item2, string $array2[])
+{
+	for ($i = 0; $i < size($array1) && $i < size($array2); $i++)
+	{
+		if ($array1[$i] == $item1 && $array2[$i] == $item2)
+		{
+			return $i;
+		}
+	}
+	
+	return -1;
+}
+
+// ----------------------------------------------------------------------------
+// End utility procedures defined here only for the purpose of keeping
+// all translation stuff in one file.
+// ----------------------------------------------------------------------------
+
+
+
+// ----------------------------------------------------------------------------
+// Begin utility procedures only used by developers...
+// ----------------------------------------------------------------------------
+
+proc int
+isArrayType(string $plug_type)
+{
+  int $ret_val;
+  $ret_val = (   match("\\[[^\\]*]", $plug_type) != ""
+              || match("float[2-3]", $plug_type) != "");
+  
+  return $ret_val;
+}
+
+proc int
+isExcludedPlug(string $plug)
+{
+  //
+  // Description:
+  //  This procedure determines if the specified plug is explicitly excluded
+  //  from consideration for translation from Maya to SL. 
+  //  Several attributes are known to be irrelevant for the purposes of
+  //  translating Maya networks to RenderMan shading language code. Attributes
+  //  specifically used by other renderers, for example, should not be
+  //  translated.
+  //
+  // Returns:
+  //  True if the plug is explicitly excluded, false if not.
+  //
+
+  int $is_excluded = false;
+  string $attr = plugAttr($plug);
+
+  if (size(`match "^mi[A-Z]" $attr`))
+  {
+    // The attribute name has an "mi" prefix. These attributes are attributes
+    // used only by the mental ray renderer.
+    //
+    $is_excluded = true;
+  }
+  else if (size(`match "^vr[A-Z]" $attr`))
+  {
+    // The attribute name has a "vr" prefix. These attributes are attributes
+    // used only by the Maya vector renderer.
+    //
+    $is_excluded = true;
+  }
+  else if ($attr == "caching")
+  {
+    // We explicitly ignore the "caching" attribute that exists on every node.
+    // It is relevant only to Maya dependency graph evaluation.
+    //
+    $is_excluded = true;
+  }
+
+  return $is_excluded;
+}
+
+// TODO: This procedure is not actually used by the translation mechanism. 
+// It is only used by the getTranslatable____Attrs() procedures. Should it
+// exist in this file?
+//
+proc int
+isSupportedPlug(string $plug)
+{
+  //
+  // Description:
+  // 	This procedure examines the specified plug to determine whether it is
+  // 	supported by this translation mechanism. 
+  //  RenderMan supports a very limited set of types. We can only translate
+  //  attribute types that have some sort of equivalent representation in the
+  //  RenderMan shading language.
+  //  Additionally, some plugs are explicitly unsupported, because they aren't
+  //  relevant to a RenderMan render.
+  //
+  // Returns:
+  //  True if the plug is eligible for translation to RenderMan shading
+  //  language code, false if not.
+  //
+
+  int $is_supported_plug = false;
+  string $plug_type;
+
+  if (size(`ls $plug`) > 0)
+  {
+    //
+    // The listAttr command inexplicably returns the names of some attributes
+    // that don't exist if you try to call ls or getAttr on them. If we get to
+    // here, the specified plug actually exists as far as ls is concerned.
+    //
+
+    if (!catchQuiet($plug_type = `getAttr -type $plug`))
+    {
+      //
+      // If we get to here, the type of the specified plug can be queried
+      // successfully. 
+      //
+
+      switch ($plug_type)
+      {
+        case "bool":
+        case "color":
+        case "point":
+        case "enum":
+        case "float":
+        case "float2":
+        case "float3":
+        case "double3":
+        case "int":
+        case "long":
+        case "matrix":
+        case "short":
+        {
+          // The type of the specified plug is one of the types that we
+          // explicitly support.
+          //
+          if (!isExcludedPlug($plug))
+          {
+            // The plug is not explicitly unsupported.
+            //
+            $is_supported_plug = true;
+          }
+          break;
+        }
+        default:
+        {
+          // The type of the specified plug is not one of the types that we
+          // explicitly support.
+          //
+          $is_supported_plug = false;
+          break;
+        }
+      }
+    }
+  }
+
+  return $is_supported_plug;
+}
+
+global proc string[]
+DL_getTranslatableInputAttrs(string $node_type)
+{
+  //
+  // Description:
+  //  This procedure is not actually used by the translation process, but
+  //  exists for the convenience of developers who are implementing the
+  //  RenderMan equivalents of Maya nodes. 
+  //  Given a node type, this procedure returns a list of all input attributes 
+  //  of that node type for which RenderMan variables of equivalent type could 
+  //  be created.
+  //
+  // Returns:
+  //  A list of all attributes of the specified node type for which RenderMan 
+  //  variables of equivalent type could be created.
+  //
+
+  string $input_plugs[];
+  string $translatable_attrs[];
+
+  string $node = `createNode $node_type`;
+  string $input_attrs[] = 
+    `listAttr -write -visible -connectable -hasData $node`;
+
+  $input_attrs = `sort $input_attrs`;
+
+  for ($input_attr in $input_attrs)
+  {
+    string $input_plug = $node + "." + $input_attr;
+
+    if (isSupportedPlug($input_plug))
+    {
+      $translatable_attrs[size($translatable_attrs)] = $input_attr;
+    }
+  }
+
+  delete $node;
+
+  return $translatable_attrs;
+}
+
+global proc string[]
+DL_getTranslatableOutputAttrs(string $node_type)
+{
+  //
+  // Description:
+  //  This procedure is not actually used by the translation process, but
+  //  exists for the convenience of developers who are implementing the
+  //  RenderMan equivalents of Maya nodes. 
+  //  Given a node type, this procedure returns a list of all output attributes
+  //  of that node type for which RenderMan variables of equivalent type could 
+  //  be created.
+  //
+  // Returns:
+  //  A list of all attributes of the specified node type for which RenderMan 
+  //  variables of equivalent type could be created.
+  //
+
+  string $output_plugs[];
+  string $translatable_attrs[];
+
+  string $node = `createNode $node_type`;
+  string $output_attrs[] = 
+    `listAttr -read -visible -connectable -output -hasData $node`;
+
+  $output_attrs = `sort $output_attrs`;
+
+  for ($output_attr in $output_attrs)
+  {
+    string $output_plug = $node + "." + $output_attr;
+
+    if (isSupportedPlug($output_plug))
+    {
+      $translatable_attrs[size($translatable_attrs)] = $output_attr;
+    }
+  }
+
+  delete $node;
+
+  return $translatable_attrs;
+}
+
+
+// ----------------------------------------------------------------------------
+// End utility procedures only used by developers...
+// ----------------------------------------------------------------------------
+
+proc string
+getNodeRealName(string $node)
+{
+  return `match "^[^#]*" $node`;
+}
+
+proc string
+getNodeSuffix(string $node)
+{
+  int $node_string_size = size($node);
+  int $node_name_string_size = size(getNodeRealName($node));
+  string $suffix;
+
+  if ($node_string_size != $node_name_string_size)
+  {
+    $suffix = substring($node, $node_name_string_size + 1, $node_string_size);
+  }
+
+  return $suffix;
+}
+
+proc int
+findMaxDepthForScope(string $scope)
+{
+  global string $g_node_scopes[];
+  global int $g_max_node_depths[];
+
+  int $max_depth;
+  
+  $max_depth = -1;
+
+  for ($i = 0; $i < size($g_node_scopes); $i++)
+  {
+    if (size(match($scope, $g_node_scopes[$i])) != 0)
+    {
+      if ($g_max_node_depths[$i] > $max_depth)
+      {
+        $max_depth = $g_max_node_depths[$i];
+      }
+    }
+  }
+
+  return $max_depth;
+}
+
+proc string
+filePath(string $file_name)
+{
+  //
+  // Description:
+  //  This procedure looks for a file with the specified name in the rsl
+  //  directory under the 3delight for maya installation directory as well as
+  //  in other directories specified by _3DFM_SL_INCLUDE_PATH
+  //
+  // Returns:
+  //  The full path to the file, if found, or an empty string if the file was 
+  //  not found in the path.
+  //
+
+  string $sl_paths[] = DL_getSLincludePath();
+
+  for( $sl_path in $sl_paths )
+  {
+    if( `filetest -r ($sl_path + $file_name)` )
+      return $sl_path + $file_name;
+  }
+
+  return "";
+}
+
+proc int
+isSupportedNode(string $node)
+{
+  //
+  // Description:
+  //  This procedure determines if the specified node is of a type supported
+  //  by the Maya to RenderMan shading language translation process. 
+  //  The node is considered supported if it is of a type for which a header
+  //  file exists in the _3DFM_SL_INCLUDE_PATH. So, for example, if the node is a
+  //  blinn, and there exists blinn.h in _3DFM_SL_INCLUDE_PATH, the node is
+  //  considered supported.
+  //
+  // Returns:
+  //  True if the node is supported, false if not.
+  //
+
+  int $is_supported_node = false;
+  string $real_name = getNodeRealName($node);
+
+  // Special case for nodes which inserts user-supplied code.
+  if( RC_isRendermanCodeNode($real_name) )
+    return true;
+
+  string $node_type = nodeType($real_name);
+  string $include_file_name = ($node_type + ".h");
+  string $include_file_path = filePath($include_file_name);
+
+  if ($include_file_path != "")
+  {
+    $is_supported_node = true;
+  }
+
+  return $is_supported_node;
+}
+
+/*
+  readNodeExtraShaderParameters
+
+  This looks in the .h file corresponding to the given node for blocks which
+  look like:
+
+  begin shader_extra_parameters blockid
+    float whatever;
+  end shader_extra_parameters
+
+  Each begin-end pair is considered a parameter block and returned (as a single
+  string) along with its blockid. These are then used to add parameters to the
+  generated shader. The blockid is to avoid duplicates from different nodes.
+
+  blocks and their ids are appended to the o_blocks and o_blockids arrays.
+*/
+proc
+readNodeExtraShaderParameters(
+  string $i_node_type,
+  string $o_blockids[],
+  string $o_blocks[] )
+{
+  string $file_name = $i_node_type + ".h";
+  string $file_path = filePath($file_name);
+
+  if( $file_path == "" )
+    return;
+
+  int $file_id = `fopen $file_path "r"`;
+
+  string $line;
+  string $tokens[];
+  int $reading = 0;
+  int $current_idx;
+
+  while (!`feof $file_id`)
+  {
+    $line = `fgetline $file_id`;
+
+    if( $line == "" )
+      continue;
+
+    tokenize $line " \t\r\n" $tokens;
+
+    // Check for "begin ..." or "end ..."
+    if( $reading )
+    {
+      if( $tokens[0] == "end" && $tokens[1] == "shader_extra_parameters" )
+      {
+        $reading = 0;
+        continue;
+      }
+    }
+    else
+    {
+      if( $tokens[0] == "begin" && $tokens[1] == "shader_extra_parameters" )
+      {
+        $reading = 1;
+        $current_idx = size($o_blockids);
+        $o_blockids[$current_idx] = $tokens[2];
+      }
+
+      continue;
+    }
+
+    $o_blocks[$current_idx] = $o_blocks[$current_idx] + $line;
+  }
+
+  fclose $file_id;
+}
+
+/*
+  readNodeParameters
+
+  This looks in the .h file corresponding to the given node for a list of
+  supported parameters (aka plugs). This function can read both the input and
+  output parameters.
+
+  The parameters are expected to be in a comment at the start of the file and
+  look somewhat like this:
+
+  begin inputs
+    float amplitude
+    color diffuseColor
+  end inputs
+  begin outputs
+    color finalColor
+  end outputs
+*/
+proc
+readNodeParameters(
+  string $i_node,
+  string $i_paramType,
+  string $o_plugs[],
+  string $o_plug_types[],
+  string $o_plug_tags[] )
+{
+  string $real_name = getNodeRealName($i_node);
+  string $node_type = nodeType($real_name);
+
+  // Special case for the user-supplied code node.
+  if( RC_isRendermanCodeNode( $real_name ) )
+  {
+    RC_getNodePlugs(
+      $real_name, $i_paramType,
+	  $o_plugs, $o_plug_types, $o_plug_tags );
+
+    return;
+  }
+
+  string $file_name = $node_type + ".h";
+  string $file_path = filePath($file_name);
+
+  if( $file_path == "" )
+    return;
+
+  int $file_id = `fopen $file_path "r"`;
+
+  string $line;
+  string $tokens[];
+  int $reading = 0;
+
+  while (!`feof $file_id`)
+  {
+    $line = strip(`fgetline $file_id`);
+
+    if( $line == "" )
+      continue;
+
+    tokenize $line " " $tokens;
+
+    if( size($tokens) < 2 )
+      continue;
+
+    // Check for "begin ..." or "end ..."
+    if( $reading )
+    {
+      if( $tokens[0] == "end" && $tokens[1] == $i_paramType )
+        break;
+    }
+    else
+    {
+      if( $tokens[0] == "begin" && $tokens[1] == $i_paramType )
+        $reading = 1;
+
+      continue;
+    }
+
+    // Use this line
+    if( size($tokens) > 2 )
+    {
+      $o_plug_tags[size($o_plug_tags)] = $tokens[0];
+      $o_plug_types[size($o_plug_types)] = $tokens[1];
+      $o_plugs[size($o_plugs)] = ($i_node + "." + $tokens[2]);
+    }
+    else
+    {
+      $o_plug_types[size($o_plug_types)] = $tokens[0];
+      $o_plugs[size($o_plugs)] = ($i_node + "." + $tokens[1]);
+      $o_plug_tags[size($o_plug_tags)] = "";
+    }
+  }
+
+  fclose $file_id;
+}
+
+/*
+  getInputPlugs
+
+  Description:
+    This procedure determines what plugs on the specified node can take inputs. 
+    The plug names will be used (along with the names returned by outputPlugs)
+    as arguments to the compute function for the node's node type.
+    Some plugs on nodes are both inputs and outputs: they can be both the
+    source and the destination of a connection.
+
+  Returns:
+    A string array of names of plugs on the specified node that can take
+    inputs.
+*/
+// TODO: Rename this procedure to getSupportedDstPlugs()?
+// Or getSupportedDstPlugsAndTypes()?
+proc
+getInputPlugs(
+  string $node,
+  string $input_plugs[],
+  string $input_plug_types[],
+  string $input_plug_tags[])
+{
+
+  readNodeParameters(
+    $node,
+    "inputs",
+    $input_plugs,
+    $input_plug_types,
+    $input_plug_tags );
+}
+
+/*
+  getOutputPlugs
+
+  Description:
+    This procedure determines what plugs on the specified node can be
+    considered outputs of the node.
+    The plug names will be used (along with the names returned by intputPlugs)
+    as arguments to the compute function for the node's node type.
+    Some plugs on nodes are both inputs and outputs: they can be both the
+    source and the destination of a connection.
+
+  Returns:
+    A string array of names of plugs on the specified node that can be
+    considered outputs.
+*/
+proc
+getOutputPlugs(
+  string $node,
+  string $output_plugs[],
+  string $output_plug_types[],
+  string $output_plug_tags[] )
+{
+  readNodeParameters(
+    $node,
+    "outputs",
+    $output_plugs,
+    $output_plug_types,
+    $output_plug_tags );
+}
+
+proc
+addToShaderInputPlugs( string $plug )
+{
+  global string $g_shader_input_plugs[];
+
+  if( DL_stringArrayIndexOf( $plug, $g_shader_input_plugs ) == -1 )
+  {
+    $g_shader_input_plugs[size($g_shader_input_plugs)] = $plug;
+  }
+}
+
+// map: Now returns index of found src plug
+proc int
+visitConnection(string $src_plug, string $dst_plug)
+{
+  //
+  // Description:
+  // 	This procedure is called many times during the traversal of the network. 
+  //  It is called once for every connection that exists between nodes in the
+  //  network.
+  //  This procedure stores information about the connection for later use.
+  //  Information about the connection will be stored even if the attributes
+  //  involved are not supported by the translation process.
+  //  This procedure initializes global variables used by other procedures in
+  //  this file.
+  //
+
+  global string $g_src_plugs[];
+  global string $g_dst_plugs[];
+
+  /*
+    NOTE: A destination of "" (nowhere) is used for the shader's outputs.
+    The generated variables are then retrieved manually.
+  */
+  if (stringArrayCount($dst_plug, $g_dst_plugs) == 0 || $dst_plug == "")
+  {
+    // The name of the destination plug does not exist in the global
+    // destination plug array.
+    // Store the names of the source and destination plugs of the connection
+    // in the global source and destination plug arrays. These arrays
+    // correspond to one another. Source and destination of a connection are
+    // stored at the same index in their respective arrays.
+    //
+	// map: Returns index of found src plug 
+    int $dstidx = size($g_dst_plugs);
+    int $srcidx = size($g_src_plugs);
+    $g_dst_plugs[$dstidx] = $dst_plug;
+    $g_src_plugs[$srcidx] = $src_plug;
+    
+    return $srcidx;
+  }
+  
+  return -1;
+}
+
+// map: Add support to void compound attribute
+proc
+visitConnectionTyped(string $src_plug, string $dst_plug, string $type)
+{
+	global string $g_src_plug_types[];
+	
+	int $idx = visitConnection($src_plug, $dst_plug);
+	if($idx != -1)
+		$g_src_plug_types[$idx] = $type;	
+}
+
+proc string
+includeStatementsString()
+{
+  //
+  // Description:
+  // 	This procedure builds a snippet of RenderMan shading language code that
+  // 	includes the header files needed by the shading network currently being
+  // 	translated.
+  //  This procedure uses global variables initialized by the traversal of the
+  //  network.
+  //
+  // Returns:
+  //	The snippet of shading language code, as a string.
+  //
+
+  global string $g_nodes[];
+  string $include_statements_string;
+
+  $include_statements_string += "\t// Include statements\n";
+  $include_statements_string += "\t//\n";
+
+  string $node_types[];
+
+  for ($node in $g_nodes)
+  {
+    // Get the node types of each and every node in the network.
+
+    string $real_name = getNodeRealName($node);
+    string $node_type = nodeType($real_name);
+
+    // "rendermanCode" nodes cause user code to be injected
+    if( RC_isRendermanCodeNode( $real_name ) )
+    {
+      $include_statements_string +=
+        RC_getFuncCode( $real_name, "\t" );
+    }
+    else
+    {
+      $node_types[size($node_types)] = $node_type;
+    }
+  }
+
+  // Remove any duplicates from the array of node types. A particular node
+  // type might be used more than once in the network, but we only need to
+  // include it once.
+  //
+  $node_types = DL_stringArrayRemoveDuplicates($node_types);
+
+  string $node_type;
+
+  for ($node_type in $node_types)
+  {
+    // Include a header file for each node type in the network.
+    //
+    $include_statements_string += "\t#include <";
+    $include_statements_string += $node_type;
+    $include_statements_string += ".h>\n";
+  }
+  
+  $include_statements_string += "\n";
+
+  return $include_statements_string;
+}
+
+proc string
+variableNameString(string $plug)
+{
+  //
+  // Description:
+  // 	This procedure takes the name of a Maya plug and generates the name of a
+  // 	variable to represent that plug in RenderMan shading language code. The  
+  //  name is generated so that it will be syntactically valid as a variable
+  //  name in RenderMan shading language.
+  //
+  // Returns:
+  //	The variable name that should be used in shading language code to
+  //	represent the specified plug.
+  //
+
+  // The variable name that corresponds to a plug is the same as the plug
+  // name except:
+  // - Substitutions for :, _ and | are done by DL_legalizeString()
+  // - Any "." between node and attribute or attribute and child attribute is
+  // replaced with an underscore.
+  // - Plugs which are channels of colors, normals, points and vectors do not 
+  // get their own variables. Instead, they are represented by components of 
+  // variables representing the whole color/normal/point/vector.
+  // - Square brackets indicating the index of the plug within a multi attribute
+  // are removed.
+  //
+
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+
+  int $is_local_var = 1;
+
+  if (match("#param$", $plug) != "")
+  {
+    $plug = substring($plug, 1, (size($plug) - size("#param")));
+    $is_local_var = 0;
+  }
+
+  string $variable_name = $plug;
+  string $var_prefix, $var_suffix;
+
+  string $node = plugNode($plug);
+  string $attr = plugAttr($plug);
+  
+  if (objExists($node + "." + substitute("\\[[0-9]+\\]", $attr, "")))
+  {
+    string $attr_multi = match( ".*\\.", $attr );
+    string $attr_leaf = match( "[^\\.]*$", $attr );
+    $attr_leaf = match( "[^\\[]*", $attr_leaf );
+    
+
+    string $plug_parents[] = `attributeQuery -n $node -lp $attr_leaf`;
+  
+    // We use this to skip compound data where the parent is the part before '.'
+    string $multi_parent = substitute("\\[[0-9]+\\]\\.", $attr_multi, "");
+
+    if( size($plug_parents) > 0 && $plug_parents[0] != $multi_parent )
+    {
+      // map: Add support to void compound attribute
+      string $basename = $node + ".";
+      if($attr_multi != ($plug_parents[0] + "."))
+		$basename += $attr_multi;
+				
+      string $parent_type = `getAttr -type ($basename + $plug_parents[0])`;         
+
+      if (
+           $parent_type == "float2"
+        || $parent_type == "float3"
+        || $parent_type == "double3" )
+      {
+        string $child_attrs[] =
+          `attributeQuery -node $node -listChildren $plug_parents[0]`;
+        int $index = 0;
+      
+        for($current_child in $child_attrs)
+        {
+          if($current_child == $attr_leaf)
+          {
+              break;
+          }
+        
+          $index++;
+        }
+      
+        $variable_name = $basename + $plug_parents[0];
+
+        int $plug_idx = DL_stringArrayIndexOf( $plug, $g_src_plugs );
+        if( $plug_idx == -1 )
+        {
+          error -showLineNumber true "plug type not found";
+        }
+
+        string $plug_type = $g_src_plug_types[$plug_idx];
+
+        if( $plug_type == "color" ||
+            $plug_type == "point" ||
+            $plug_type == "vector" ||
+            $plug_type == "normal" )
+        {
+          // color, point, normal, vector: use comp( parent, x )
+          $var_prefix = "comp(";
+          $var_suffix = ", " + $index + ")";
+        }
+        else
+        {
+          // array: use parent[x]
+          $var_suffix = "[" + $index + "]";
+        }
+      }
+    }
+  }
+
+  $variable_name = DL_legalizeString($variable_name);
+  $variable_name = DL_substituteAllString( $variable_name, ".", "_" );
+
+  // Simply remove the [] from multi-attribs for now.
+  $variable_name = DL_substituteAllString( $variable_name, "[", "");
+  $variable_name = DL_substituteAllString( $variable_name, "]", "");
+  
+  if ($is_local_var)
+    $variable_name += "_local";
+    
+  $variable_name = $var_prefix + $variable_name + $var_suffix;
+
+  return $variable_name;
+}
+
+proc string
+generateVariableDeclaration(
+  string $plug,
+  string $plug_type,
+  int $array_size,
+  int $is_an_array,
+  string $default_value)
+{
+  string $declaration_string;
+  int $is_an_array;
+
+  $declaration_string += $plug_type;
+  $declaration_string += " ";
+  $declaration_string += variableNameString($plug);
+
+  if ($is_an_array > 0)
+  {
+    $declaration_string += "[]";
+  }
+
+  $declaration_string += " = ";
+
+  if ($is_an_array > 0)
+  {
+    $declaration_string += "{ ";
+  }
+
+  int $i;
+  for ($i = 0; $i < $array_size; $i++)
+  {
+    $declaration_string += $default_value;
+      
+    if ($array_size - $i > 1)
+    {
+      $declaration_string += ", ";
+    }
+  }
+
+  if ($is_an_array > 0)
+  {
+    $declaration_string += " }";
+  }
+
+  $declaration_string += ";\n";
+
+  return $declaration_string;
+}
+
+proc string
+variableDeclarationString(
+  string $plug, 
+  string $plug_type,
+  string $plug_tag,
+  int $gen_default_value)
+{
+  //
+  // Description:
+  // 	This procedure builds a snippet of RenderMan shading language code that
+  // 	declares a variable capable of storing the value of the specified Maya
+  // 	plug.
+  //	Not all plug types have equivalent RenderMan shading language types.
+  //  Supported plugs and their RenderMan types are specified in .inputs and 
+  //  .outputs files for the various supported node types.
+  //
+  // Returns:
+  //	A string containing the snippet of code.
+  //
+
+  string $declaration_string;
+  int $array_size;
+  int $is_an_array;
+
+  $array_size = 1;
+  $is_an_array = 0;
+  
+  if( $plug_type == "float2[]" )
+  {
+    $array_size = -1;
+    $plug_type = "float";
+    $is_an_array = 1;
+  }
+  else if (match("float[2-3]", $plug_type) != "")
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = substring($plug_type, $str_size, $str_size);
+    $plug_type = "float";
+    $is_an_array = 1;
+  }  
+  // map: Add support to arrays
+  else if ( match("float[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "float";
+    $is_an_array = 1;
+  }
+  else if ( match("color[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "color";
+    $is_an_array = 1;
+  }  
+  else if ( match("vector[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "vector";
+    $is_an_array = 1;
+  }    
+  else if ( match("normal[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "normal";
+    $is_an_array = 1;
+  }      
+  else if ( match("point[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "point";
+    $is_an_array = 1;
+  }     
+  else if ( match("matrix[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "matrix";
+    $is_an_array = 1;
+  }        
+  else if ( match("void[0-9]+", $plug_type) != "" )
+  {
+    int $str_size;
+    $str_size = size($plug_type);
+    $array_size = match("[0-9]+", $plug_type);
+    $plug_type = "void";
+    $is_an_array = 1;
+  }      
+  else
+  {
+    string $array_size_str;
+    $array_size_str = match("\\[[^\\]*]", $plug_type);
+    
+    if ($array_size_str != "")
+    {
+      $is_an_array = 1;
+      
+      if (size($array_size_str) > 2)
+      {
+        $array_size = substring($array_size_str, 2, size($array_size_str) - 1);
+      }
+      else
+      {
+        $array_size = -1;
+      }
+      
+      $plug_type = substring($plug_type, 1, size($plug_type) - size($array_size_str));
+    }
+  }
+
+  if (   match("uniform", $plug_tag) != ""
+      || match("varying", $plug_tag) != "")
+  {
+    $declaration_string = $plug_tag;
+    $declaration_string += " ";
+  }
+  
+  string $default_value;
+
+  if ($gen_default_value != 0)
+  {
+    string $tag_prefix;
+    $tag_prefix = match("^init=", $plug_tag);
+  
+    if ($tag_prefix != "")
+    {
+      $declaration_string += $plug_type;
+      $declaration_string += " ";
+      $declaration_string += variableNameString($plug);
+      
+      if ($is_an_array != 0)
+      {
+        $declaration_string += "[]";
+      }
+      
+      $declaration_string += " = ";
+      $declaration_string += substring(
+        $plug_tag,
+        size($plug_tag) - size($tag_prefix) - 1,
+        size($plug_tag));
+      $declaration_string += ";\n";
+      
+      return $declaration_string;
+    }
+    else
+    {
+      switch ($plug_type)
+      { 
+        case "color":
+        case "normal":
+        case "point":
+        case "vector":
+        {
+          $default_value = $plug_type;
+          $default_value += "(0,0,0)";
+          break;
+        }
+        case "float":
+        {
+          $default_value = "0";
+          break;
+        }
+        case "matrix":
+        {
+          $default_value = "1";
+          break;
+        }
+        case "string":
+        {
+          $default_value = "\"\"";
+          break;
+        }
+        // map: Add support to void compound attribute
+        case "void":
+		{
+			if(`getAttr -type $plug` == "TdataCompound"){
+				
+				string $buf[];
+				tokenize($plug, ".", $buf);
+				string $stripIndex = match("[a-zA-Z0-9_]+", $buf[size($buf)-1]);
+				
+				//
+				string $output_plugs[];
+				string $output_plug_types[];
+				string $output_plug_tags[];
+				getOutputPlugs($buf[0], $output_plugs, $output_plug_types, $output_plug_tags);
+
+				string $children[] = `attributeQuery -node $buf[0] -lc $stripIndex`;
+				
+				for($child in $children){
+					string $childPlug = $plug + "." + $child;
+					int $idx = DL_stringArrayIndexOf($childPlug, $output_plugs);
+					if($idx != -1){
+						
+						string $childType = $output_plug_types[$idx];
+						if(gmatch($childType, "*\\[]"))
+							$childType = substitute("\\[]", $childType, string($array_size));
+						
+						$declaration_string +=  variableDeclarationString($childPlug, $childType, "", 1);
+					}
+				}
+			}
+
+			return $declaration_string;
+		  break;
+		}        
+        default:
+        {
+          // Not all plug types have equivalent RenderMan shading language types.
+          // If this procedure is called with a plug that does not have an 
+          // equivalent RenderMan shading language type, an error has occurred 
+          // somewhere in the calling code. Calling code should first verify that 
+          // the plugs it wants to use are supported by this translation mechanism,
+          // by calling isSupportedPlug().
+          // 
+          string $node_type = nodeType(plugNode($plug));
+  
+          error
+            -showLineNumber true
+            ("The file \"" 
+              + $node_type 
+              + ".outputs\" or \""
+              + $node_type 
+              + ".inputs\" specified an invalid RenderMan shading language type (\""
+              + $plug_type
+              + "\") for the plug \""
+              + $plug
+              + "\"");
+        } 
+      }
+    }
+  }
+ 
+  if($default_value != "")
+  {
+    $declaration_string += generateVariableDeclaration(
+      $plug, 
+      $plug_type, 
+      $array_size,
+      $is_an_array,
+      $default_value);
+  }
+  else
+  {
+    $declaration_string += $plug_type;
+    $declaration_string += " ";
+    $declaration_string += variableNameString($plug);
+  
+    if ($is_an_array > 0)
+    {
+      $declaration_string += "[]";
+    }
+  }
+
+  return $declaration_string;
+}
+
+proc string
+outputVariableDeclarationsString()
+{
+  //
+  // Description:
+  //  This procedure builds a snippet of RenderMan shading language code that 
+  //  declares all of the variables needed to store outputs of nodes in the
+  //  network that are needed as inputs for other nodes in the network.
+  //  This procedure uses global variables initialized by the traversal of the
+  //  network.
+  //
+  // Returns:
+  //  A string containing the snippet of code.
+  //
+
+  global string $g_nodes[];
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];  
+  // map: Add support to void compound attribute
+  global string $g_dst_plugs[];        
+  string $declarations_string;
+
+  $declarations_string += "\t// Output variable declarations\n";
+  $declarations_string += "\t//\n";
+
+  string $nodes[];
+  for ($node in $g_nodes)
+  {
+    $nodes[size($nodes)] = getNodeRealName($node);
+  }
+
+  $nodes = DL_stringArrayRemoveDuplicates($nodes);
+
+  string $output_plugs[];
+  string $output_plug_types[];
+  string $output_plug_tags[];
+
+  for ($node in $nodes)
+  {
+    // Iterate over supported plugs as defined in .outputs
+    // files and to look for those plugs (or their children) in $g_src_plugs.
+    //
+    clear($output_plugs);
+    clear($output_plug_types);
+    clear($output_plug_tags);
+    getOutputPlugs($node, $output_plugs, $output_plug_types, $output_plug_tags);
+
+    int $i;
+    string $output_plug;
+    string $output_plug_type;
+    string $output_plug_tag;
+
+    for ($i = 0; $i < size($output_plugs); $i++)
+    {
+      $output_plug = $output_plugs[$i];
+      $output_plug_type = $output_plug_types[$i];
+      $output_plug_tag = $output_plug_tags[$i];
+
+      /*
+        We must enumerate and also check for all the children of the plug (eg.
+        for outColor we'll have outColor, outColorR, outColorG, outColorB)
+        since it is possible that only components are connected and not the
+        entire plug itself. This will happen if, for example, you connect the
+        red channel of an output color to the alpha input of another node.
+      */
+      string $attr_and_children[] = `listAttr $output_plug`;
+
+      // Some messed up attribs don't list themselves.
+      if( $attr_and_children[0] != plugAttr($output_plug) )
+      {
+        $attr_and_children[size($attr_and_children)] = plugAttr($output_plug);
+      }
+
+      int $declaration_done = 0;
+
+      for( $attr in $attr_and_children )
+      {
+        string $src_plug = $node + "." + $attr;
+
+        int $index = DL_stringArrayIndexOf($src_plug, $g_src_plugs);
+
+        if( $index == -1 )
+          continue;
+        
+        // map: Add support to void compound attribute
+        if($output_plug_type == "void"){
+        	
+        	string $input_plugs[];
+        	string $input_plug_types[];
+        	string $input_plug_tags[];
+        	getInputPlugs(plugNode($g_dst_plugs[$index]), $input_plugs, $input_plug_types, $input_plug_tags);
+        	    
+        	int $dstindex = DL_stringArrayIndexOf($g_dst_plugs[$index], $input_plugs);
+        	
+        	$output_plug_type = $input_plug_types[$dstindex];
+        }
+        
+        // Record declared variable type so later use can cast correctly.
+        if( $g_src_plug_types[$index] == "" )
+          $g_src_plug_types[$index] = $output_plug_type;
+
+        /* Look for more connections which use this plug as a source.
+           FIXME: We need to fix this mess and use a hash table instead. */
+        int $idx;
+        for( $idx = $index + 1; $idx < size($g_src_plugs); $idx++ )
+        {
+          if( $g_src_plugs[$idx] == $src_plug &&
+              $g_src_plug_types[$idx] == "" )
+          {
+            $g_src_plug_types[$idx] = $output_plug_type;
+          }
+        }
+
+        if( $declaration_done )
+          continue;
+
+        $declarations_string += "\t";
+        $declarations_string += variableDeclarationString(
+          $output_plug, $output_plug_type, $output_plug_tag, 1);
+
+        // Ensure that we ouptut the declaration only once. 
+        $declaration_done = 1;
+      }
+    }
+  }
+
+  $declarations_string += "\n";
+
+  return $declarations_string;
+}
+
+proc string
+dummyVariableDeclarationsString()
+{
+  //
+  // Description:
+  //  This procedure builds a snippet of RenderMan shading language code that 
+  //  declares all of the variables needed to store outputs of nodes in the
+  //  network that are NOT needed as inputs for other nodes in the network.
+  //  These variables are dummy variables, because we need to pass them into
+  //  the compute functions for various nodes, but we don't care what values
+  //  they end up with.
+  //  This procedure uses global variables initialized by the traversal of the
+  //  network.
+  //
+  // Returns:
+  //  A string containing the snippet of code.
+  //
+
+  string $declarations_string;
+
+  $declarations_string += "\t// Dummy variable declarations\n";
+  $declarations_string += "\t//\n";
+
+  // For every RenderMan variable type, we need to provide the code to 
+  // declare a dummy variable.
+  //
+  $declarations_string += "\tfloat floatDummy = 0.0;\n";
+  $declarations_string += "\tfloat float2Dummy[2] = {0.0, 0.0};\n";
+  // map: Add support to arrays
+  $declarations_string += "\tfloat floatsDummy[] = {};\n";
+  $declarations_string += "\tcolor colorDummy = color(0,0,0);\n";
+  // map: Add support to arrays
+  $declarations_string += "\tcolor colorsDummy[] = {};\n";
+  $declarations_string += "\tmatrix matrixDummy = 1;\n";
+  $declarations_string += "\tnormal normalDummy = normal(0,0,0);\n";
+  $declarations_string += "\tpoint pointDummy = point(0,0,0);\n";
+  $declarations_string += "\tvector vectorDummy = vector(0,0,0);\n";
+  $declarations_string += "\tstring stringDummy;\n";
+  $declarations_string += "\n";
+  $declarations_string += "\t// Variable to keep track of transparency for " +
+                          "AOVs if multiple shaders are used\n";
+  $declarations_string += "\tcolor __transparency = 1;\n";
+  $declarations_string += "\n";
+
+  return $declarations_string;
+}
+
+proc string
+commonVariableDeclarationString()
+{
+  string $declarations_string;
+
+  $declarations_string += "\t// Common variables declarations\n";
+  $declarations_string += "\t//\n";
+  $declarations_string += "\tfloat ss = s;\n";
+  $declarations_string += "\tfloat tt = 1 - t;\n";
+
+  $declarations_string += "\n";
+
+  return $declarations_string;
+}
+
+/*
+  inputPlugValueString
+
+  This procedure generates a SL string which evaluates to the value of a given
+  input plug. For unconnected plugs, this will be the value of the plug itself.
+  For connected plugs, it will be the name of the variable which contains the
+  source plug's value. More complex cases such as partially connected composite
+  values generate equally more complex output (eg.
+  "color(sourceplug1,0.3,sourceplug2[1])" )
+
+  PARAMETERS:
+
+  input_plug_type : the type of the value to generate
+  input_plug : the input plug for which to generate the value
+  source_override : the plug to query on the source (connected) node if it
+  isn't the one connected.
+  o_flags : outputs three flags, one to signal if there is a connection to the
+  plug; one to signal if a declaration of the value is required and one to
+  signal if the string attribute has been expanded with DL_expandString().
+
+  NOTES:
+  - For float2[] and float3[] type plugs, the returned string will be
+    incomplete in itself and look like "c1,c2,c3" since it is intended to be
+    put into a larger array.
+  - Multi-attribute plugs should not be passed directly to this function.
+    Single elements should be. This means node.plug[3] is ok but not node.plug,
+    assuming plug is a multi-attribute.
+*/
+proc string
+inputPlugValueString(
+  string $input_plug_type,
+  string $input_plug,
+  string $source_override,
+  int $o_flags[] )
+{
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+  global string $g_dst_plugs[];
+
+  int $is_input_array = isArrayType($input_plug_type);
+  string $element_type = match("^[^\\[]*", $input_plug_type);
+  string $node = plugNode( $input_plug );
+
+  string $lookup_input_plug = $input_plug;
+  if( $source_override != "" )
+  {
+    /* Same hack as in traverseDstPlug. */
+      $lookup_input_plug += "_valueof_" + $source_override;
+  }
+
+  int $parent_idx = DL_stringArrayIndexOf( $lookup_input_plug, $g_dst_plugs );
+
+  $o_flags[0] = $parent_idx != -1;
+  $o_flags[1] = 0;
+  $o_flags[2] = 0;
+  
+  string $plug_names[] = listAttr( $input_plug );
+
+  /*
+    Shortcut unconnected childless plugs here as their value will not get built
+    otherwise.
+  */
+  if( $parent_idx == -1 && size($plug_names) == 1 )
+  {
+    string $value;
+    
+    if( $element_type == "matrix" )
+    {
+      /* matrix requires manual conversion to string */
+      $value = "matrix (";
+      float $matrix_value[16] = getAttr( $input_plug );
+      int $x;
+      for( $x = 0; $x < 16; $x++ )
+      {
+        if( $x != 0 )
+          $value += ", ";
+
+        $value += $matrix_value[$x];
+      }
+      $value += ")";
+    }
+    else if( $source_override != "" )
+    {
+      /* We get here with a message plug if the 'valueof_' tag is used. The
+         "0" is a hack but happens to work for float and color which is good
+         enough for now. */
+      $value = "0";
+    }
+    else
+    {
+      $value = getAttr( $input_plug );
+    }
+
+    /* strings need to be in quotes */
+    if( $element_type == "string" )
+    {
+      string $expanded_value = DL_expandString(
+        $value, 
+        "", 
+        `delightRenderState -qrn`);
+        
+      if ($expanded_value != $value)
+      {
+        $o_flags[2] = 1;
+      }
+      
+      $value = "\"" + $expanded_value + "\"";
+    }
+    
+    return $value;
+  }
+
+  /* See if each child is connected and lookup its value. */
+
+  int $child_indices[];
+  string $child_values[];
+  int $has_connected_child = 0;
+
+  int $i;
+  for( $i = 1; $i < size($plug_names); $i++ )
+  {
+    string $child_plug = $node + "." + $plug_names[$i];
+
+    int $idx = DL_stringArrayIndexOf( $child_plug, $g_dst_plugs );
+    $child_indices[size($child_indices)] = $idx;
+
+    if( $idx != -1 )
+      $has_connected_child = 1;
+
+    string $value = getAttr( $child_plug );
+
+    if( $element_type == "string" )
+      $value = "\"" + DL_expandString($value, "", `delightRenderState -qrn`) + "\"";
+
+    $child_values[size($child_values)] = $value;
+  }
+
+  if( $has_connected_child )
+    $o_flags[0] = 1;
+
+  /* This is a hack so that normal type params default to N. */
+  if( $parent_idx == -1 && !$has_connected_child && $element_type == "normal" )
+  {
+    return "N";
+  }
+
+  string $parent_src = "";
+  string $parent_src_type = "";
+
+  if( $parent_idx != -1 )
+  {
+    $parent_src = $g_src_plugs[$parent_idx];
+    $parent_src_type = $g_src_plug_types[$parent_idx];
+
+    if(
+      !$has_connected_child &&
+      $input_plug_type != "float2[]" &&
+      $input_plug_type != "float3[]" )
+    {
+      /*
+        This case is an optimization so we output the source variable directly
+        when the types match (or are trivial casts) and only the parent is
+        connected. For example, we want "color(somenode_point)" instead of
+        "color(comp(somenode_point,0), comp(...), ...)".
+      */
+      string $parent_value = variableNameString( $parent_src );
+
+      if( $parent_src_type == $element_type )
+        return $parent_value;
+
+      /*
+        color, vector, normal and point can be cast between each other
+        directly. float can also be cast to any of those types.
+      */
+      if(
+        ( $parent_src_type == "color" ||
+          $parent_src_type == "vector" ||
+          $parent_src_type == "normal" ||
+          $parent_src_type == "point" ||
+          $parent_src_type == "float" )
+        &&
+        ( $element_type == "color" ||
+          $element_type == "vector" ||
+          $element_type == "normal" ||
+          $element_type == "point" ) )
+      {
+        return $element_type + "(" + $parent_value + ")";
+      }
+
+      /*
+        float and string plugs can always use the value directly. This one is *not* 
+        an optimization; without it connecting pretty much anything to a float
+        or float[] plug won't work.
+      */
+      if( $element_type == "float" || $element_type == "string" )
+        return $parent_value;
+    }
+  }
+
+  string $value_string = "";
+
+  if( $element_type == "float2" || $element_type == "float3" || 
+      $element_type == "double3" )
+  {
+    /* These generate a form which can't be inlined. */
+    $o_flags[1] = 1;
+  }
+  else
+  {
+    /* All other types can be constructed with the same syntax. */
+    $value_string += $element_type + "(";
+  }
+
+  /*
+    Ugly hack for matrices which are passed as shader parameters as float[16]
+    arrays to avoid being transformed.
+  */
+  if( $parent_src_type == "float[16]" && size($child_indices) == 0 )
+  {
+    for( $i = 0; $i < 16; ++$i )
+      $child_indices[$i] = -1;
+  }
+
+  for( $i = 0; $i < size($child_indices); $i++ )
+  {
+    if( $i != 0 )
+      $value_string += ", ";
+
+    if( $child_indices[$i] != -1 )
+    {
+      /* Child is connected. We will use the output var for that source. */
+
+      string $src_plug = $g_src_plugs[$child_indices[$i]];
+
+      $value_string += variableNameString( $src_plug );
+    }
+    else if( $parent_idx != -1 )
+    {  
+      /* Child is unconnected but the parent is. Use a component of the output
+         variable which stores the parent's source value. */
+
+      if( isArrayType($parent_src_type) )
+      {
+        $value_string += variableNameString($parent_src) + "[" + $i + "]";
+      }
+      else
+      {
+        $value_string +=
+           "comp(" + variableNameString($parent_src) + ", " + $i + ")";
+      }
+    }
+    else
+    {
+      /* There is no connection at all. Use the child's current value. */
+ 
+      $value_string += $child_values[$i];
+    }
+  }
+
+  if( $element_type != "float2" && $element_type != "float3" && 
+      $element_type != "double3" )
+  {
+      $value_string += ")";
+  }
+
+  return $value_string;
+}
+
+// map: Support to void compound
+proc string[]
+separateVoidCompounds(string $plugs[], string $plug_types[], string $plug_tags[])
+{
+	string $void_compounds[];
+	
+	string $tmp_plugs[];
+	string $tmp_plug_types[];
+	string $tmp_plug_tags[];
+	
+	for($i = 0; $i < size($plugs); $i++)
+	{
+		if(gmatch($plug_types[$i], "void*") && `getAttr -type ($plugs[$i])` == "TdataCompound"){
+			$void_compounds[size($void_compounds)] = plugAttr($plugs[$i]);
+		}
+		else{
+			$tmp_plugs[size($tmp_plugs)] = $plugs[$i];
+			$tmp_plug_types[size($tmp_plug_types)] = $plug_types[$i];
+			$tmp_plug_tags[size($tmp_plug_tags)] = $plug_tags[$i];
+		}
+	}  
+	
+	$plugs = $tmp_plugs;
+	$plug_types = $tmp_plug_types;
+	$plug_tags = $tmp_plug_tags;
+	
+	return $void_compounds;
+}
+
+// map: Support to void compound
+proc string getCorrespondingChildAttr(string $origNode, string $origChildAttr, string $targetNode, string $targetParentAttr){
+
+	string $pythonStr = 
+		"import maya.OpenMaya as op\n" + 
+		"def getCorrespondingChildAttr(origNode, origChildAttr, targetNode, targetParentAttr):\n"+
+		"    list = op.MSelectionList()\n" + 
+		"    list.add(origNode)\n" +
+		"    list.add(targetNode)\n" +
+		"    origObj = op.MObject()\n" +
+		"    targetObj = op.MObject()\n" +
+		"    list.getDependNode(0, origObj)\n" +
+		"    list.getDependNode(1, targetObj)\n" +
+		"    origFn=op.MFnDependencyNode(origObj)\n" +
+		"    targetFn=op.MFnDependencyNode(targetObj)\n" +
+		"    origLeafPlug = origFn.findPlug(origChildAttr, True)\n" +
+		"    origParentPlug = origLeafPlug.parent()\n" + 
+		"    targetParentPlug = targetFn.findPlug(targetParentAttr, True)\n" +
+		"    for i in range(0, origParentPlug.numChildren()):\n" +
+		"        childPlug = origParentPlug.child(i)\n" +
+		"        if childPlug == origLeafPlug:\n" +
+		"            return targetParentPlug.child(i).partialName(0, 0, 0, 0, 0, 1)\n"+
+		"    return ''\n";
+
+	python $pythonStr;
+	
+	string $result = python("getCorrespondingChildAttr('" + $origNode + "', '" + $origChildAttr + "', '" + $targetNode + "', '" + $targetParentAttr + "')");
+	
+	return $result;
+}
+
+proc string
+computeCallString(string $node, int $indent_level[])
+{
+  //
+  // Description:
+  // 	This procedure builds the snippet of RenderMan shading language code
+  // 	that calls the node compute function for the specified node with the
+  // 	appropriate input and output variables.
+  //  This procedure uses global variables initialized by the traversal of the
+  //  network.
+  //
+  // Returns:
+  //  A string containing the code snippet.
+  //
+
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+  global string $g_dst_plugs[];
+  string $compute_call_string;
+  string $variable_declarations;
+  string $function_call;
+  string $function_name;
+  string $function_prefix;
+  string $indentation;
+  
+  for ($i = 0; $i < $indent_level[0]; $i++)
+  {
+    $indentation += "\t";
+  }
+
+  // TODO:
+  // - Figure out what to do about arguments that are animated. Anything?
+  // Maybe that's just another node type that may or may not be supported.
+  //
+  string $real_name = getNodeRealName($node);
+  string $node_type = nodeType($real_name);
+  $function_name = "maya_" + $node_type;
+
+  // Trap rendermanCode nodes as each instance calls a different function. */
+  if( RC_isRendermanCodeNode( $real_name ) )
+  {
+    $function_name = RC_getFuncName( $real_name );
+  }
+
+  $function_prefix = getNodeSuffix($node);
+
+  if (size($function_prefix))
+  {
+    $function_name = (  substring($function_prefix, 2, size($function_prefix)) 
+                      + "_" + $function_name);
+  }
+
+  $node = $real_name;
+
+  $compute_call_string += $indentation;
+  $compute_call_string += "// Compute call string for " + $node + "\n";
+  $compute_call_string += $indentation;
+  $compute_call_string += "//\n";
+
+  if ($function_prefix == "#prepare")
+  {
+    $compute_call_string += $indentation;
+    $compute_call_string += "{\n";
+
+    $indentation += "\t";
+    $indent_level[0] = $indent_level[0] + 1;
+  }
+
+  string $input_plugs[];
+  string $input_plug_types[];
+  string $input_plug_tags[];
+  string $output_plugs[];
+  string $output_plug_types[];
+  string $output_plug_tags[];
+
+  getInputPlugs($node, $input_plugs, $input_plug_types, $input_plug_tags);
+  getOutputPlugs($node, $output_plugs, $output_plug_types, $output_plug_tags);
+
+  // map: Support to void compound
+  string $input_void_compounds[] = separateVoidCompounds($input_plugs, $input_plug_types, $input_plug_tags);
+  string $output_void_compounds[] = separateVoidCompounds($output_plugs, $output_plug_types, $output_plug_tags);
+  
+  int $i;
+  int $line_feed_needed;
+
+  $line_feed_needed = 0;
+
+  $function_call += $indentation;
+  $function_call += $function_name;
+  $function_call += "(\n";
+
+  $indentation += "\t";
+  $indent_level[0] = $indent_level[0] + 1;
+
+  int $num_input_plugs = size($input_plugs);
+  int $num_output_plugs = size($output_plugs);
+  string $comma;
+  int $i;
+
+  //
+  // Build the code which ads the input arguments to the function call.
+  //
+
+  for ($i = 0; $i < $num_input_plugs; $i++)
+  {
+    string $input_plug = $input_plugs[$i];
+    string $input_plug_type = $input_plug_types[$i];
+    string $input_plug_tag = $input_plug_tags[$i];
+
+    $comma = ",";
+
+    if ($num_output_plugs == 0)
+    {
+      if ($i == $num_input_plugs - 1)
+      {
+        // We are on the last input plug and there are no output plugs.
+        // There should be no comma after the argument.
+        //
+        $comma = "";
+      }
+    }
+
+    if ($input_plug_tag == "nonplug")
+    {
+      // add local variable declaration since there is no plug associated
+      // to this parameter
+      //
+      $variable_declarations += $indentation;
+      $variable_declarations += variableDeclarationString(
+        plugAttr($input_plug),
+        $input_plug_type,
+        $input_plug_tag,
+        1);
+
+      // simply throw in the type and the name for the function call
+      //
+      $function_call += $indentation;
+      $function_call += variableNameString(plugAttr($input_plug));
+      $function_call += $comma;
+      $function_call += " // non-plug parameter ";
+      $function_call += "\n";
+      continue;
+    }
+    else if ($input_plug_tag == "byprimitive")
+    {
+      addToShaderInputPlugs( "#byprimitive#" + $input_plug );
+      $function_call += $indentation;
+      $function_call += variableNameString( $input_plug + "#param" );
+      $function_call += $comma;
+      $function_call += "\n";
+      continue;
+    }
+    else if ($input_plug_tag == "declare")
+    {
+      continue;
+    }
+    // map: Support to void compound
+    else if(gmatch($input_plug_type, "void*"))
+    {
+      continue;
+    }    
+    
+    
+    int $array_size = 0;
+
+    string $first_multi;
+    string $all_multi_elements[];
+    string $encoded_input_plug;
+
+    $first_multi = match("^[^\\.]*\\.[^\\[\\.]*", $input_plug);
+        
+    /* In case an attribute is supported by a .h but not in the node. */
+    if( objExists( $first_multi ) )
+    {
+      $all_multi_elements = `listAttr -multi $first_multi`;
+    }
+
+    // map: in case of indexed multi attr
+    $encoded_input_plug = plugAttr($input_plug);
+    $encoded_input_plug = substituteAllString($encoded_input_plug, "[", "\\\[");
+    $encoded_input_plug = substitute("\\\[]", $encoded_input_plug, "\[[0-9]*]");
+    $encoded_input_plug = "^" + $encoded_input_plug + "$";
+
+
+    string $param_expr[];
+    clear( $param_expr );
+
+    string $param_decl_name = $input_plug;
+
+    if( $input_plug_tag == "sourcename" ||
+        $input_plug_tag == "sourcelegalizedname" ||
+        $input_plug_tag == "sourceshapename" ||
+        $input_plug_tag == "sourcefullshapename" ||
+        $input_plug_tag == "connectedtexture" )
+    {
+      $param_decl_name += "_" + $input_plug_tag;
+    }
+
+    /* Check for the "valueof_..." tag used to fetch the value of a different
+       attribute than that to which the plug is connected. */
+    string $source_override = "";
+    if( $input_plug_tag != "" &&
+        substring( $input_plug_tag, 1, 8 ) == "valueof_" )
+    {
+      $source_override = substring( $input_plug_tag, 9, 100 );
+    }
+
+    int $use_decl = 0;
+    int $has_connection = 0;
+
+    // map: Support to void compound
+    int $is_void_child = 0;
+    
+    // See if the input plug is the destination of a connection in the network.
+
+    for($element in $all_multi_elements)
+    {
+      if (match($encoded_input_plug, $element) == "")
+      {
+        continue;
+      }
+      
+      string $dst_plug = $node + "." + $element;
+      
+      // map: test for compound void plug (i.e. bulk compound connection )
+	  if(gmatch($dst_plug, "*.*.*")){
+		  string $buf[];
+		  tokenize($dst_plug, ".", $buf);
+		  string $dstLeafAttr = $buf[size($buf)-1];
+		  string $dstParentPlug= substitute("."+$dstLeafAttr, $dst_plug, "");
+		  for($input_void_compound in $input_void_compounds){
+			  if(($node + "." + $input_void_compound) == $dstParentPlug){
+				  int $idx = DL_stringArrayIndexOf($dstParentPlug, $g_dst_plugs);
+				  if($idx != -1){
+					  string $srcLeafAttr = getCorrespondingChildAttr(plugNode($dst_plug), $dstLeafAttr, plugNode($g_src_plugs[$idx]), plugAttr($g_src_plugs[$idx]));
+					  string $srcChildPlug =  $g_src_plugs[$idx] + "." + $srcLeafAttr;
+					  int $dstidx = DL_stringArrayIndexOf($dst_plug, $input_plugs);
+					  if($dstidx != -1){
+						  string $childType = $input_plug_types[$dstidx];
+						  $childType = substitute("\\[]", $childType, "");
+						  visitConnectionTyped($srcChildPlug, $dst_plug, $childType);
+						  $is_void_child = 1;
+						  break;
+					  }
+				  }
+			  }
+		  }
+	  }
+	  
+	  
+      
+      int $plug_flags[2] = { 0, 0 };
+
+
+      switch ($input_plug_type)
+      {
+        case "string[]":
+        case "float[]":
+        // NOTE: float2[] is implemented as a float[] which is twice as long.
+        case "float2[]":
+        case "color[]":
+        case "vector[]":
+        case "normal[]":
+        case "point[]":
+        case "matrix[]":
+       	// map: Support to void compound
+          $use_decl = !$is_void_child;
+          // Fall through
+        case "float2":
+        case "float3":
+        case "double3":
+        case "color":
+        case "normal":
+        case "point":
+        case "vector":
+        case "float":
+        case "string":
+        case "matrix":
+        {
+          if( $input_plug_tag == "sourcename" ||
+              $input_plug_tag == "sourcelegalizedname" ||
+              $input_plug_tag == "sourceshapename" ||
+              $input_plug_tag == "sourcefullshapename" )
+          {
+            // This should really only be used with string and string[]
+            string $connections[];
+            if( $input_plug_tag == "sourcename" || 
+              $input_plug_tag == "sourcelegalizedname" )
+            {
+              $connections = listConnections($dst_plug);
+            }
+            else
+              $connections = `listConnections -shapes true $dst_plug`;
+
+            if( size($connections) > 0 )
+            {
+              if( $input_plug_tag == "sourcefullshapename" )
+                $connections = `ls -l $connections[0]`;
+
+              $has_connection = 1;
+              string $name = $connections[0];
+              
+              if( $input_plug_tag == "sourcelegalizedname" )
+                $name = DL_legalizeString($name);
+                
+              $param_expr[size($param_expr)] = "\"" + $name + "\"";
+            } 
+            else 
+            {
+              $param_expr[size($param_expr)] = "\"\"";
+            }
+          }
+          else if( $input_plug_tag == "connectedtexture" )
+          {
+            // This is a hack to implement the mutant maya projection node.
+            string $texname = "\"\"";
+            string $connections[] = listConnections($dst_plug);
+            if( size($connections) > 0 )
+            {
+              string $node = $connections[0];
+              string $node_type = `nodeType $node`;
+              if( $node_type == "file" || $node_type == "psdFileTex" )
+              {
+                string $file = getAttr( $node + ".fileTextureName" );
+                if( $file != "" )
+                {
+                  $texname = DL_convertTextureName( $file, 0 );
+                }
+              }
+            }
+            $param_expr[size($param_expr)] = $texname;
+          }
+          else if( $input_plug_tag == "texture" )
+          {
+            // Add the plug to the list of shader input params with a special
+            // tag that will be trapped when generating the shader call (and not
+            // only when the hypershade network is translated)
+
+            string $tx_plug = "#texture#" + $input_plug;
+            addToShaderInputPlugs( $tx_plug );
+
+            // Fake connection to ensure proper code generation.
+            visitConnection( ($input_plug + "#param"), $input_plug );
+
+            $param_expr[size($param_expr)] = inputPlugValueString(
+                $input_plug_type, $dst_plug, $source_override, $plug_flags );
+          }
+          else if( $input_plug_type == "string" )
+          {
+            // Pass the string value as a shader input parameter if it contains
+            // expressions expanded by DL_expandString
+            //
+            string $input_plug_value = inputPlugValueString(
+                $input_plug_type, $dst_plug, $source_override, $plug_flags );
+
+            if ($plug_flags[2] == 0)
+            {            
+              $param_expr[size($param_expr)] = $input_plug_value;
+            }
+            else
+            {
+              addToShaderInputPlugs($input_plug);
+              
+              // Fake a connection and recall inputPlugValueString to update
+              // the $plug_flags. This will produce a variable name in the
+              // function call instead of passing the string value directly.
+              //
+              visitConnection( ($input_plug + "#param"), $input_plug);
+              $param_expr[size($param_expr)] = inputPlugValueString(
+                  $input_plug_type, $dst_plug, $source_override, $plug_flags );
+            }
+          }
+          else
+          {
+            $param_expr[size($param_expr)] = inputPlugValueString(
+                $input_plug_type, $dst_plug, $source_override, $plug_flags );
+          }
+
+          break;
+        }
+        default:
+        {
+          // TODO: Warn about unsupported type? The type comes from the inputs
+          // file for the current node type. Getting into this case indicates
+          // there is some error in the inputs file.
+        }
+      }
+
+      if( $plug_flags[0] )
+        $has_connection = 1;
+
+      if( $plug_flags[1] )
+        $use_decl = 1;
+    }             
+
+          
+    /* This is so non-existent multi-attributes still use a declaration. */
+    // map: Support to void compound
+    if(!$is_void_child && match("\\[[^\\]*]", $input_plug_type) != "" )
+      $use_decl = 1;
+
+    string $plug_value = "";
+
+    if( !$has_connection )
+    {
+      /*
+        The input plug is not the destination of any connection. There are a
+        few special cases we must trap here:
+          - plugs with "init=" tags which must use the initializer
+      */
+
+      if( match("^init=", $input_plug_tag) != "" )
+      {
+        $variable_declarations +=
+          substring( $indentation, 1, size($indentation) - 1 );
+
+        $variable_declarations += variableDeclarationString(
+          $input_plug,
+          $input_plug_type,
+          $input_plug_tags[$i],
+          1);
+
+        $variable_declarations += "\n";
+
+        $plug_value = variableNameString($input_plug);
+      }
+    }
+
+    if( $plug_value != "" )
+    {
+      /* Trapped by the code above. */
+      $function_call += $indentation;
+      $function_call += $plug_value;
+      $function_call += $comma;
+      $function_call += " // " + plugAttr($input_plug);
+      $function_call += "\n";
+    }
+    else
+    {
+      string $complete_param_expr = "";
+      int $j;
+      for( $j = 0; $j < size($param_expr); $j++ )
+      {
+        if( $j != 0 )
+          $complete_param_expr += ", ";
+
+        $complete_param_expr += $param_expr[$j];
+      }
+
+      /* This can happen if the .h declares an attribute which doesn't exist. */
+      int $is_empty = $complete_param_expr == "";
+
+      if( $use_decl || $is_empty )
+      {
+        $variable_declarations +=
+          substring( $indentation, 1, size($indentation) - 1 );
+
+        $variable_declarations +=
+          variableDeclarationString(
+            $param_decl_name,
+            $input_plug_type,
+            $input_plug_tag,
+            $is_empty );
+
+        if( !$is_empty )
+        {
+          $variable_declarations += " = {";
+          $variable_declarations += $complete_param_expr;
+          $variable_declarations += "};\n";
+        }
+
+        $function_call +=
+          $indentation +
+          variableNameString($param_decl_name) +
+          $comma + " // " + plugAttr($input_plug) + "\n";
+      }
+      else
+      {
+        $function_call +=
+          $indentation +
+          $complete_param_expr +
+          $comma + " // " + plugAttr($input_plug) + "\n";
+      }
+    }
+  }
+
+  // Pass a tag to indicate that this node requires some special attributes
+  // to be set prior to the surface call
+  //
+  if (`nodeType $node` == "useBackground")
+  {
+    addToShaderInputPlugs( "#insertcompositeattrib#" );
+  }
+
+  //
+  // Build the code which adds the output arguments to the function call.
+  //
+
+  for ($i = 0; $i < $num_output_plugs; $i++)
+  {
+    string $output_plug = $output_plugs[$i];
+    string $output_plug_type = $output_plug_types[$i];
+
+    if ($i == $num_output_plugs - 1)
+    {
+      // We are on the last output plug.
+      // There should be no comma after the argument.
+      //
+      $comma = "";
+    }
+    else
+    {
+      $comma = ",";
+    }
+
+    // See if the output plug is the source of a connection in the network.
+
+    int $output_variable_needed = false;
+
+    string $node = plugNode($output_plug);
+    string $plug_names[] = listAttr($output_plug);
+
+    // Some messed up attribs don't list themselves.
+    if( $plug_names[0] != plugAttr($output_plug) )
+    {
+      $plug_names[size($plug_names)] = plugAttr($output_plug);
+    }
+
+    for( $plug_name in $plug_names )
+    {
+      if( DL_stringArrayIndexOf( $node + "." + $plug_name, $g_src_plugs ) != -1 )
+      {
+        // The plug or one of its children is the source of a connection.
+        $output_variable_needed = true;
+        break;
+      }
+
+      // map: Support to void compound
+      else if(!gmatch($plug_name, "*.*")){
+    	  string $parent[] = `attributeQuery -node $node -lp $plug_name`;        	  
+    	  if( DL_stringArrayIndexOf(  $parent[0], $output_void_compounds ) != -1 && 
+    			  DL_stringArrayIndexOf( $node + "." + $parent[0], $g_src_plugs ) != -1  ){
+			  $output_variable_needed = true;
+			  break;
+    	  }
+      }
+      
+    }    
+
+    if ($output_variable_needed)
+    {
+      // The output plug is the source of a connection in the network. We
+      // need to pass into this function a variable that will store the
+      // computed value of the output plug.
+      //
+      $function_call += $indentation; 
+      $function_call += variableNameString($output_plug); 
+      $function_call += $comma;
+      $function_call += "\n";
+    }
+    else
+    {
+    	// map: Support for output array type...
+    	$output_plug_type = substitute("\\[]", $output_plug_type, "s");
+    	
+      // This output is not the source of a connection in the network.
+      // The output plug is not the source of any connection in the network.
+      // We need to pass into this function a variable that will receive the
+      // computed value of the output plug, but we don't care about keeping
+      // it. Hence, we pass in a dummy variable.
+      //
+      $function_call += $indentation;
+      $function_call += $output_plug_type;
+      $function_call += "Dummy";
+      $function_call += $comma;
+      $function_call += " // receiving ";
+      $function_call += $output_plug;
+      $function_call += "\n";
+    }
+  }
+
+  // Append a closing right parenthesis after all the arguments.
+  //
+  $function_call += $indentation;
+  $function_call += ");\n\n";
+
+  $indentation = substring($indentation, 1, size($indentation) - 2);
+  $indent_level[0] = $indent_level[0] - 1;
+
+  if ($variable_declarations != "" && $function_prefix != "#end")
+  {
+    $compute_call_string += $variable_declarations;
+    $compute_call_string += "\n";
+  }
+
+  $compute_call_string += $function_call;
+
+  if ($function_prefix == "#end")
+  {
+    $compute_call_string += $indentation;
+    $compute_call_string += "}\n\n";
+    $indent_level[0] = $indent_level[0] - 1;
+  }
+
+  return $compute_call_string;
+}
+
+proc string
+shaderExtraParameters(
+  string $all_nodes[] )
+{
+  string $param_blockids[];
+  string $param_blocks[];
+  string $all_node_types[];
+  int $i;
+
+  for( $node in $all_nodes )
+  {
+    string $real_name = getNodeRealName( $node );
+
+    /* rendermanCode nodes are done here as each will have different AOVs. */
+    if( RC_isRendermanCodeNode( $real_name ) )
+    {
+      RC_getExtraShaderParameters(
+        $real_name, $param_blockids, $param_blocks );
+    }
+    else
+    {
+      $all_node_types[size($all_node_types)] = nodeType( $real_name );
+    }
+  }
+
+  $all_node_types = DL_stringArrayRemoveDuplicates( $all_node_types );
+
+  for( $node_type in $all_node_types )
+  {
+    readNodeExtraShaderParameters(
+      $node_type, $param_blockids, $param_blocks );
+  }
+
+  string $done_blockids[];
+  string $extra_parameters;
+
+  for( $i = 0; $i < size($param_blockids); ++$i )
+  {
+    if( DL_stringArrayIndexOf( $param_blockids[$i], $done_blockids ) == -1 )
+    {
+      $done_blockids[size($done_blockids)] = $param_blockids[$i];
+      $extra_parameters += $param_blocks[$i];
+    }
+  }
+
+  return $extra_parameters;
+}
+
+proc string
+shaderInputPlugsParameters( string $shader_input_plugs[] )
+{
+  string $params;
+
+  string $texture_prefix;
+  $texture_prefix = "#texture#";
+  
+  for( $plug in $shader_input_plugs )
+  {
+    if( match($texture_prefix, $plug) != "" )
+    {
+      $plug = substring($plug, size($texture_prefix) + 1, size($plug));
+      string $defaultValue = getAttr($plug);
+      $params += "\tstring " + variableNameString( $plug + "#param" ) + " = \"" + $defaultValue +"\";\n";
+    }
+    else if( match("#byprimitive#", $plug) != "" )
+    {
+      $plug = substring($plug, size("#byprimitive#") + 1, size($plug));
+      string $defaultValue = getAttr($plug);
+      $params += "\tstring " + variableNameString( $plug + "#param" ) + " = \"" + $defaultValue +"\";\n";
+    }
+    else if( match("#insertcompositeattrib#", $plug) != "")
+    {
+      // not a parameter, do nothing
+    }
+    else
+    {
+      string $type;
+      $type = `getAttr -type $plug`;
+      string $var_name = variableNameString( $plug + "#param" );
+      
+      if( $type == "float3" || $type == "double3" )
+      {
+    	  float $defaultValue[] = getAttr($plug);
+        $params += "\tcolor " + $var_name + " = color(" + $defaultValue[0] + ", " + $defaultValue[1] + ", "+ $defaultValue[2] + ");\n";
+      }
+      else if( $type == "string" )
+      {
+    	  string $defaultValue = getAttr($plug);
+        $params += "\tstring " + $var_name + " = \"" + $defaultValue +"\";\n";
+      }
+      else if( $type == "matrix" )
+      {
+    	 float $m[] = getAttr($plug);
+        $params += "\tfloat " + $var_name +
+                   "[16] = {" +	$m[0] + ", " + $m[1] + ", " + $m[2] + ", " + $m[3] + ", " + 
+								$m[4] + ", " + $m[5] + ", " + $m[6] + ", " + $m[7] + ", " +
+								$m[8] + ", " + $m[9] + ", " + $m[10] + ", " + $m[11] + ", " + 
+								$m[12] + ", " + $m[13] + ", " + $m[14] + ", " + $m[15] + "};\n";
+      }
+      else
+      {
+    	  float $defaultValue = getAttr($plug);
+        $params += "\tfloat " + $var_name + " = " + $defaultValue + ";\n";
+      }
+    }
+  }
+
+  return $params;
+}
+
+proc string
+shaderInputPlugsInstanceFlags( string $shader_input_plugs[] )
+{
+  string $flags;
+
+  string $texture_prefix;
+  $texture_prefix = "#texture#";
+  
+  for( $plug in $shader_input_plugs )
+  {
+    if( match($texture_prefix, $plug) != "" )
+    {
+      $plug = substring($plug, size($texture_prefix) + 1, size($plug));
+      $flags += " -p \"" + variableNameString( $plug + "#param" ) +
+                "\" \"string\" `DL_generateImageFile " + $plug + "`";
+    } 
+    else if( match("#byprimitive#", $plug) != "" )
+    {
+      // Nothing here, will be set as a primitive variable.
+    }
+    else if( match("#insertcompositeattrib#", $plug) != "")
+    {
+      $flags += " " + $plug;
+    }
+    else 
+    {
+      string $type;
+      $type = `getAttr -type $plug`;
+      string $var_name = variableNameString( $plug + "#param" );
+      
+      if( $type == "float3" || $type == "double3" )
+      {
+        $flags += " -p \"" + $var_name +
+                  "\" \"color\" `floatArrayToString(getAttr(\"" + $plug + "\"))`";
+      }
+      else if( $type == "string" )
+      {
+        string $render_pass = `delightRenderState -qrn`;
+        $flags += " -p \"" + $var_name +
+                  "\" \"string\" `DL_expandAttrValue \"" + $plug + 
+                  "\" \"\" \"" + $render_pass + "\"`"; 
+      }
+      else if( $type == "matrix" )
+      {
+        $flags += " -p \"" + $var_name +
+                  "\" \"float[16]\" `floatArrayToString(getAttr(\"" + $plug + "\"))`";
+      }
+      else
+      {
+        $flags += " -p \"" + $var_name +
+                  "\" \"float\" `getAttr " + $plug + "`";
+      }
+    }
+  }
+
+  return $flags;
+}
+
+proc string
+shaderFunctionBeginString(
+  string $shader_type,
+  string $material,
+  string $extra_parameters )
+{
+  //
+  // Description:
+  //  This procedure builds a string that opens the function definition for a
+  //  RenderMan shader representing the specified Maya material node.
+  //
+  // Returns:
+  //  A string that opens the function definition for a RenderMan shader 
+  //  representing the specified Maya material node.
+  //
+
+  string $begin_string;
+  
+  $begin_string += $shader_type;
+  $begin_string += " ";
+  $begin_string += $material;
+  $begin_string += "(\n";
+
+  if( $shader_type == "surface" ||
+      $shader_type == "displacement" )
+  {
+    $begin_string += "\tuniform float shaderid = 0;\n";
+  }
+
+  $begin_string += $extra_parameters;
+
+  $begin_string += ")\n";
+  $begin_string += "{\n";
+
+  return $begin_string;
+}
+
+proc string
+shaderFunctionEndString(
+  string $shader_type)
+{
+  //
+  // Description:
+  //  This procedure builds a string that closes the function definition for a
+  //  RenderMan shader of the specified type.
+  //
+  // Returns:
+  //  A string that closes the function definition for a RenderMan shader of 
+  //  the specified type.
+  //
+
+  global string $g_final_color_plug;
+  global string $g_final_transparency_plug;
+
+  string $end_string;
+
+  $end_string += "\t// Assign final output variables to state variables.\n";
+  $end_string += "\t//\n";
+
+  if ($shader_type == "surface")
+  {
+    $end_string += "\tOi = Os";
+    if( $g_final_transparency_plug != "" )
+    {
+      $end_string +=
+        " * (1.0 - " + variableNameString($g_final_transparency_plug) + ")";
+    }
+    $end_string += ";\n";
+
+    $end_string += "\tCi = ";
+    $end_string += variableNameString($g_final_color_plug);
+    $end_string += " * Os;\n";
+
+    $end_string +=
+      "\n\tilluminance( \"bakelight\", P, \"send:light:do_bake\", 1 )\n" +
+      "\t{\n" +
+      "\t}\n";
+  }
+  else if ($shader_type == "miMaterial")
+  {
+    $end_string += "\tCi = ";
+    $end_string += variableNameString($g_final_color_plug) + ";";
+
+    $end_string +=
+      "\n\tilluminance( \"bakelight\", P, \"send:light:do_bake\", 1 )\n" +
+      "\t{\n" +
+      "\t}\n";
+  }
+  
+  $end_string += "}\n";
+
+  return $end_string;
+}
+
+/*
+  addShaderWatch
+
+  Adds a watch for all the nodes used by the current shader. It can be queried
+  later to know if the shader needs rebuilding.
+*/
+proc
+addShaderWatch( string $watch_name )
+{
+  global string $g_nodes[];
+
+  string $shader_nodes[];
+  for( $node in $g_nodes )
+  {
+    $shader_nodes[size($shader_nodes)] = getNodeRealName( $node );
+  }
+
+  DL_stringArrayRemoveDuplicates( $shader_nodes );
+
+  delightNodeWatch -addwatch $watch_name $shader_nodes;
+}
+
+proc
+visitNode(string $node, int $node_depth, string $node_scope)
+{
+  //
+  // Description:
+  // 	This procedure is called many times during the traversal of the network. 
+  //  It is called once for every node that exists in the network.
+  //  This procedure stores information about the node for later use.
+  //  This procedure initializes global variables used by other procedures in
+  //  this file.
+  //
+
+  global string $g_nodes[];
+  global string $g_node_scopes[];
+  global int $g_max_node_depths[];
+  global int $g_max_node_depth;
+
+  int $index = stringArrayIndexOf2($node, $g_nodes, $node_scope, $g_node_scopes);
+
+  if ($index == -1)
+  {
+    // The current node does not yet exist in the list of nodes.
+    //
+    $g_nodes[size($g_nodes)] = $node;
+    $g_max_node_depths[size($g_max_node_depths)] = $node_depth;
+    $g_node_scopes[size($g_node_scopes)] = $node_scope;
+  }
+  else
+  {
+    if ($node_depth > $g_max_node_depths[$index])
+    {
+      $g_max_node_depths[$index] = $node_depth;
+    }
+  }
+
+  if ($node_depth > $g_max_node_depth)
+  {
+    $g_max_node_depth = $node_depth;
+  }
+}
+
+proc int
+isSupportedSrc(
+  string $src_plug)
+{
+  string $src_node = plugNode($src_plug);
+ 
+  if (isSupportedNode($src_node))
+  {
+    string $output_plugs[];
+    string $output_plug_types[];
+    string $output_plug_tags[];
+
+    getOutputPlugs(
+      $src_node, $output_plugs, $output_plug_types, $output_plug_tags);
+
+    int $i;
+    string $output_plug;
+
+    for ($i = 0; $i < size($output_plugs); $i++)
+    {
+      $output_plug = $output_plugs[$i];
+
+      // This case is strangely not always included in the listAttr.
+      if ($src_plug == $output_plug)
+        return true;
+
+      /*
+        TODO: This does not support output multi-attributes... but I have yet
+        to see any. If you find one, you'll need to manually check for R/G/B
+        (X/Y/Z) children based on the plug type since listAttr will fail on the
+        invalid name it'll be provided.
+      */
+      string $plug_names[] = listAttr( $output_plug );
+
+      for( $plug_name in $plug_names )
+      {
+        if( $src_plug  == $src_node + "." + $plug_name )
+          return true;
+      }
+    }
+  }
+  else
+  {
+    // TODO: Issue warning about unsupported node.
+    // Or, add node to a list of unsupported nodes, so that a warning can be
+    // printed later.
+  }
+
+  return false;
+}
+
+proc int
+isTransformAttrConnected(
+  string $dst_plug,
+  string $suffixes[] )
+{
+  for( $suffix in $suffixes )
+  {
+    string $attr = $dst_plug + $suffix;
+    if( objExists( $attr ) )
+    {
+      if( size(`listConnections($attr)`) != 0 )
+        return 1;
+    }
+  }
+
+  return 0;
+}
+      
+proc int
+hasAnimatedTransform(
+  string $dst_plug)
+{
+  // Returns non-zero value if the given plug has an animated transform
+  // 
+  int $animated = 0;
+  
+  string $node = plugNode($dst_plug);
+
+  string $xyz_suffixes[] = { "", "X", "Y", "Z" };
+  string $shear_suffixes[] = { "", "XY", "XZ", "YZ" };
+
+  if (isTransformAttrConnected($node + ".translate", $xyz_suffixes) ||
+      isTransformAttrConnected($node + ".rotate", $xyz_suffixes) ||
+      isTransformAttrConnected($node + ".scale", $xyz_suffixes) ||
+      isTransformAttrConnected($node + ".rotateAxis", $xyz_suffixes) ||
+      isTransformAttrConnected($node + ".shear", $shear_suffixes))
+  {
+    $animated = 1;
+  }
+
+  return $animated;
+}
+  
+/*
+  Description:
+   This procedure is called by traverseNode() to traverse the network
+   upstream of a supported input plug on the node.  
+   This procedure determines if the specified destination plug has a
+   source, and if that source is a supported output of a supported node
+   type, traverses the source node.
+
+  PARAMETERS
+  dst_plug : the input plug to search from
+  node_depth, node_scope : state used to order the nodes in the generated code
+  source_override : if not empty, force use of this attribute on the source
+  node regardless of which attribute $dst_plug is connected to.
+*/
+global proc 
+traverseDstPlug(
+  string $dst_plug,
+  int $node_depth,
+  string $node_scope,
+  string $source_override )
+{
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+
+  string $src_plug = DL_getSourcePlug($dst_plug);
+  string $container_src_plug = $src_plug;
+
+  while (   $container_src_plug != "" 
+         && nodeType(plugNode($container_src_plug)) == "container")
+  {
+    $container_src_plug = DL_getSourcePlug($container_src_plug);
+    if ($container_src_plug != "") 
+    {
+      $src_plug = $container_src_plug;
+    }
+  }
+
+  if ($src_plug != "")
+  {
+    if( $source_override != "" )
+    {
+      $src_plug = plugNode($src_plug) + "." + $source_override;
+
+      /* Check if the source node has the requested plug. If not, behave as if
+         there was no connection. */
+      if( !objExists( $src_plug ) )
+        return;
+
+      /* Make the dst_plug name unique so several parameters can be added for
+         the same dst_plug which read different sources through the override.
+         There is a corresponding lookup patch in inputPlugValueString. */
+      $dst_plug += "_valueof_" + $source_override;
+    }
+
+    if (isSupportedSrc($src_plug))
+    {
+      if (traverseNode(plugNode($src_plug), $node_depth + 1, $node_scope) == 0)
+        visitConnection($src_plug, $dst_plug);      
+    }
+    else
+    {
+      /*
+        Unsupported sources are still marked as valid connections; the source
+        plug will simply be an input to the shader.
+      */
+      string $src_node = plugNode($src_plug);
+      string $src_attr = plugAttr($src_plug);
+      $src_attr = match("[^\[]*", $src_attr);  // attributeQuery does not work on attr[n]
+      
+      string $plug_type = "";
+
+      // Avoid using getAttr on message plugs; it causes a warning.
+      // Only check this on maya > 7 because the -message flag is missing in
+      // 7.0. The warning only happens if you manually bork your scene anyway.
+      if(!(   `objExists($src_plug)` 
+           && getApplicationVersionAsFloat() >= 8
+           && `attributeQuery -node $src_node -message $src_attr`))
+      {
+        $plug_type = `getAttr -type $src_plug`;
+      }
+
+      if( $plug_type == "float" || $plug_type == "double" ||
+          $plug_type == "doubleAngle" || $plug_type == "doubleLinear" ||
+          $plug_type == "float3" || $plug_type == "double3" ||
+          $plug_type == "string" || $plug_type == "matrix" || 
+          $plug_type == "time" )
+      {
+        visitConnection(($src_plug + "#param"), $dst_plug);
+        addToShaderInputPlugs( $src_plug );
+
+        // We output float3 as a color. Record that here so the generated code
+        // can correctly cast the parameter if it used as some other type.
+        // matrix plugs are output as float[16] to avoid being transformed.
+        if( $plug_type == "float3" || $plug_type == "double3" )
+        {
+          int $idx = DL_stringArrayIndexOf( ($src_plug + "#param"), $g_src_plugs );
+          $g_src_plug_types[$idx] = "color";
+        }
+        else if( $plug_type == "matrix" )
+        {
+          int $idx = DL_stringArrayIndexOf( ($src_plug + "#param"), $g_src_plugs );
+          $g_src_plug_types[$idx] = "float[16]";
+        }
+      }
+    }
+  }
+  else
+  {
+    /*
+      Unconnected matrix plugs are also made parameters of the shader if the
+      node is parented to something. This is needed as that 'something' can be
+      animated and thus change the value of the matrix.
+
+      This is also true if the node has a connection on some plugs that affect
+      the transform. Ideally we would check for these connections on all the
+      parents.
+      
+      The value needs to be passed as a float[16] instead of a matrix to avoid
+      transformation from shader space.
+    */
+    string $dst_plug_type = "";
+    if( !catchQuiet( $dst_plug_type = `getAttr -type $dst_plug` ) )
+    {
+      string $dst_node = plugNode( $dst_plug );
+      string $parent[] = `listRelatives -parent $dst_node`;
+      
+      if( $dst_plug_type == "matrix" && 
+          (size($parent) > 0 || hasAnimatedTransform($dst_plug)) )
+      {
+        global string $g_dst_plugs[];
+
+        visitConnection( ($dst_plug + "#param"), $dst_plug );
+        
+        addToShaderInputPlugs( $dst_plug );
+
+        int $idx = DL_stringArrayIndexOf( ($dst_plug + "#param"), $g_src_plugs );
+        $g_src_plug_types[$idx] = "float[16]";
+      }
+    }
+  }
+}
+
+/*
+  traverseNodePlug
+
+  Extracted from traverseNode because it needed to be done twice.
+  This traverses all the nodes connected to a given plug and its children.
+*/
+proc
+traverseNodePlug(
+  string $input_plug,
+  string $input_plug_type,
+  string $input_plug_tag,
+  string $node,
+  int $node_depth,
+  string $node_scope )
+{
+  int $array_size = 0;
+  
+  // map: Support for compound attributes that are meant to be connected as 
+   // a whole, not individual children
+   if($input_plug_type == "void" ){
+ 	  
+ 	  string $all_multi_elements[] = `listAttr -multi $input_plug`;
+
+ 	 string $source_override;
+ 	   if( $input_plug_tag != "" &&
+ 	       substring( $input_plug_tag, 1, 8 ) == "valueof_" )
+ 	   {
+ 	     $source_override = substring( $input_plug_tag, 9, 100 );
+ 	   }
+ 	   
+ 	   
+ 	  for($element in $all_multi_elements)
+ 	  {
+ 		string $dst_plug = $node + "." + $element;
+ 		
+ 		 traverseDstPlug( $dst_plug, $node_depth, $node_scope,$source_override );
+ 	  }
+   }
+   else{
+	  /*
+		For each plug supported by the .h file, we list all the attributes which
+		can potentially correspond to it. We are conservative and use only the
+		first name after the node name but we even used to list all the node's
+		attributes. Right now, this means that for "node.something[].whatever"
+		we'll list "node.something".
+		
+		We then use a regular expression to find the attributes which actually
+		match the parameter. For example, if the file declares inColor[], we'll
+		match inColor[0], inColor[1], ... but not inColor[0].something. This is
+		how multi-attributes can be handled in the .h file; an array must be
+		declared for each leaf attribute (eg. inColor[].something).
+		
+		The children of an attribute which matched by name (eg. the components of
+		a color) are then listed and searched for connections. It is thus
+		important for code generation that the parameters declared in the .h file
+		only refer to primitive types (float or, at most, a composite of 2-3
+		floats).
+	  */
+	
+	  string $first_multi;
+	  string $all_multi_elements[] = {};
+	  string $encoded_input_plug;
+	
+	  $first_multi = match("^[^\\.]*\\.[^\\[\\.]*", $input_plug);
+		  
+	  /* In case an attribute is supported by a .h but not in the node. */
+	  if( objExists( $first_multi ) )
+	  {
+		$all_multi_elements = `listAttr -multi $first_multi`;
+	  }
+	
+	  // map: in case of indexed multi attr
+	  $encoded_input_plug = plugAttr($input_plug);
+	  $encoded_input_plug = substituteAllString($encoded_input_plug, "[", "\\\[");
+	  $encoded_input_plug = substitute("\\\[]", $encoded_input_plug, "\[[0-9]*]");
+	  $encoded_input_plug = "^" + $encoded_input_plug + "$";
+	
+	  /* Check for the "valueof_..." tag used to fetch the value of a different
+		 attribute than that to which the plug is connected. */
+	  string $source_override;
+	  if( $input_plug_tag != "" &&
+		  substring( $input_plug_tag, 1, 8 ) == "valueof_" )
+	  {
+		$source_override = substring( $input_plug_tag, 9, 100 );
+	  }
+	
+	  for($element in $all_multi_elements)
+	  {
+		if (match($encoded_input_plug, $element) == "")
+		{
+		  continue;
+		}
+		
+		string $dst_plug = $node + "." + $element;
+	
+		/*
+		  This loop checks the components of an attribute. For example, if
+		  dst_plug is node.inColor we also want to check for node.inColorR,
+		  node.inColorG, node.inColorB. However, we don't want this hardcoded
+		  as some nodes don't follow that convention and have components with
+		  names that differ from the parent. Then there's also the fact that
+		  some color nodes use HSV and points use XYZ...
+	
+		  Note that this loop will include $dst_plug itself.
+		*/
+		string $plug_names[] = listAttr($dst_plug);
+		for( $plug_name in $plug_names )
+		{
+		  traverseDstPlug(
+			$node + "." + $plug_name, $node_depth, $node_scope, $source_override );
+		}
+	  }
+   }
+}
+   
+
+global proc int
+traverseNode(
+  string $node,
+  int $node_depth,
+  string $node_scope)
+{
+  //
+  // Description:
+  // 	This procedure recursively traverses the network under the specified
+  // 	node and visits the nodes	and connections thereof.
+  //  By the time this procedure has completed, the global variables storing
+  //  information about nodes and connections in the network under the
+  //  specified node are initialized.
+  //
+  // Returns non-null if the node cannot be traversed.
+  //
+	  
+  // We will only traverse nodes of types that are supported by the 
+  // translation process. 
+  //
+  if (!isSupportedNode($node))
+  {
+    warning
+      ("Shading network contains unsupported node: " 
+        + $node 
+        + ".\n"
+        + "// This node will not be translated, "
+        + "nor will any nodes upstream from it.");
+    return -1;
+  }
+
+  if ($node_depth > 100)
+  {
+	    warning("Node " + $node + " exceeds maximum depth of 100 and cannot be "
+	      + " translated. Check for cycles in connections involving this node.");
+	    return -1;
+  }  
+  string $input_plugs[];
+  string $input_plug_types[];
+  string $input_plug_tags[];
+  
+  // We will visit only connections to plugs that are supported by the
+  // translation process. This speeds up the traversal.
+  // TODO: This prevents the user from getting warnings about nodes that
+  // weren't translated because they were connected to unsupported
+  // attributes. How can we provide a warning? Look at all attributes with
+  // sources, follow supported ones and warn about unsupported ones?
+  //
+  getInputPlugs($node, $input_plugs, $input_plug_types, $input_plug_tags);
+
+  int $needs_prepared = 0;
+  string $prepare_node_scope = $node_scope;
+
+  for ($i = 0; $i < size($input_plug_tags); $i++)
+  {
+    if( $input_plug_tags[$i] == "prepare" )
+    {
+      // begin new scope
+      $needs_prepared = 1;
+      $prepare_node_scope = ("#" + $node + $node_scope);
+      break;
+    }
+  }
+
+  int $i;
+  
+  /*
+    We do a first loop over the plugs with the "prepare" tag to figure out
+    their max depth. The "node#prepare" function is then set one deeper so it
+    is called before all the nodes required for the prepare plugs. Then, we do
+    the non-prepare plugs with even higher depth so they are put before
+    "node#prepare" (which also happens to mean outside the block). This allows
+    a node to fetch input from a non-prepare plug to do its preparation, run
+    the prepare plugs and then collect the result in "node#end".
+  */
+
+  int $max_prepared_depth = $node_depth;
+
+  if( $needs_prepared )
+  {
+    for ($i = 0; $i < size($input_plugs); $i++)
+    {
+      if( $input_plug_tags[$i] != "prepare" )
+      {
+        continue;
+      }
+
+      traverseNodePlug(
+        $input_plugs[$i], $input_plug_types[$i], $input_plug_tags[$i],
+        $node, $node_depth, $prepare_node_scope );
+
+    }
+
+    $max_prepared_depth = findMaxDepthForScope($prepare_node_scope) + 1;
+
+    visitNode(($node + "#prepare"), $max_prepared_depth, $prepare_node_scope);
+  }
+
+  for ($i = 0; $i < size($input_plugs); $i++)
+  {
+    if (   $input_plug_tags[$i] == "nonplug"
+        || $input_plug_tags[$i] == "declare"
+        || $input_plug_tags[$i] == "prepare"
+        || $input_plug_tags[$i] == "sourcename"
+        || $input_plug_tags[$i] == "sourcelegalizedname"
+        || $input_plug_tags[$i] == "sourceshapename"
+        || $input_plug_tags[$i] == "sourcefullshapename"
+        || $input_plug_tags[$i] == "byprimitive"
+        || $input_plug_tags[$i] == "connectedtexture" )
+    {
+      continue;
+    }
+
+    traverseNodePlug(
+      $input_plugs[$i], $input_plug_types[$i], $input_plug_tags[$i],
+      $node, $max_prepared_depth, $node_scope );
+  }
+
+  string $node_name;
+  $node_name = $node;
+  
+  if ($needs_prepared != 0)
+  {
+    $node_name += "#end";
+  }
+  
+  visitNode($node_name, $node_depth, $prepare_node_scope);
+  
+  return 0;
+}
+
+proc string
+surfaceShaderOf(string $shading_group)
+{
+  //
+  // Description:
+  // 	This procedure determines the name of the surface shader node connected
+  // 	to the specified shading group.
+  //
+  // Returns:
+  //  The name of the surface shader node, or an empty string if no surface
+  //  shader exists on the specified shading group.
+  //
+
+  string $surface_shaders[] = 
+    `listConnections 
+      -source true 
+      -destination false
+      ($shading_group + ".surfaceShader")`;
+
+  if (size($surface_shaders) > 0)
+  {
+    return $surface_shaders[0];
+  }
+  else
+  {
+    return "";
+  }
+}
+
+proc int
+scopeDepth( string $scope )
+{
+  if( $scope == "" )
+    return 0;
+
+  string $dummy[];
+
+  return tokenize( $scope, "#", $dummy );
+}
+
+proc string
+computeCallStringForScope(string $scope, string $done_scopes[], int $indent_level[])
+{
+  global string $g_nodes[];
+  global string $g_node_scopes[];
+  global int $g_max_node_depths[];
+  global int $g_max_node_depth;
+
+  int $node_depth;
+  string $shader_code;
+
+  $node_depth = $g_max_node_depth;
+
+  while ($node_depth >= 0)
+  {
+    for ($i = 0; $i < size($g_nodes); $i++)
+    {
+      if (   $g_max_node_depths[$i] == $node_depth
+          && DL_stringArrayIndexOf($g_node_scopes[$i], $done_scopes) == -1)
+      {
+        if( $g_node_scopes[$i] == $scope )
+        {
+          $shader_code += computeCallString($g_nodes[$i], $indent_level);
+        }
+        else if( endsWith($g_node_scopes[$i], $scope) )
+        {
+          // The node's scope is inside $scope. If it is only one level inside
+          // then it's time to generate that subscope.
+          if( scopeDepth( $g_node_scopes[$i] ) == scopeDepth( $scope ) + 1 )
+          {
+            $shader_code += computeCallStringForScope(
+              $g_node_scopes[$i],
+              $done_scopes,
+              $indent_level );
+          }
+        }
+      }
+    }
+
+    $node_depth--;
+  }
+
+  $done_scopes[size($done_scopes)] = $scope;
+  return $shader_code;
+}
+   
+proc string 
+translateOneShadingGroupToSl(
+  string $output_name,
+  string $shading_group,
+  string $shader_type,
+  int $shading_group_idx,
+  int $num_shading_groups )
+{
+  //
+  // Description:
+  // 	This procedure is called to translate a Maya shading network into
+  // 	equivalent RenderMan shading language code. 
+  //  This procedure traverses the specified network, determines its nodes and
+  //  connections, and assembles the RenderMan shading language code to
+  //  represent it.
+  //  Only surface shader networks are supported. 
+  //  Displacement shaders are not supported. 
+  //  Volume shaders are not supported.
+  //  Glow is not supported.
+  //
+  // Returns:
+  //  A string containing the RenderMan shading language code representing the
+  //  specified network.
+  //
+
+  global string $g_nodes[];
+  global string $g_node_scopes[];
+  global int $g_max_node_depths[];
+  global int $g_max_node_depth;
+  global string $g_src_plugs[];
+  global string $g_src_plug_types[];
+  global string $g_dst_plugs[];
+  global string $g_final_color_plug;
+  global string $g_final_transparency_plug;
+
+  // Reset the global variables, since they may have been used for a previous
+  // translation.
+  //
+  clear($g_nodes);
+  clear($g_max_node_depths);
+  clear($g_node_scopes);
+  clear($g_src_plugs);
+  clear($g_src_plug_types);
+  clear($g_dst_plugs);
+  $g_final_color_plug = "";
+  $g_final_transparency_plug = "";
+
+  // Start a timer so we can assess the performance of the translation process
+  // once it completes.
+  //
+  float $start_time = `timerX`;
+  string $material;
+
+  if ($shader_type == "surface")
+  {
+    $material = DL_getSourceNode($shading_group + ".surfaceShader");
+
+    // Ultimately, the surface shader boils down to outColor, 
+    // outTransparency and outGlowColor. We will translate only outColor and
+    // outTransparency.
+    if (size(`ls ($material + ".outColor")`) > 0)
+    {
+      // Add the outColor plug to the list of source plugs so that output
+      // variables will be created for it and used where appropriate.
+      //
+      visitConnection( $material + ".outColor", "" );
+      $g_final_color_plug = ($material + ".outColor");
+    }
+  
+    if (size(`ls ($material + ".outTransparency")`) > 0)
+    {
+      // Add the outTransparency plug to the list of source plugs so that 
+      // output variables will be created for it and used where appropriate.
+      //
+      visitConnection( $material + ".outTransparency", "" );
+      $g_final_transparency_plug = ($material + ".outTransparency");
+    }
+  }
+  else if ($shader_type == "miMaterial")
+  {
+    $material = DL_getSourceNode($shading_group + ".miMaterialShader");
+
+    if ($material == "")
+    {
+      warning(
+        $shading_group 
+        + " has no surface shader. No shader code generated.");
+      return "";
+    }
+
+    if (size(`ls ($material + ".outValue")`) > 0)
+    {
+      visitConnection( $material + ".outValue", "" );
+      $g_final_color_plug = ($material + ".outValue");
+    }
+    else if (size(`ls ($material + ".result")`) > 0)
+    {
+      visitConnection( $material + ".result", "" );
+      $g_final_color_plug = ($material + ".result");
+    }
+  }
+  else if( $shader_type == "displacement" )
+  {
+    $material = DL_getSourceNode($shading_group + ".displacementShader");
+
+    if( $material == "" )
+      return "";
+
+    if (size(`ls ($material + ".displacement")`) > 0)
+    {
+      /*
+        Add the displacement plug to the list of source plugs so that the
+        network is generated. The displacementShader node takes care of the
+        actual displacement so this variable isn't really needed afterwards.
+      */
+      visitConnection( $material + ".displacement", "" );
+    }
+  }
+  else if( $shader_type == "light" )
+  {
+    /* For lights there is no shading group so we receive the shader itself. */
+    $material = $shading_group;
+  }
+  else
+  {
+    warning(
+      "Unsupported shader type: " 
+      + $shader_type 
+      + ". No shader code generated."); 
+    return "";
+  }
+
+  // Traverse the network, identifying nodes and connections therein.
+  //
+  traverseNode($material, 0, "");
+
+  //
+  // Build the RenderMan shading language code for the network.
+  //
+
+  string $shader_code;
+
+  $shader_code = includeStatementsString();
+
+  if( $num_shading_groups > 1 )
+  {
+    $shader_code += "if( shaderid == " + $shading_group_idx + " )\n{\n";
+  }
+
+  $shader_code += outputVariableDeclarationsString();
+
+  string $done_scopes[];
+  int $indent_level[];
+
+  $indent_level[0] = 1;
+
+  $shader_code += computeCallStringForScope("", $done_scopes, $indent_level);
+  $shader_code += shaderFunctionEndString($shader_type);
+
+  addShaderWatch( $output_name );
+
+  /* Statistics */
+  float $elapsed_time = `timerX -startTime $start_time`;
+
+  $shader_code += ("// Shader code generated by DL_translateMayaToSl.\n");
+  $shader_code += ("// Total time: " + $elapsed_time + "s.\n");
+
+  float $time_per_node;
+  $time_per_node = 0;
+  
+  if (size($g_nodes) > 0)
+  {
+    $time_per_node = $elapsed_time/size($g_nodes);
+  }
+
+  $shader_code += ("// Time per node: " + $time_per_node + "s.\n");
+
+//printArrays();
+
+  return $shader_code;
+}
+
+proc string
+currentRayTypeString()
+{
+  string $out_string;
+
+  $out_string += "\t// Get current ray type.\n";
+  $out_string += "\t//\n";
+
+  $out_string += "\tuniform string __raytype = \"\";\n";
+  $out_string += "\tif(rayinfo( \"type\", __raytype ) == 0)\n";
+  $out_string += "\t{\n";
+  $out_string += "\t\t__raytype = \"\";\n";
+  $out_string += "\t}\n\n";
+  $out_string += "\tuniform float __shadowmaprendering = 0;\n";
+  $out_string +=
+    "\tif(attribute(\"user:ShadowMapRendering\", __shadowmaprendering) == 0)\n";
+  $out_string += "\t{\n";
+  $out_string += "\t\t__shadowmaprendering = 0;\n";
+  $out_string += "\t}\n\n";
+  $out_string +=
+    "\tuniform float __is_shadow_ray = " +
+    "(__raytype == \"transmission\" || __shadowmaprendering == 1) ? 1:0;\n\n";
+  $out_string += "\tuniform float __is_bakepass = 0;\n";
+  $out_string +=
+    "\tif(option(\"user:maya_bakepass\", __is_bakepass) == 0)\n";
+  $out_string += "\t{\n";
+  $out_string += "\t\t__is_bakepass = 0;\n";
+  $out_string += "\t}\n\n";
+
+  return $out_string;
+}
+  
+proc string
+objectAttributesRelatedToRayTracingString()
+  {
+  string $out_string;
+
+  $out_string += "\t// Get object attributes related to ray-tracing.\n";
+  $out_string += "\t//\n";
+
+  $out_string +=
+    "\tuniform float __reflects = " +
+    "(__is_shadow_ray==0 && __is_bakepass==0) ? 1:0;\n";
+  $out_string +=
+    "\tuniform float __refracts = " +
+    "(__is_shadow_ray!=0 || __is_bakepass==0) ? 1:0;\n";
+  $out_string += "\n";
+
+  // Really useful trick to fix faceforward artifacts in bake pass
+  // but it makes shaderdl warning: "assignment to a read-only variable 'I'"
+  /*
+  $out_string += "\tif ( __is_bakepass == 1 )\n";
+  $out_string += "\t{\n";
+  $out_string += "\t\tI = -N;\n";
+  $out_string += "\t}\n";
+  $out_string += "\n";
+  */
+
+  return $out_string;
+}
+
+/*
+  Wrapper around translateOneShadingGroupToSl so we can output several shaders
+  into a single sl file and pick one based on an id at runtime.
+*/
+global proc string
+DL_translateMayaToSl(
+  string $output_name,
+  string $shading_groups[],
+  string $shader_type )
+{
+  global string $g_nodes[];
+  global string $g_shader_input_plugs[];
+  clear( $g_shader_input_plugs );
+  string $all_nodes[];
+
+  // "surface" and "displacement" map directly to renderman shader types
+  string $rsl_type = $shader_type;
+  if ($shader_type == "miMaterial")
+  {
+    $rsl_type = "surface";
+  }
+
+  string $sl_code;
+
+  $sl_code = commonVariableDeclarationString();
+  $sl_code += dummyVariableDeclarationsString();
+
+  if ($rsl_type == "surface")
+  {
+    $sl_code += currentRayTypeString();
+    $sl_code += objectAttributesRelatedToRayTracingString();
+  }
+
+  int $i;
+  for( $i = 0; $i < size($shading_groups); ++$i )
+  {
+    $sl_code += translateOneShadingGroupToSl(
+      $output_name, $shading_groups[$i], $shader_type,
+      $i, size($shading_groups) );
+
+    $all_nodes = stringArrayCatenate( $all_nodes, $g_nodes );
+  }
+
+  if( size($all_nodes) == 0 )
+    return "";
+
+  // Now that we know all nodes, figure out the extra parameters for them.
+  string $extra_parameters = shaderExtraParameters( $all_nodes );
+
+  // Also add the plugs which we didn't generate code for as inputs.
+  if( size($g_shader_input_plugs) > 0 )
+  {
+    global string $g_shaders_with_params_name[];
+    global string $g_shaders_with_params_flags[];
+
+    $extra_parameters += shaderInputPlugsParameters( $g_shader_input_plugs );
+
+    int $shader_idx =
+      DL_stringArrayIndexOf( $output_name, $g_shaders_with_params_name );
+
+    if( $shader_idx == -1 )
+    {
+      $shader_idx = size($g_shaders_with_params_name);
+      $g_shaders_with_params_name[$shader_idx] = $output_name;
+    }
+
+    $g_shaders_with_params_flags[$shader_idx] =
+      shaderInputPlugsInstanceFlags( $g_shader_input_plugs );
+  }
+
+  $sl_code =
+    shaderFunctionBeginString( 
+      $rsl_type, 
+      $output_name, 
+      $extra_parameters )
+    + $sl_code;
+
+  if( size($shading_groups) > 1 )
+  {
+    $sl_code += "}\n";
+  }
+
+  return $sl_code;
+}
+
+/*
+  Cleanup procedure to call before translating a bunch of shaders with
+  DL_translateMayaToSl.
+*/
+global proc
+DL_translateMayaToSLClean(
+  string $sdl_output_path,
+  string $shaderdl_opts )
+{
+  global string $g_shaders_with_params_name[];
+  global string $g_shaders_with_params_flags[];
+
+  // Only used here to rebuild everything when the dest path or options change.
+  global string $g_sdl_output_path;
+  global string $g_shaderdl_opts;
+
+  if( $sdl_output_path != $g_sdl_output_path ||
+      $shaderdl_opts != $g_shaderdl_opts )
+  {
+    $g_sdl_output_path = $sdl_output_path;
+    $g_shaderdl_opts = $shaderdl_opts;
+
+    clear($g_shaders_with_params_name);
+    clear($g_shaders_with_params_flags);
+    delightNodeWatch -flush;
+
+    return;
+  }
+
+  // Clean the arrays but keep the values for shaders which will not be rebuilt.
+  string $names[];
+  string $flags[];
+  int $i;
+
+  for( $i = 0; $i < size($g_shaders_with_params_name); ++$i )
+  {
+    if( `delightNodeWatch -isclean $g_shaders_with_params_name[$i]` )
+    {
+      $names[size($names)] = $g_shaders_with_params_name[$i];
+      $flags[size($flags)] = $g_shaders_with_params_flags[$i];
+    }
+  }
+
+  $g_shaders_with_params_name = $names;
+  $g_shaders_with_params_flags = $flags;
+}

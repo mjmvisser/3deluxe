@@ -1,0 +1,571 @@
+/*
+	Copyright (c) 2006 The 3Delight Team.
+*/
+
+global proc
+RC_init( string $node_name )
+{
+  if( !attributeExists( "shadingParameters", $node_name ) )
+  {
+    addAttr 
+      -longName shadingParameters 
+      -dataType "string"
+      $node_name;
+
+    setAttr ($node_name + ".shadingParameters") -type "string"
+"# Declare all the parameters you need here, one per line.\n\
+# The special types float2 and float3 declare arrays of 2 or 3 floats.\n\
+# Other types of arrays are not supported.\n\
+# Declaring a parameter with shader_output instead of simply output will\n\
+# make it an output of the shader (AOV) instead of an output of the node.\n\
+# Declaring it with shader_input will make it an input of the shader.\n\
+# example (remove the leading # to try it):\n\
+#\n\
+# float2 i_uv\n\
+# output float o_noise\n";
+  }
+
+  if( !attributeExists( "shadingCode", $node_name ) )
+  {
+    addAttr 
+      -longName shadingCode 
+      -dataType "string"
+      $node_name;
+
+    setAttr ($node_name + ".shadingCode") -type "string"
+"/*\n\
+    Insert your SL code here. The code will be put in a function with all the\n\
+    parameters declared in \"Shading Parameters\" available. Standard\n\
+    variables such as P and N can be accessed with external declarations. If\n\
+    texture coordinates are needed, either define a float2 input and use a\n\
+    placement node or use ss and tt variables directly.\n\
+    If including 3DFM's own headers, use this form: #include <utils.h>\n\
+    This would fit with the parameter declaration example:\n\
+\n\
+    o_noise = noise( i_uv[0], i_uv[1] );\n\
+*/\n";
+  }
+}
+
+global proc int
+RC_isRendermanCodeNode( string $node )
+{
+  // Check for actual rendermanCode nodes.
+  if( nodeType($node) == "rendermanCode" )
+    return 1;
+
+  // Check for some custom node which wants to behave like a rendermanCode.
+  if( objExists( $node + ".shadingParameters" ) &&
+      objExists( $node + ".shadingCode" ) )
+    return 1;
+
+  return 0;
+}
+
+proc
+RC_parseShadingParameters(
+  string $i_node,
+  string $o_outputSpec[],
+  string $o_class[],
+  string $o_type[],
+  string $o_name[],
+  string $o_init[] )
+{
+  string $params = `getAttr ($i_node + ".shadingParameters")`;
+
+  string $lines[];
+  tokenize $params "\r\n" $lines;
+
+  for( $line in $lines )
+  {
+    string $line_without_comments = match( "^[^#;]*", $line );
+    string $line_without_init = match( "^[^=]*", $line_without_comments );
+    string $line_init = match( "=.*$", $line_without_comments );
+
+    string $tokens[];
+    tokenize $line_without_init " " $tokens;
+
+    if( size($tokens) < 2 )
+      continue;
+
+    string $outputSpec = "input";
+    string $class = "";
+    string $type = $tokens[size($tokens) - 2];
+    string $name = $tokens[size($tokens) - 1];
+
+    int $i;
+    for( $i = 0; $i < size($tokens) - 2; ++$i )
+    {
+      switch( $tokens[$i] )
+      {
+        case "shader_input":
+        case "shader_output":
+        case "output":
+        case "input":
+          $outputSpec = $tokens[$i];
+          break;
+
+        case "varying":
+        case "uniform":
+          $class = $tokens[$i];
+          break;
+      }
+    }
+
+    string $init = "";
+    if( size($line_init) > 1 )
+    {
+      $init = substring( $line_init, 2, size($line_init) );
+    }
+
+    int $n = size($o_outputSpec);
+    $o_outputSpec[$n] = $outputSpec;
+    $o_class[$n] = $class;
+    $o_type[$n] = $type;
+    $o_name[$n] = $name;
+    $o_init[$n] = $init;
+  }
+}
+
+global proc
+RC_add_param_attributes( string $node_name )
+{
+  string $params_outputSpec[];
+  string $params_class[];
+  string $params_type[];
+  string $params_name[];
+  string $params_init[];
+
+  RC_parseShadingParameters(
+    $node_name, $params_outputSpec, $params_class, $params_type, $params_name,
+    $params_init );
+
+  /* Remove attributes which will no longer be needed. */
+  string $existing_attributes[] = `listAttr -userDefined $node_name`;
+
+  for( $existing_attr in $existing_attributes )
+  {
+    if( $existing_attr == "shadingParameters" ||
+        $existing_attr == "shadingCode" )
+    {
+      continue;
+    }
+
+    /* If it's a child of another attribute, it may already be deleted. */
+    if( !attributeExists( $existing_attr, $node_name ) )
+      continue;
+
+    /* If it isn't, it still must not be considered by itself. */
+    string $parent[] = `attributeQuery -node $node_name -lp $existing_attr`;
+    if( size($parent) > 0 )
+      continue;
+
+    /* Don't delete all attributes so connections are not lost. */
+    if( DL_stringArrayIndexOf( $existing_attr, $params_name ) == -1 )
+    {
+      deleteAttr -at $existing_attr $node_name;
+    }
+  }
+
+  int $i;
+  for( $i = 0; $i < size($params_name); ++$i )
+  {
+    if( $params_outputSpec[$i] == "shader_input" ||
+        $params_outputSpec[$i] == "shader_output" )
+      continue;
+
+    string $rman_type = $params_type[$i];
+    string $attr_name = $params_name[$i];
+
+    string $maya_type = "float";
+    string $suffixes[] = {};
+    int $used_as_color = 0;
+
+    switch( $rman_type )
+    {
+      case "matrix":
+      case "string":
+      {
+        $maya_type = $rman_type;
+        break;
+      }
+
+      case "color":
+      {
+        $maya_type = "float3";
+        $suffixes = { "R", "G", "B" };
+        $used_as_color = 1;
+        break;
+      }
+
+      case "point":
+      case "vector":
+      case "normal":
+      case "float3":
+      {
+        $maya_type = "float3";
+        $suffixes = { "X", "Y", "Z" };
+        break;
+      }
+
+      case "float2":
+      {
+        $maya_type = "float2";
+        $suffixes = { "X", "Y" };
+        break;
+      }
+    }
+
+	/*
+		inputs shouldn't be readable (so users can't connect them as outputs)
+		but for some reason maya doesn't allow keying them unless they are.
+	*/
+    int $readable = 1;
+    int $writable = 1;
+
+    if( $params_outputSpec[$i] == "output" )
+    {
+      $readable = 1;
+      $writable = 0;
+    }
+
+    /*
+      Delete existing attributes which don't have the correct type so they are
+      readded below. We don't delete all attributes so that connections to
+      unchanged ones are maintained.
+    */
+    if( attributeExists( $attr_name, $node_name ) )
+    {
+      string $att = $node_name + "." + $attr_name;
+
+      string $att_type = `addAttr -q -at $att`;
+      if( $att_type == "typed" )
+      {
+        string $tmp[] = `addAttr -q -dt $att`;
+        $att_type = $tmp[0];
+      }
+
+      int $old_node = 0;
+      if( `addAttr -q -readable $att` && `addAttr -q -writable $att` )
+        $old_node = 1;
+
+      if( `addAttr -q -uac $att` != $used_as_color ||
+          (`addAttr -q -readable $att` != $readable && !$old_node) ||
+          $att_type != $maya_type )
+      {
+        deleteAttr -at $att $node_name;
+      }
+    }
+
+    /*
+      Generate a unique (for the session) temporary name for the attribute. We
+      create the attribute with this name and then 'rename it into place'. This
+      is required to work around a bug in maya which leaves some internal crap
+      behind when a compound attribute is deleted (you can't create the same
+      attribute again).
+
+      Another workaround is to rename before deleting but this can make the UI
+      crash for some attributes. Working around maya bugs is soooo much fun :]
+    */
+    if( !attributeExists( $attr_name, $node_name ) )
+    {
+      global int $g_rendermanCodeAttrID;
+      $g_rendermanCodeAttrID++;
+      string $tmp_attr = "dummy" + $g_rendermanCodeAttrID;
+
+      if( $maya_type == "string" )
+      {
+        addAttr
+          -longName $tmp_attr
+          -dataType $maya_type
+          -readable $readable -writable $writable
+          $node_name;
+      }
+	  else if( $used_as_color )
+      {
+        addAttr
+          -longName $tmp_attr
+          -attributeType $maya_type -uac
+          -readable $readable -writable $writable
+          $node_name;
+      }
+      else
+      {
+        addAttr
+          -longName $tmp_attr
+          -attributeType $maya_type
+          -readable $readable -writable $writable
+          $node_name;
+      }
+
+      for( $suffix in $suffixes )
+      {
+        addAttr
+          -longName ($tmp_attr + $suffix)
+          -attributeType "float"
+          -parent $tmp_attr
+          -readable $readable -writable $writable
+          $node_name;
+      }
+
+      /* Rename from dummy name to proper name. */
+      renameAttr ($node_name + "." + $tmp_attr) $attr_name;
+      for( $suffix in $suffixes )
+      {
+        renameAttr
+          ($node_name + "." + $tmp_attr + $suffix)
+          ($attr_name + $suffix);
+      }
+    }
+  }
+}
+
+global proc
+RC_getNodePlugs(
+  string $i_node,
+  string $i_paramType,
+  string $o_plugs[],
+  string $o_plug_types[],
+  string $o_plug_tags[] )
+{
+  string $params_outputSpec[];
+  string $params_class[];
+  string $params_type[];
+  string $params_name[];
+  string $params_init[];
+
+  RC_parseShadingParameters(
+    $i_node, $params_outputSpec, $params_class, $params_type, $params_name,
+    $params_init );
+
+  int $i;
+  for( $i = 0; $i < size($params_name); ++$i )
+  {
+    if( $i_paramType == "outputs" )
+    {
+      if( $params_outputSpec[$i] != "output" )
+        continue;
+    }
+    else if( $i_paramType == "inputs" )
+    {
+      if( $params_outputSpec[$i] != "input" )
+        continue;
+    }
+    else
+    {
+      // WTF??
+      continue;
+    }
+
+    string $tags = "";
+    if( $params_outputSpec[$i] == "output" )
+      $tags = "output";
+    else if( $params_class[$i] == "uniform" )
+      $tags = "uniform";
+
+    $o_plugs[size($o_plugs)] = $i_node + "." + $params_name[$i];
+    $o_plug_types[size($o_plug_types)] = $params_type[$i];
+    $o_plug_tags[size($o_plug_tags)] = $tags;
+  }
+}
+
+proc string
+getParamDeclaration(
+  string $param_class,
+  string $param_type,
+  string $param_name )
+{
+  string $param = $param_class + " ";
+
+  // map: This is to avoid invalid RSL parameter name from multi attributes
+  // Basically, an attribute such as: "layers[0].someParams[2]" would become: "layers0_someParams2", thus a valid RSL param
+  $param_name = substituteAllString($param_name, "[", "");
+  $param_name = substituteAllString($param_name, "]", "");
+  $param_name = substituteAllString($param_name, ".", "_");
+  
+  // map: This is adding support for array parameters for custom rendermancode nodes (i.e. nodes with shadingParameters and shadingCode attributes) 
+  string $paramNameSuffix="";
+  if(gmatch($param_type, "*\\[]")){ 
+	  $param_type = substituteAllString($param_type, "[", "");
+	  $param_type = substituteAllString($param_type, "]", "");
+	  $paramNameSuffix="[]";
+  }
+  
+  switch( $param_type )
+  {
+    case "float2":
+      $param += "float " + $param_name + "[2]";
+      break;
+
+    case "float3":
+      $param += "float " + $param_name + "[3]";
+      break;
+
+    default:
+    
+      // map: Array param support, see above
+      $param += $param_type + " " + $param_name + $paramNameSuffix;
+      break;
+  }
+
+  return $param;
+}
+
+global proc
+RC_getExtraShaderParameters(
+  string $i_node,
+  string $o_blockids[],
+  string $o_blocks[] )
+{
+  string $params_outputSpec[];
+  string $params_class[];
+  string $params_type[];
+  string $params_name[];
+  string $params_init[];
+
+  RC_parseShadingParameters(
+    $i_node, $params_outputSpec, $params_class, $params_type, $params_name,
+    $params_init );
+
+  int $current_idx = size($o_blockids);
+
+  int $i;
+  for( $i = 0; $i < size($params_name); ++$i )
+  {
+    if( $params_outputSpec[$i] != "shader_output" &&
+        $params_outputSpec[$i] != "shader_input" )
+        continue;
+
+    string $init_val = "0";
+    if( $params_type[$i] == "string" )
+      $init_val = "\"\"";
+
+    // If user provided an initializer, use that.
+    if( $params_init[$i] != "" )
+      $init_val = $params_init[$i];
+
+    string $output_spec = "";
+    if( $params_outputSpec[$i] == "shader_output" )
+      $output_spec = "output ";
+
+    string $defname = "rendermanCodeShaderParam_" + $params_name[$i];
+
+    $o_blockids[$current_idx] = ("aov_for_" + $i_node);
+    $o_blocks[$current_idx] = $o_blocks[$current_idx] +
+      "#ifndef " + $defname + "\n#define " + $defname + "\n" +
+      "\t" + $output_spec +
+      getParamDeclaration(
+        $params_class[$i], $params_type[$i], $params_name[$i] ) +
+      " = " + $init_val + ";\n" +
+      "#endif\n";
+  }
+}
+
+global proc string
+RC_getFuncName(
+  string $i_node )
+{
+  // Remove the : introduced by references.
+  return "maya_rendermanCode_" + substituteAll( ":", $i_node, "_" );
+}
+
+global proc string
+RC_getFuncCode(
+  string $i_node,
+  string $i_ident )
+{
+  
+  string $params_outputSpec[];
+  string $params_class[];
+  string $params_type[];
+  string $params_name[];
+  string $params_init[];
+
+  RC_parseShadingParameters(
+    $i_node, $params_outputSpec, $params_class, $params_type, $params_name,
+    $params_init );
+
+  string $code;
+  
+  // map: Support for included nodetype headers, when node an actual rendermanCode node
+  string $nodeType = nodeType($i_node);
+  if($nodeType != "rendermanCode")
+	  $code += $i_ident + "#include <" + nodeType($i_node) +".h>\n";
+  
+  $code += $i_ident + "void " + RC_getFuncName( $i_node ) + "(\n";
+  string $extern_declarations = "";
+
+  // Must put all inputs before all outputs.
+  string $types[] = { "input", "output", "shader_input", "shader_output" };
+  for( $type in $types )
+  {
+    int $i;
+    for( $i = 0; $i < size($params_name); ++$i )
+    {
+      if( $params_outputSpec[$i] != $type )
+        continue;
+      
+      // map: void type is used for special compound attributes and as no code representation
+      if(gmatch($params_type[$i], "void*"))
+    	  continue;
+      
+      string $param = $i_ident + "\t";
+
+      switch( $params_outputSpec[$i] )
+      {
+        case "output":
+          $param += "output ";
+          break;
+
+        case "shader_input":
+        case "shader_output":
+          $param += "extern ";
+          break;
+      }
+
+      $param += getParamDeclaration(
+        $params_class[$i], $params_type[$i], $params_name[$i] );
+
+      $param += ";\n";
+
+      if( $type == "shader_input" || $type == "shader_output" )
+      {
+        $extern_declarations += $param;
+      } else {
+        $code += $param;
+      }
+    }
+  }
+
+  $code += $i_ident + "\t)\n";
+  $code += $i_ident + "{\n";
+  $code += $extern_declarations;
+
+  string $code_body = getAttr( $i_node + ".shadingCode" );
+  string $code_lines[];
+  tokenize $code_body "\r\n" $code_lines;
+  for( $line in $code_lines )
+  {
+    /*
+      Move #include <somefile.h> directives outside of the function. This is
+      needed to be able to include a system headed (eg. utils.h) without
+      preventing other headers from seeing it later.
+
+      Note that we don't move #include "somefile.h" to give the user a choice.
+      TODO: We could also match against the list of files we ship.
+    */
+    if( `match "^[ \t]*#[ \t]*include[ \t]+<[a-zA-Z_\.]+>" $line` != "" )
+    {
+      $code = $i_ident + $line + "\n" + $code;
+    }
+    else
+    {
+      $code += $i_ident + "\t" + $line + "\n";
+    }
+  }
+
+  $code += $i_ident + "}\n";
+  $code += $i_ident + "\n";
+
+  return $code;
+}

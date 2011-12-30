@@ -1,0 +1,1223 @@
+global string $dl_layerLayersScroll;
+global string $dl_layerComponentsScroll;
+global string $dl_layerDisplacementsScroll;
+
+global string $dl_layerComponentsFrame;
+global string $dl_layerDisplacementsFrame;
+
+global int $dl_layerLayersScrollWidth = 315;
+global int $dl_layerComponentsScrollWidth = 315;
+global int $dl_layerDisplacementsScrollWidth = 315;
+
+global int $dl_layerCurrentLayerIndex;
+global int $dl_layerCurrentComponentIndex;
+
+global string $dl_layerCurrentLayerPlugs[];
+global string $dl_layerCurrentComponentNodes[];
+
+global string $dl_layerComponentTypes[];
+
+// UTILS
+
+// ----------------------------------------------------------------------------
+// getSortingIndices
+// ----------------------------------------------------------------------------
+proc int[] getSortingIndices(string $unsorted[]) 
+{
+	return python("import delight;delight.utils.getSortingIndices(['" + stringArrayToString($unsorted, "', '") + "'])");
+}
+
+// ----------------------------------------------------------------------------
+// uniquefyString
+// ----------------------------------------------------------------------------
+proc string uniquefyString(string $strArray[], string $oldText) 
+{
+	string $newText = $oldText;
+	int $unique = 0;
+	while ($unique == 0) {
+		$unique = 1;
+		for ($strArrayElement in $strArray) {
+			if ($strArrayElement == $newText) {
+				$unique = 0;
+				break;
+			}
+		}
+		if ($unique == 0) {
+			string $re = "[0-9]+$";
+			string $numericSuffixStr = match($re, $newText);
+
+			if ($numericSuffixStr != "") {
+				string $removeSuffix = `substitute $numericSuffixStr $newText ""`;
+				int $numericSuffixInt = $numericSuffixStr;
+				$numericSuffixInt ++;
+				string $newNumericSuffixStr = $numericSuffixInt;
+				while (size($numericSuffixStr) > size($newNumericSuffixStr)) {
+					$newNumericSuffixStr = "0" + $newNumericSuffixStr;
+				}
+				$newText = $removeSuffix + $newNumericSuffixStr;
+			} else {
+				$newText = $newText + "1";
+			}
+		}
+	}
+	return $newText;
+}
+    
+// ----------------------------------------------------------------------------
+// getSparseStringArrayValues
+// ----------------------------------------------------------------------------
+proc string[] getSparseStringArrayValues(string $node, string $attr)
+{
+    string $entries[] = `listAttr -m ($node + "." + $attr)`;
+    string $values[];
+    int $ind = 0;
+
+    for ($entry in $entries) {
+        $values[$ind] = `getAttr ($node + "." + $entry)`;
+        $ind ++;
+    }
+
+    return $values;
+}
+
+// ----------------------------------------------------------------------------
+// uniquefyCustomName
+// ----------------------------------------------------------------------------
+proc string uniquefyCustomName(string $node, string $oldValue)
+{
+    string $customColorNames[] = getSparseStringArrayValues($node, "customColorName");
+    string $customFloatNames[] = getSparseStringArrayValues($node, "customFloatName");
+    string $allCustomNames[] = stringArrayCatenate($customColorNames, $customFloatNames);
+
+    return uniquefyString($allCustomNames, $oldValue);
+}
+
+// ----------------------------------------------------------------------------
+// getComponentLabel
+// ----------------------------------------------------------------------------
+proc string getComponentLabel(string $componentType)
+{
+	return capitalizeString(substitute("dl_", $componentType, ""));		
+}
+
+// ----------------------------------------------------------------------------
+// getComponentName
+// ----------------------------------------------------------------------------
+proc string getComponentName(string $node, string $layerPlug, string $componentType)
+{
+	string $layerName = getAttr($layerPlug + ".layer_name");
+	if($layerName == "")
+		$layerName = "layer" + match("[0-9]+", plugAttr($layerPlug));
+	
+	string $typeName = tolower(getComponentLabel($componentType));
+	
+	string $newName = $node + "_" + $layerName + "_" + $typeName;
+	
+	return $newName;
+}
+
+// ----------------------------------------------------------------------------
+// disconnectAllChildrens
+// ----------------------------------------------------------------------------
+proc disconnectAllChildrens(string $plug)
+{
+	string $nodeattr[];
+	tokenize($plug, ".", $nodeattr);
+	string $node=$nodeattr[0];
+	string $attrs[] = `listAttr $plug`;
+	for($attr in $attrs){
+		string $childPlug = $node + "." + $attr;
+		if(objExists($childPlug)){
+			string $connect[] = `listConnections -p 1 -c 1 -d 0 $childPlug`;
+			if(size($connect) == 2){
+				disconnectAttr($connect[1], $connect[0]);
+			}
+		}
+	}
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomUniquefyName
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomUniquefyName(string $textField, string $plug)
+{
+    string $oldText = `textField -q -tx $textField`;
+    string $val = `getAttr $plug`;
+    setAttr -type "string" $plug "";
+	string $newText = uniquefyCustomName(plugNode($plug), $oldText);
+    setAttr -type "string" $plug $newText;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerGetComponentTypes
+// ----------------------------------------------------------------------------
+global proc string[] dl_layerGetComponentTypes() 
+{
+	// All registered node types 
+	string $nodeTypes[] = listNodeTypes("shader/shadingcomponent:swatch/3delight");
+	
+	// Add dl_layer which can also be used as a component
+	$nodeTypes[size($nodeTypes)] = "dl_layer";
+	 
+	//
+	return sort($nodeTypes);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomRemove
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomRemove(string $namePlug, string $valuePlug)
+{
+	removeMultiInstance -b true $namePlug; 
+	removeMultiInstance -b true $valuePlug;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomAdd
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomAdd(string $node, string $type)
+{
+	string $baseAttr = "custom" + $type;
+	string $basePlug =  $node + "." + $baseAttr;
+	
+	string $namePlug = $basePlug + "Name" ;
+			
+	int $index = getNextMultiAttribElementIndex($namePlug);
+	string $baseIndex = "[" + $index + "]";
+	$namePlug += $baseIndex;
+	 
+	string $valuePlug = $basePlug + $baseIndex;
+	
+	getAttr($valuePlug); 
+	string $defaultName = uniquefyCustomName($node, "aov_custom" + $type + "0");
+	setAttr -type "string" $namePlug $defaultName; 
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCreateButtonListWidget
+// ----------------------------------------------------------------------------
+global proc string dl_layerCreateButtonListWidget(string $type)
+{
+	columnLayout -adj 1;
+	columnLayout -cw 110 ;
+	button -l ("Add " + $type) -w 90  ("dl_layerCustomAdd" + $type + "Button");
+	setParent..;
+	separator -st "none" -h 5;
+	string $frame = `frameLayout -cl 0 -cll 0 -lv 0 -bv 0 ("dl_layerCustom" + $type + "sFrame")`; 
+	setParent..;
+	setParent..;
+	
+	return $frame;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomUpdateWidget
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomUpdateWidget(string $node, string $type)
+{
+	string $button =  ("dl_layerCustomAdd" + $type + "Button");
+	string $frame = ("dl_layerCustom" + $type + "sFrame");
+	
+	button -e -c ("dl_layerCustomAdd " + $node + " \"" + $type + "\"") $button;
+	
+	frameLayout -e -vis 0 $frame;
+	
+	string $oldList[] = `frameLayout -q -ca $frame`;
+	for($item in $oldList)
+		deleteUI($item);
+	
+	string $col = `columnLayout -p $frame -adj 1`;
+	
+	string $baseAttr = "custom" + $type;
+	string $basePlug = $node + "." + $baseAttr;
+	string $nameAttrs[] = `listAttr -m ($basePlug + "Name")`;
+	
+	for($nameAttr in $nameAttrs){
+		
+		string $index = match("\[[0-9]+]", $nameAttr);
+		
+		string $namePlug = $node + "." + $nameAttr;
+		string $valuePlug = $basePlug + $index;
+		
+		rowLayout -p $col -cw 1 32  -cw 2 240 -cw 3 150 -nc 3;
+		
+		symbolButton  -i "removeRenderable.xpm" -c ("dl_layerCustomRemove \"" + $namePlug + "\" \"" + $valuePlug + "\"");
+		
+		string $nameField = `textField -ann ($baseAttr + $index)`;
+		
+		string $uniquefyCmd = ("dl_layerCustomUniquefyName \"" + $nameField + "\" \"" +  $namePlug +"\"" );
+		textField -e -cc $uniquefyCmd $nameField;
+		
+		connectControl $nameField $namePlug;
+		
+		if($type == "Color")
+			attrColorSliderGrp -cw 1 1 -cw 3 1  -l "" -at $valuePlug;
+		else
+			attrFieldSliderGrp -cw 1 1 -cw 3 1  -l "" -at $valuePlug;
+	}
+	
+	separator -p $col -h 5 -st none;
+	
+	frameLayout -e -vis 1 $frame;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomsControlsNew
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomsControlsNew(string $input)
+{
+    setUITemplate -pst "attributeEditorTemplate";
+
+    separator -st "none" -h 10;
+
+    dl_layerCreateButtonListWidget("Color");
+    
+    separator -st "none" -h 10;
+            
+    dl_layerCreateButtonListWidget("Float");
+
+    separator -st "none" -h 10;
+
+    setUITemplate -ppt;
+
+    dl_layerCustomsControlsReplace($input);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerCustomsControlsReplace
+// ----------------------------------------------------------------------------
+global proc dl_layerCustomsControlsReplace(string $input)
+{
+	
+	string $node = plugNode($input);
+
+	dl_layerCustomUpdateWidget($node, "Float");
+	dl_layerCustomUpdateWidget($node, "Color");
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerLayersControlsNew
+// ----------------------------------------------------------------------------
+global proc dl_layerLayersControlsNew(string $input)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerComponentsScroll;
+	global string $dl_layerDisplacementsScroll;
+	global string $dl_layerComponentsFrame;
+	global string $dl_layerDisplacementsFrame;
+	
+	global int $dl_layerLayersScrollWidth;
+	global int $dl_layerComponentsScrollWidth;
+	global int $dl_layerDisplacementsScrollWidth;
+	
+    setUITemplate -pst "attributeEditorTemplate";
+    
+    string $node = plugNode($input);
+    string $phonyFloat = $node + ".phonyFloat";
+    separator -st "none" -h 5;
+    
+    columnLayout -adj 1;
+    
+    columnLayout -cat left 50 -cw $dl_layerLayersScrollWidth;
+    
+    rowLayout -nc 2 -cw 1 $dl_layerLayersScrollWidth -cw 2 40;
+    $dl_layerLayersScroll = `textScrollList -ams 0 -nr 4 -w $dl_layerLayersScrollWidth`;
+    columnLayout -adj 1;
+    button -l "Up" "dl_layerUpLayerButton";
+    separator -st none -h 20;
+    button -l "Down" "dl_layerDownLayerButton";
+    setParent ..;
+    setParent ..;
+    
+    gridLayout -nc 4 -cw 75;
+    button -l "Add" "dl_layerAddLayerButton";
+    button -l "Remove" "dl_layerRemoveLayerButton";
+    button -l "Graph" "dl_layerGraphLayerButton";
+    button -l "Graph All" "dl_layerGraphAllLayerButton";
+    setParent ..;
+    setParent ..;
+    
+    checkBoxGrp -l "Enable" "dl_layerParamEnableControl";
+    
+    rowLayout -nc 2 -cw 2 193;
+    text -l "Name";
+    textField  "dl_layerParamNameControl";
+    setParent..;
+    
+    attrColorSliderGrp -l "Opacity" "dl_layerParamOpacityControl" ;
+    
+	
+	$dl_layerComponentsFrame = `frameLayout -l "Surface"  -bv 0 -li 40`;
+	columnLayout -w 100 ;
+		checkBoxGrp -l "Premultiply" "dl_layerParamPremultControl" ;
+		attrEnumOptionMenuGrp -l "Mode" "dl_layerParamModeControl";
+		
+		//checkBoxGrp -l "Blend Opacity" "dl_layerParamBlendOpacityControl";
+		separator -st none -h 5;
+    columnLayout -cat left 50;
+    
+    $dl_layerComponentsScroll = `textScrollList 
+    		-dcc "dl_layerEditComponent" 
+			-dkc "dl_layerRemoveComponent" 
+			-sc "dl_layerSelectComponent"  -ams 0 -nr 4 -w $dl_layerComponentsScrollWidth`;
+    
+	popupMenu "dl_layerComponentListPopMenu";;
+	
+	columnLayout -adj 1;
+	gridLayout -nc 4 -cw 75;
+	button -l "Add" "dl_layerAddComponentButton";
+	button -l "Remove"-c "dl_layerRemoveComponent" "dl_layerRemoveComponentButton";
+	button -l "Edit"-c "dl_layerEditComponent" "dl_layerEditComponentButton";
+	button -l "Rename All" "dl_layerRenameAllComponentsButton";
+	setParent ..;
+	setParent ..;
+	setParent ..;
+	setParent ..;
+	setParent ..;
+		
+	$dl_layerDisplacementsFrame = `frameLayout -l "Displacement" -bv 0 -li 40`;
+	columnLayout -w 100;
+	attrEnumOptionMenuGrp -l "Mode" "dl_layerParamDispModeControl";
+	attrFieldSliderGrp -l "Layer Scale" -at $phonyFloat "dl_layerDispLayerScaleControl" ;
+	attrFieldSliderGrp -l "Layer Offset" -at $phonyFloat "dl_layerDispLayerOffsetControl" ;
+	
+	separator -st none -h 5;
+			
+	columnLayout -cat left 50 -cw $dl_layerDisplacementsScrollWidth;
+	
+	rowLayout -nc 2 -cw 1 $dl_layerDisplacementsScrollWidth -cw 2 40;
+	$dl_layerDisplacementsScroll = `textScrollList -sc "dl_layerSelectDisplacement" -dkc "dl_layerRemoveDisplacement"  -ams 0 -nr 4 -w $dl_layerDisplacementsScrollWidth`;
+	
+	columnLayout -adj 1;
+	button -l "Up" -c ("dl_layerUpDisplacement")  "dl_layerUpDisplacementButton";
+	separator -st none -h 20;
+	button -l "Down" -c ("dl_layerDownDisplacement")  "dl_layerDownDisplacementButton";
+	setParent ..;
+	setParent ..;
+		
+		
+	columnLayout -adj 1;
+	gridLayout -nc 4 -cw 75;
+	button -l "Add" -c "dl_layerAddDisplacement" "dl_layerAddDisplacementButton";
+	button -l "Remove" -c "dl_layerRemoveDisplacement" "dl_layerRemoveDisplacementButton";
+	setParent ..;
+	setParent ..;
+	setParent ..;
+	
+	rowLayout -nc 2 -cw 2 193;
+	text -l "Name";
+	textField  "dl_layerDispNameControl";
+	setParent..;
+	   
+	checkBoxGrp -l "Enable" "dl_layerDispEnableControl";
+	attrEnumOptionMenuGrp -l "Type" "dl_layerDispTypeControl";
+	checkBoxGrp -l "Recalculate Normal" "dl_layerDispRecalcNormControl";
+	checkBoxGrp -l "Use Shading Normal" "dl_layerDispUseShadNormControl";
+	checkBoxGrp -l "Use Normal Map" "dl_layerDispUseNormMapControl";
+	attrColorSliderGrp -l "Normal Map" "dl_layerDispNormMapControl" ;
+	
+	attrFieldSliderGrp -l "Amount" -at $phonyFloat "dl_layerDispAmountControl" ;
+	attrFieldSliderGrp -l "Scale" -at $phonyFloat "dl_layerDispScaleControl" ;
+	attrFieldSliderGrp -l "Offset" -at $phonyFloat "dl_layerDispOffsetControl" ;
+	attrFieldSliderGrp -l "Alpha" -at $phonyFloat "dl_layerDispAlphaControl" ;
+
+	attrFieldSliderGrp -l "Lip" -at $phonyFloat "dl_layerDispLipControl" ;
+	attrFieldSliderGrp -l "Lip Rim" -at $phonyFloat "dl_layerDispLipRimControl" ;
+	
+	setParent ..;
+	setParent ..;
+			
+		
+    setUITemplate -ppt;
+
+    dl_layerLayersControlsReplace($input);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerGetLayerAttributes
+// ----------------------------------------------------------------------------
+global proc string[] dl_layerGetLayerAttributes(string $node)
+{
+	string $layers[];
+	int $actualOrder[] = getAttr($node + ".actualOrder");
+	for($i = 0; $i < size($actualOrder); $i++)
+		$layers[$i] = "layers[" + $actualOrder[$i] + "]";
+	
+	return $layers;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerGetLayerComponents
+// ----------------------------------------------------------------------------
+global proc string[] dl_layerGetLayerComponents(string $layerPlug)
+{
+	return `listConnections -s 1 -d 0 ($layerPlug + ".layer_components")`;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerGetLayerDisplacementPlugs
+// ----------------------------------------------------------------------------
+global proc string[] dl_layerGetLayerDisplacementPlugs(string $layerPlug)
+{
+	string $displacements[];
+	int $actualOrder[] = getAttr($layerPlug + ".ldao");
+	for($i = 0; $i < size($actualOrder); $i++)
+		$displacements[$i] = $layerPlug + ".lds[" + $actualOrder[$i] + "]";
+	
+	return $displacements;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerUpdateLayerScroll
+// ----------------------------------------------------------------------------
+global proc dl_layerUpdateLayerScroll(string $node)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	global int $dl_layerCurrentLayerIndex;
+	global int $dl_layerLayersScrollWidth;
+	
+	clear($dl_layerCurrentLayerPlugs);
+	
+	string $layerAttrs[] = dl_layerGetLayerAttributes($node);
+	
+	textScrollList -e -ra $dl_layerLayersScroll;
+	textScrollList -e 
+		-dkc ("dl_layerRemoveLayer " + $node) 
+		-sc ("dl_layerSelectLayer " + $node) 
+		$dl_layerLayersScroll;
+	
+	int $c;
+	for($i=size($layerAttrs)-1; $i >= 0; $i--){
+		string $layerPlug = $node + "." + $layerAttrs[$i];
+		string $name = getAttr($layerPlug + ".layer_name");
+		if($name == "")
+			$name = $layerAttrs[$i];
+		textScrollList -e -a  $name  -w $dl_layerLayersScrollWidth $dl_layerLayersScroll;
+		$dl_layerCurrentLayerPlugs[$c++] = $layerPlug;
+	}
+	
+	int $nbItems = `textScrollList -q -ni $dl_layerLayersScroll`;
+	
+	if($dl_layerCurrentLayerIndex < 1)
+		$dl_layerCurrentLayerIndex = 1;
+	else if($dl_layerCurrentLayerIndex > $nbItems)
+		$dl_layerCurrentLayerIndex = $nbItems;
+	
+	if($nbItems)
+		textScrollList -e -sii $dl_layerCurrentLayerIndex $dl_layerLayersScroll;
+	
+	//resizeScrolls();
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerSelectLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerSelectLayer(string $node)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	global int $dl_layerCurrentLayerIndex;
+	
+	int $index[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	
+	int $enableControls = size($index) != 0;
+	if($enableControls){
+		$dl_layerCurrentLayerIndex = $index[0];
+		string $layerPlug = $dl_layerCurrentLayerPlugs[$dl_layerCurrentLayerIndex - 1];
+		connectControl "dl_layerParamNameControl" ($layerPlug + ".layer_name");
+		connectControl -in 2 "dl_layerParamEnableControl" ($layerPlug + ".layer_enable");		
+		//connectControl -in 2 "dl_layerParamBlendOpacityControl" ($layerPlug + ".layer_blendOpacity");		
+		connectControl -in 2 "dl_layerParamPremultControl" ($layerPlug + ".layer_premult");		
+		attrEnumOptionMenuGrp -e -at ($layerPlug + ".layer_mode") "dl_layerParamModeControl";
+		attrEnumOptionMenuGrp -e -at ($layerPlug + ".layer_displacement_mode") "dl_layerParamDispModeControl";
+		attrColorSliderGrp -e -at ($layerPlug + ".layer_opacity") "dl_layerParamOpacityControl" ;
+		attrFieldSliderGrp -e -at ($layerPlug + ".layer_displacement_layerScale") "dl_layerDispLayerScaleControl" ;
+		attrFieldSliderGrp -e -at ($layerPlug + ".layer_displacement_layerOffset") "dl_layerDispLayerOffsetControl" ;
+	}
+	else
+		textField -e -tx "" "dl_layerParamNameControl";
+	
+	textField -e -ed $enableControls -cc ("dl_layerUpdateLayerScroll " + $node) "dl_layerParamNameControl";
+	checkBoxGrp -e -en $enableControls  "dl_layerParamEnableControl";
+	//checkBoxGrp -e -en $enableControls  "dl_layerParamBlendOpacityControl";
+	checkBoxGrp -e -en $enableControls  "dl_layerParamPremultControl";
+	attrEnumOptionMenuGrp -e -en $enableControls "dl_layerParamModeControl";
+	attrEnumOptionMenuGrp -e -en $enableControls "dl_layerParamDispModeControl";
+	attrFieldSliderGrp -e -en $enableControls  "dl_layerDispLayerScaleControl";
+	//attrFieldSliderGrp -e -en $enableControls  "dl_layerParamPremultControl";
+	attrFieldSliderGrp -e -en $enableControls  "dl_layerDispLayerOffsetControl";
+	attrColorSliderGrp -e -en $enableControls  "dl_layerParamOpacityControl";
+	button -e -en $enableControls "dl_layerRemoveLayerButton";
+	button -e -en $enableControls "dl_layerUpLayerButton";
+	button -e -en $enableControls "dl_layerDownLayerButton";
+	button -e -en $enableControls "dl_layerAddComponentButton";
+	button -e -en $enableControls "dl_layerGraphLayerButton";
+	button -e -en $enableControls "dl_layerGraphAllLayerButton";
+	button -e -en $enableControls "dl_layerAddDisplacementButton";
+	
+	
+	dl_layerUpdateComponentScroll(1);
+	dl_layerUpdateDisplacementScroll(1);
+	
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerAddLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerAddLayer(string $node)
+{
+	global int $dl_layerCurrentLayerIndex;
+	
+	int $newIndex = 0;
+	
+	string $newOrderStr;
+	int $actualOrder[] = getAttr($node + ".actualOrder");
+	for($index in $actualOrder){
+		if($index >= $newIndex)
+			$newIndex = $index + 1;
+		$newOrderStr += " " + $index;
+	}
+	
+	setAttr -type "string" ($node + ".layers[" + $newIndex + "].layer_name") ("layer"+ $newIndex);
+	evalEcho("setAttr -type Int32Array " + $node + ".order "  + (size($actualOrder) + 1) + " " + $newOrderStr + " " + $newIndex);
+	
+	$dl_layerCurrentLayerIndex = 1;
+	
+	dl_layerUpdateLayerScroll($node);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerRemoveLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerRemoveLayer(string $node)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	global int $dl_layerCurrentLayerIndex;
+	
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0] - 1];
+	string $disps[] = dl_layerGetLayerDisplacementPlugs($layerPlug);
+	
+	for($disp in $disps)
+		disconnectAllChildrens($disp);
+	disconnectAllChildrens($layerPlug);
+	evalDeferred("removeMultiInstance -b true " + $layerPlug);
+
+//	dl_layerUpdateLayerScroll($node);
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_layerMoveLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerMoveLayer(string $node, int $direction)
+{
+	global string $dl_layerLayersScroll;
+	global int $dl_layerCurrentLayerIndex;
+	
+	int $selIdxs[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	int $nbLayers = `textScrollList -q -ni $dl_layerLayersScroll`;
+	
+	int $curPos = $nbLayers - $selIdxs[0];
+	int $newPos = $curPos + $direction;
+	
+	if($newPos >= 0 && $newPos < $nbLayers){
+		
+		int $actualOrder[] = getAttr($node + ".actualOrder");
+		
+		int $idx = $actualOrder[$curPos];
+		int $tmpIdx = $actualOrder[$newPos];
+	
+		$actualOrder[$newPos] = $idx;
+		$actualOrder[$curPos] = $tmpIdx;
+		
+		string $orderStr = size($actualOrder);
+		for($index in $actualOrder)
+			$orderStr += " " + $index;
+		
+		eval("setAttr -type Int32Array " + $node + ".order " + $orderStr);
+		
+		$dl_layerCurrentLayerIndex = $selIdxs[0]- $direction;
+		dl_layerUpdateLayerScroll($node);
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerUpLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerUpLayer(string $node)
+{
+	dl_layerMoveLayer($node, 1);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerDownLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerDownLayer(string $node)
+{
+	dl_layerMoveLayer($node, -1);
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_layerGraphLayer
+// ----------------------------------------------------------------------------
+global proc dl_layerGraphLayer(int $all, string $node)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	string $components[];
+	
+	if($all){
+		$components = `listConnections -s 1 -d 0`;
+	}
+	else{
+		int $index[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+		if(size($index)){
+			$components = dl_layerGetLayerComponents($dl_layerCurrentLayerPlugs[$index[0] - 1]);
+		}
+	}
+	
+	select $components $node;
+	hyperShadePanelGraphCommand("hyperShadePanel1", "showUpstream");
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_layerLayersControlsReplace
+// ----------------------------------------------------------------------------
+global proc dl_layerLayersControlsReplace(string $input)
+{
+	global string $dl_layerAdvancedFrame;
+	global string $dl_layerComponentsFrame;
+	global string $dl_layerDisplacementsFrame;
+	
+	global int $dl_layerCurrentLayerIndex;
+	
+	string $node = plugNode($input);
+	
+	dl_layerUpdateLayerScroll($node);
+	
+	dl_layerSelectLayer($node);
+	
+	button -e -c ("dl_layerAddLayer " + $node) "dl_layerAddLayerButton";
+	button -e -c ("dl_layerRemoveLayer " + $node) "dl_layerRemoveLayerButton";
+	button -e -c ("dl_layerUpLayer " + $node) "dl_layerUpLayerButton";
+	button -e -c ("dl_layerDownLayer " + $node) "dl_layerDownLayerButton";
+	button -e -c ("if(!stringArrayContains(\"hyperShadePanel1\", `getPanel -vis`))HypershadeWindow;evalDeferred(\"dl_layerGraphLayer 0 " + $node + "\")") "dl_layerGraphLayerButton";
+	button -e -c ("if(!stringArrayContains(\"hyperShadePanel1\", `getPanel -vis`))HypershadeWindow;evalDeferred(\"dl_layerGraphLayer 1 " + $node + "\")") "dl_layerGraphAllLayerButton";
+
+	
+	//
+	string $compPop = "dl_layerComponentListPopMenu";
+	popupMenu -e -dai $compPop;
+	for($componentType in dl_layerGetComponentTypes()){
+		string $label = getComponentLabel($componentType);
+		menuItem -p $compPop -l $label -c ("dl_layerAddComponent " + $node + " " + $componentType);
+	}
+	
+	button -e -c ("dl_layerAddComponent " + $node + " \"\"") "dl_layerAddComponentButton";
+	button -e -c ("dl_layerRenameAllComponents " + $node) "dl_layerRenameAllComponentsButton";
+	
+	
+	$collapsePlug= ($node + ".collapseComponents");
+	frameLayout -e -cl `getAttr $collapsePlug` -ec ("setAttr " + $collapsePlug + " 0") -cc  ("setAttr " + $collapsePlug + " 1") $dl_layerComponentsFrame;
+	
+	$collapsePlug= ($node + ".collapseDisplacements");
+	frameLayout -e -cl `getAttr $collapsePlug` -ec ("setAttr " + $collapsePlug + " 0") -cc  ("setAttr " + $collapsePlug + " 1") $dl_layerDisplacementsFrame;
+	
+	//resizeScrolls();
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerUpdateComponentScroll
+// ----------------------------------------------------------------------------
+global proc dl_layerUpdateComponentScroll(int $select)
+{
+	global int $dl_layerComponentsScrollWidth;
+	global string $dl_layerLayersScroll;
+	global string $dl_layerComponentsScroll;
+	global int $dl_layerCurrentComponentIndex;
+	global string $dl_layerCurrentLayerPlugs[];
+	global string $dl_layerCurrentComponentNodes[];
+	
+	clear($dl_layerCurrentComponentNodes);
+	textScrollList -e -ra $dl_layerComponentsScroll;
+			
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	int $layerSelected = size($indices) != 0;
+	if($layerSelected){
+		
+		string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0]-1];
+		
+		string $layerComponents[] = dl_layerGetLayerComponents($layerPlug);
+		
+		// Sort by node type
+		
+		string $nodeTypes[];
+		for($layerComponent in $layerComponents)
+			$nodeTypes[size($nodeTypes)] = nodeType($layerComponent);
+		
+		int $compIdx[] = getSortingIndices($nodeTypes);
+		
+		int $c;
+		for($i = 0; $i < size($compIdx); $i++){
+			string $label = getComponentLabel($nodeTypes[$compIdx[$i]]);
+			string $nodeName = $layerComponents[$compIdx[$i]];
+			textScrollList -e -a $nodeName -w $dl_layerComponentsScrollWidth  $dl_layerComponentsScroll;
+			$dl_layerCurrentComponentNodes[$c++] = $nodeName;
+		}
+	}
+	
+	textScrollList -e -en $layerSelected $dl_layerComponentsScroll;
+	
+	if($select){
+		int $nbItems = `textScrollList -q -ni $dl_layerComponentsScroll`;
+		if($dl_layerCurrentComponentIndex < 1)
+			$dl_layerCurrentComponentIndex = 1;
+		else if($dl_layerCurrentComponentIndex > $nbItems)
+			$dl_layerCurrentComponentIndex = $nbItems;
+		if($nbItems)
+			textScrollList -e -sii $dl_layerCurrentComponentIndex $dl_layerComponentsScroll;
+	}
+	
+	
+	dl_layerSelectComponent();
+	
+	//resizeScrolls;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerSelectComponent
+// ----------------------------------------------------------------------------
+global proc dl_layerSelectComponent()
+{	
+	global string $dl_layerComponentsScroll;
+	global int $dl_layerCurrentComponentIndex;
+	
+	int $index[] = `textScrollList -q -sii $dl_layerComponentsScroll`;
+	
+	int $enableControls = size($index) != 0;
+
+	$dl_layerCurrentComponentIndex = 0;
+	if($enableControls)
+		$dl_layerCurrentComponentIndex = $index[0];
+	
+	button -e -en $enableControls "dl_layerRemoveComponentButton";
+	button -e -en $enableControls "dl_layerEditComponentButton";
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerAddComponentDialog
+// ----------------------------------------------------------------------------
+global proc dl_layerAddComponentDialog()
+{
+	global string $dl_layerComponentTypes[];
+	
+	clear($dl_layerComponentTypes);
+	
+    // Get the dialog's formLayout.
+    //
+    string $form = `setParent -q`;
+
+    // layoutDialog's are not resizable, so hard code a size here,
+    // to make sure all UI elements are visible.
+    //
+    formLayout -e -width 300 $form;
+
+    string $optMenu = `optionMenu "dl_layerAddComponentDialogTypeOpt"`;
+    
+    string $types[] = dl_layerGetComponentTypes();
+    for($type in $types){
+    	string $label = getComponentLabel($type);
+    	$dl_layerComponentTypes[size($dl_layerComponentTypes)] = $type;
+    	menuItem -l $label;
+    }
+    
+    string $b1 = `button -l "Ok" -c "layoutDialog -dismiss $dl_layerComponentTypes[int(`optionMenu -q -sl dl_layerAddComponentDialogTypeOpt`) - 1]"`;
+    string $b2 = `button -l "Cancel" -c "layoutDialog -dismiss \"dismiss\""`;
+
+    int $spacer = 5;
+    int $top = 5;
+    int $edge = 5;
+
+    formLayout -edit
+    
+        -attachForm            $optMenu   "top"    $top
+        -attachForm            $optMenu   "left"   $edge
+        -attachNone            $optMenu   "bottom"
+        -attachForm            $optMenu   "right"  $edge
+
+        -attachControl         $b1  "top"    $spacer $optMenu
+        -attachForm            $b1  "left"   $edge
+        -attachNone            $b1  "bottom"
+        -attachPosition        $b1  "right"  $spacer 50
+
+        -attachControl         $b2  "top"    $spacer $optMenu
+        -attachPosition        $b2  "left"   $spacer 50
+        -attachNone            $b2  "bottom"
+        -attachPosition        $b2  "right"  $spacer 100
+
+    $form;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerAddComponent
+// ----------------------------------------------------------------------------
+global proc string dl_layerAddComponent(string $node, string $componentType)
+{
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	if(!size($indices))
+		error("No layer selected");
+	
+	if($componentType == ""){
+		$componentType = `layoutDialog -t "Add Component" -ui "dl_layerAddComponentDialog"`;
+		if($componentType == "dismiss")
+			return "";
+	}
+	
+	string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0] - 1];
+	
+	string $name = getComponentName($node, $layerPlug, $componentType);				
+	string $component = `shadingNode -n $name -au $componentType`;
+	select -r $node;
+	
+	string $compPlug = $layerPlug + ".layer_components";
+	int $compIdx = getNextFreeMultiIndex($compPlug, 0);
+	
+	connectAttr ($component + ".outputComponent") ($compPlug + "[" + $compIdx + "]");
+
+	return $component;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerEditComponent
+// ----------------------------------------------------------------------------
+global proc dl_layerEditComponent()
+{
+	global int $dl_layerCurrentComponentIndex;
+	global string $dl_layerCurrentComponentNodes[];
+	
+	if($dl_layerCurrentComponentIndex)
+		select -r $dl_layerCurrentComponentNodes[$dl_layerCurrentComponentIndex - 1];
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerRemoveComponent
+// ----------------------------------------------------------------------------
+global proc dl_layerRemoveComponent()
+{
+	global int $dl_layerCurrentComponentIndex;
+	global string $dl_layerCurrentComponentNodes[];
+	
+	if($dl_layerCurrentComponentIndex){
+		delete $dl_layerCurrentComponentNodes[$dl_layerCurrentComponentIndex - 1];
+		dl_layerUpdateComponentScroll(1);
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerRenameAllComponents
+// ----------------------------------------------------------------------------
+global proc dl_layerRenameAllComponents(string $node)
+{
+	string $layerAttributes[] = dl_layerGetLayerAttributes($node);
+	for($layerAttr in $layerAttributes){
+		string $layerPlug = $node + "." + $layerAttr;
+		string $components[] = dl_layerGetLayerComponents($layerPlug);
+		for($comp in $components){
+			string $newName = getComponentName($node, $layerPlug, nodeType($comp));
+			if($newName != $comp)
+				rename($comp, $newName );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerSelectDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerSelectDisplacement()
+{	
+	global string $dl_layerCurrentDisplacementPlugs[];
+	global string $dl_layerDisplacementsScroll;
+	global int $dl_layerCurrentDisplacementIndex;
+	
+	int $index[] = `textScrollList -q -sii $dl_layerDisplacementsScroll`;
+	
+	int $enableControls = size($index) != 0;
+	
+	button -e -en $enableControls "dl_layerRemoveDisplacementButton";
+	button -e -en $enableControls "dl_layerUpDisplacementButton";
+	button -e -en $enableControls "dl_layerDownDisplacementButton";
+	textField -e -ed $enableControls -cc ("dl_layerUpdateDisplacementScroll 1") "dl_layerDispNameControl";
+	checkBoxGrp -e -en $enableControls "dl_layerDispEnableControl" ;
+	attrEnumOptionMenuGrp -e -en $enableControls"dl_layerDispTypeControl";
+	checkBoxGrp -e -en $enableControls "dl_layerDispRecalcNormControl" ;
+	checkBoxGrp -e -en $enableControls "dl_layerDispUseShadNormControl" ;
+	checkBoxGrp -e -en $enableControls "dl_layerDispUseNormMapControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispAmountControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispScaleControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispOffsetControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispAlphaControl" ;
+	attrColorSliderGrp -e -en $enableControls "dl_layerDispNormMapControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispLipControl" ;
+	attrFieldSliderGrp -e -en $enableControls "dl_layerDispLipRimControl" ;
+	
+	$dl_layerCurrentDisplacementIndex = 0;
+	if($enableControls){
+		$dl_layerCurrentDisplacementIndex = $index[0];
+		
+		string $dispPlug = $dl_layerCurrentDisplacementPlugs[$dl_layerCurrentDisplacementIndex - 1];
+		connectControl "dl_layerDispNameControl" ($dispPlug + ".layer_displacement_name");
+		connectControl -in 2 "dl_layerDispEnableControl" ($dispPlug + ".layer_displacement_enable");	
+		attrEnumOptionMenuGrp -e -at ($dispPlug + ".layer_displacement_type") "dl_layerDispTypeControl";
+		connectControl -in 2 "dl_layerDispRecalcNormControl" ($dispPlug + ".layer_displacement_recalcNorm");	
+		connectControl -in 2 "dl_layerDispUseShadNormControl" ($dispPlug + ".layer_displacement_useShadNorm");	
+		connectControl -in 2 "dl_layerDispUseNormMapControl" ($dispPlug + ".layer_displacement_useNormMap");	
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_amount") "dl_layerDispAmountControl" ;
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_scale") "dl_layerDispScaleControl" ;
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_offset") "dl_layerDispOffsetControl" ;
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_alpha") "dl_layerDispAlphaControl" ;
+		attrColorSliderGrp -e -at ($dispPlug + ".layer_displacement_normMap") "dl_layerDispNormMapControl" ;
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_lip") "dl_layerDispLipControl" ;
+		attrFieldSliderGrp -e -at ($dispPlug + ".layer_displacement_lipRim") "dl_layerDispLipRimControl" ;
+	}
+	else
+		textField -e -tx "" "dl_layerDispNameControl";
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerUpdateDisplacementScroll
+// ----------------------------------------------------------------------------
+global proc dl_layerUpdateDisplacementScroll(int $select)
+{
+	global int $dl_layerDisplacementsScrollWidth;
+	global string $dl_layerLayersScroll;
+	global string $dl_layerDisplacementsScroll;
+	global int $dl_layerCurrentDisplacementIndex;
+	global string $dl_layerCurrentLayerPlugs[];
+	global string $dl_layerCurrentDisplacementPlugs[];
+	
+	clear($dl_layerCurrentDisplacementPlugs);
+	textScrollList -e -ra $dl_layerDisplacementsScroll;
+			
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	int $layerSelected = size($indices) != 0;
+	if($layerSelected){
+		string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0]-1];
+		string $dispPlugs[] = dl_layerGetLayerDisplacementPlugs($layerPlug);
+		
+		int $c;
+		for($i=size($dispPlugs)-1; $i >= 0; $i--){
+			string $name = getAttr($dispPlugs[$i] + ".layer_displacement_name");
+			if($name == "")
+				$name = $dispPlugs[$i];
+			textScrollList -e -a  $name  -w $dl_layerDisplacementsScrollWidth $dl_layerDisplacementsScroll;
+			$dl_layerCurrentDisplacementPlugs[$c++] = $dispPlugs[$i];
+		}
+		
+//		int $nbItems = `textScrollList -q -ni dl_layerDisplacementsScroll`;
+//		
+//		if($dl_layerCurrentDisplacementIndex < 1)
+//			$dl_layerCurrentDisplacementIndex = 1;
+//		else if($dl_layerCurrentDisplacementIndex > $nbItems)
+//			$dl_layerCurrentDisplacementIndex = $nbItems;
+//		
+//		if($nbItems)
+//			textScrollList -e -sii $dl_layerCurrentDisplacementIndex $dl_layerDisplacementsScroll;
+			
+//		for($plug in $dl_layerCurrentDisplacementPlugs){
+//			string $name = getAttr($plug + ".ldn");
+//			textScrollList -e -a $name -w $dl_layerDisplacementsScrollWidth  $dl_layerDisplacementsScroll;
+//		}
+	}
+	
+	textScrollList -e -en $layerSelected $dl_layerDisplacementsScroll;
+	
+	if($select){
+		int $nbItems = `textScrollList -q -ni $dl_layerDisplacementsScroll`;
+		if($dl_layerCurrentDisplacementIndex < 1)
+			$dl_layerCurrentDisplacementIndex = 1;
+		else if($dl_layerCurrentDisplacementIndex > $nbItems)
+			$dl_layerCurrentDisplacementIndex = $nbItems;
+		if($nbItems){
+			textScrollList -e -sii $dl_layerCurrentDisplacementIndex $dl_layerDisplacementsScroll;
+		}
+	}
+	
+	dl_layerSelectDisplacement;
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerAddDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerAddDisplacement()
+{
+	global int $dl_layerCurrentDisplacementIndex;
+	
+	global string $dl_layerLayersScroll;
+	global string $dl_layerCurrentLayerPlugs[];
+	
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	if(!size($indices))
+		error("No layer selected");
+	
+	string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0] - 1];
+		
+	int $newIndex = 0;
+	
+	string $newOrderStr;
+	int $actualOrder[] = getAttr($layerPlug + ".ldao");
+	for($index in $actualOrder){
+		if($index >= $newIndex)
+			$newIndex = $index + 1;
+		$newOrderStr += " " + $index;
+	}
+	
+	setAttr -type "string" ($layerPlug + ".lds[" + $newIndex + "].layer_displacement_name") ("displacement"+ $newIndex);
+	evalEcho("setAttr -type Int32Array " + $layerPlug + ".ldor "  + (size($actualOrder) + 1) + " " + $newOrderStr + " " + $newIndex);
+	
+	$dl_layerCurrentDisplacementIndex = 1;
+	
+	dl_layerUpdateDisplacementScroll(1);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerRemoveDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerRemoveDisplacement()
+{
+	global string $dl_layerDisplacementsScroll;
+	global string $dl_layerCurrentDisplacementPlugs[];
+		
+	int $indices[] = `textScrollList -q -sii $dl_layerDisplacementsScroll`;
+	disconnectAllChildrens($dl_layerCurrentDisplacementPlugs[ $indices[0] - 1]);
+	dl_layerUpdateDisplacementScroll(1);;
+	removeMultiInstance -b true $dl_layerCurrentDisplacementPlugs[$indices[0] - 1];
+	//dl_layerUpdateDisplacementScroll(1);
+}
+
+
+// ----------------------------------------------------------------------------
+// dl_layerMoveDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerMoveDisplacement(int $direction)
+{
+	global string $dl_layerCurrentLayerPlugs[];
+	global string $dl_layerLayersScroll;
+	global string $dl_layerDisplacementsScroll;
+	global int $dl_layerCurrentDisplacementIndex;
+	
+	int $indices[] = `textScrollList -q -sii $dl_layerLayersScroll`;
+	if(!size($indices))
+		error("No layer selected");
+	
+	string $layerPlug = $dl_layerCurrentLayerPlugs[$indices[0] - 1];
+		
+	int $selIdxs[] = `textScrollList -q -sii $dl_layerDisplacementsScroll`;
+	int $nbDisplacements = `textScrollList -q -ni $dl_layerDisplacementsScroll`;
+	
+	int $curPos = $nbDisplacements - $selIdxs[0];
+	int $newPos = $curPos + $direction;
+	
+	if($newPos >= 0 && $newPos < $nbDisplacements){
+		
+		int $actualOrder[] = getAttr($layerPlug + ".ldao");
+		int $idx = $actualOrder[$curPos];
+		int $tmpIdx = $actualOrder[$newPos];
+	
+		$actualOrder[$newPos] = $idx;
+		$actualOrder[$curPos] = $tmpIdx;
+		
+		string $orderStr = size($actualOrder);
+		for($index in $actualOrder)
+			$orderStr += " " + $index;
+		eval("setAttr -type Int32Array " + $layerPlug + ".ldor " + $orderStr);
+		
+		$dl_layerCurrentDisplacementIndex = $selIdxs[0] - $direction;
+		dl_layerUpdateDisplacementScroll(1);
+	}
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerUpDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerUpDisplacement()
+{
+	dl_layerMoveDisplacement(1);
+}
+
+// ----------------------------------------------------------------------------
+// dl_layerDownDisplacement
+// ----------------------------------------------------------------------------
+global proc dl_layerDownDisplacement()
+{
+	dl_layerMoveDisplacement(-1);
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// AEdl_layerTemplate
+// ----------------------------------------------------------------------------
+global proc AEdl_layerTemplate(string $nodeName)
+{
+    AEswatchDisplay($nodeName);
+    
+    editorTemplate -bsl;
+   
+    
+    editorTemplate -bl "Layers" -cl 0;
+		
+		editorTemplate -ccu "dl_layerLayersControlsNew" "dl_layerLayersControlsReplace" "layers";
+	editorTemplate -el;
+		
+    editorTemplate -bl "Globals" -cl 1;
+		editorTemplate -ac "globalOpacity";
+		editorTemplate -ac "displacementGlobalScale";
+		editorTemplate -ac "displacementGlobalOffset";
+		editorTemplate -ac "displacementCompensateScale";
+//		editorTemplate -l "Use Displacement Normal Map" -ac "displacementUseNormalMap" ;
+//		editorTemplate -ac "displacementNormalMap";
+	editorTemplate -el;
+	
+    editorTemplate -bl "Display" -cl 1;
+		editorTemplate -ac "displayOpacity";
+		editorTemplate -ac "displayColor";
+	editorTemplate -el;
+
+    editorTemplate -bl "Puzzles" -cl 1;
+		editorTemplate -ac "puzzle1";
+		editorTemplate -ac "puzzle2";
+		editorTemplate -ac "puzzle3";
+	editorTemplate -el;
+	
+	editorTemplate -bl "Customs" -cl 1;
+		editorTemplate -ccu "dl_layerCustomsControlsNew" "dl_layerCustomsControlsReplace" "customs";
+	editorTemplate -el;
+		
+    editorTemplate -bl "Advanced" -cl 1;
+		editorTemplate -ac "lightSetsCount";
+		editorTemplate -ac "primaryMode";
+		editorTemplate -ac "primaryLightSetIndex";
+		editorTemplate -l "Premultiply Auxiliaries"-ac "premultAux";
+	editorTemplate -el;
+	
+	editorTemplate -s "order";
+	editorTemplate -s "layer_name";
+	editorTemplate -s "customFloat";
+	editorTemplate -s "customFloatName";
+	editorTemplate -s "customColor";
+	editorTemplate -s "customColorName";
+	
+    AEdependNodeTemplate $nodeName;
+    editorTemplate -aec;
+    editorTemplate -esl;
+}

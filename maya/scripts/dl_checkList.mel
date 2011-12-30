@@ -1,0 +1,344 @@
+
+
+//CheckList To Return
+
+proc string[] FlagListPipeline()
+{
+	string $toRetRender[] = 
+	{
+	"setproject soe dans un shell, si pas fait:\n   fermer maya et faire:\n   >setproject soe\n   >maya&",
+	"Ouvrir le Travail a Faire...\n  Pour une nouvelle scene:\n   -Tank/SetProject.\n   ---Browser le path.\n   -Tank/View Assets.\n   ---Ajouter les assets.\n\n  Pour une scene existante:\n   -Set project de maya.\n   -Ouvrir la scene avec open scene de maya."
+	};
+	return ($toRetRender);
+}
+
+proc string[] FlagListLight()
+{
+	string $toRetLight[] = 
+	{
+	"Clean scene Tool:\n>> Edit/Delete All By Type/Crap\n A Utiliser une seul fois et au debut du process.",
+	"Creation du RiAttribute pour le no self\nocclusion pour le layout et tous les objets sans self occlusion.\n>> tool: Create/Add Delight Attributes/Add Self Occlude Off.",
+    "Set Displacement Bound",
+	"Creation du default render pass:\n>>Tool: Window/Pass Editor\n  -Entrer un nom <Working> dans le champ libre.\n  -Ou choisir le preset Working.\n  -Choisir la camera et create.",
+	"Light Rig: Create Physical Sky ou import lightRig \n >> Tool:Create/Light Rig/Physical Sky",
+	"Mapping Ptc File\n >> Tool:Render/Ptc Files/Attach Self Occlude Ptc File\n >> Tool:Render/Ptc Files/Attach Non Self Occlude Ptc File",
+	"Ajustement pour les lights:\n  -Ajuster le Shadow Map Pixel Samples min 4 max 8\n  -Shadow mape type Deep\ -Resolution min 512 max 2048\n  -Ajustement du shadow bias au besoin\n  -Ajustement du ConeAgle",
+	"Definir les lightSets pour les lights",
+	"Ajuster le ZDepth\n>> Tool: Render/ZZZ/Set ZZZ\n  -Choisir la camera\n  -Set ZZZ",
+	"Creation des render pass \nvoir le help Dans: Help/Render Layer"
+	};
+	return ($toRetLight);
+}
+
+
+proc string[] FlagListPipelineRnd()
+{
+	string $toRetRender[] = 
+	{
+        "Ouvrir Window/Render On Farm\n -Selectionner la pass a renderer\n -Ajuster le Batch zise\n -Ajuster le Render time en minute\n -Select Send e-mail for monitoring\n -Render"
+	};
+	return ($toRetRender);
+}
+
+global proc closeCheckListUI()
+{
+	if(`window -exists checkListUI`)
+	{
+		window -e -rtf 0 checkListUI;
+		deleteUI checkListUI;
+	}
+}
+
+//WINDOW GUI
+global proc L_checkList()
+{
+	string $shaderListAttributeLight[] = FlagListLight();
+	string $shaderListAttributePipeline[] = FlagListPipeline();
+	string $shaderListAttributePipelineRnd[] = FlagListPipelineRnd();
+	if(`window -exists checkListUI`)
+	{
+		window -e -rtf 0 checkListUI;
+		deleteUI checkListUI;
+	}
+		
+window -title "Lighting Check List" checkListUI;
+
+		//Pipeline section
+		columnLayout -adj 1 trfCheckListPipCl;
+			frameLayout -label "Tank"
+				-borderStyle "etchedIn"
+				-cll true
+				-cl true
+                -pcc "window -e -rtf 1 checkListUI"  
+                -pec "window -e -rtf 1 checkListUI" 
+                -ec "window -e -rtf 0 checkListUI" 
+                -cc "window -e -rtf 0 checkListUI"                 
+				trfCheckListPipFL;
+				
+				columnLayout 
+					-adjustableColumn true
+					trfCheckListPipCL;
+
+					separator -height 10 -style "in";
+					
+					for($elem in $shaderListAttributePipeline)
+					{										
+						checkBox
+							-al "left"
+							-label $elem
+							($elem + "Check");
+							separator -height 10 -style "in";					
+					}
+				setParent ..;
+				
+			setParent ..;
+		setParent..;
+
+
+		//lighting section
+		columnLayout -adj 1 trfCheckListLgtCl;
+			frameLayout -label "Lighting"
+				-borderStyle "etchedIn"
+				-cll true
+				-cl true
+                -pcc "window -e -rtf 1 checkListUI"  
+                -pec "window -e -rtf 1 checkListUI" 
+                -ec "window -e -rtf 0 checkListUI" 
+                -cc "window -e -rtf 0 checkListUI"                
+				trfCheckListLgtFL;
+				
+				columnLayout 
+					-adjustableColumn true
+					trfCheckListLgtCL;
+
+					separator -height 10 -style "in";
+					
+					for($elem in $shaderListAttributeLight)
+					{
+										
+						checkBox
+							-al "left"
+							-label $elem
+							($elem + "Check");
+							separator -height 10 -style "in";					
+					}
+				setParent ..;
+				
+			setParent ..;
+		setParent..;
+
+		//Pipeline section
+		columnLayout -adj 1 trfCheckListPipRndCl;
+			frameLayout -label "Rendering"
+				-borderStyle "etchedIn"
+				-cll true
+				-cl true
+                -pcc "window -e -rtf 1 checkListUI"  
+                -pec "window -e -rtf 1 checkListUI" 
+                -ec "window -e -rtf 0 checkListUI" 
+                -cc "window -e -rtf 0 checkListUI"                
+				trfCheckListPipRndFL;
+				
+				columnLayout 
+					-adjustableColumn true
+					trfCheckListPipRndCL;
+
+					separator -height 10 -style "in";
+					
+					for($elem in $shaderListAttributePipelineRnd)
+					{										
+						checkBox
+							-al "left"
+							-label $elem
+							($elem + "Check");
+							separator -height 10 -style "in";
+					}
+				setParent ..;
+				
+			setParent ..;
+		setParent..;
+
+		columnLayout -adj 1 trfCheckListCl;
+			button -c "closeCheckListUI" -l "Close";
+		setParent..;
+
+showWindow  checkListUI;
+window -e -h 95 checkListUI;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+//Help For render pass 
+//
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+global proc renderPassHelp()
+{
+	string $helpTExt[] = 
+	{
+		"Render Pass Help:",
+		"",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"Character pass:",
+		"",
+		"-Selection a faire: ",
+		"    * character(s)",
+		"    * Layout",
+		"    * Lights.",
+        "",
+        "    * Entrer un Nom",
+        "    * Ex: char_bg_01, char_fg_01, char_mid_01",
+		"    * Choisir la pass <bty>",
+		"",
+		"-A Faire:",
+		"    * Un override sur <Visible To Camera> avec le ou les attributes (3DELIGHT)",
+		"      pour le layout + assigner le shader constant.",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+        "BackGround pass:",
+        "",
+        "-Selection a faire: ",
+        "    * character(s)",
+        "    * Layout",
+        "    * Lights.",
+        "",
+        "    * Entrer un Nom",
+        "    * Choisir la pass <bty>",
+        "",
+        "-A Faire:",
+        "    * Un override sur <Visible To Camera> avec le ou les attributes (3DELIGHT)",
+        "      pour le ou les Character(s).",
+        "",
+        "-----------------------------------------------------------------------------------------",
+        "-----------------------------------------------------------------------------------------", 
+		"fog Pass:",
+		"",
+		"-Selection a faire: ",
+		"    * Triffids, roots",
+		"    * Le layout",
+		"    * light Pour le fog  (Un duplicate au besoin)",
+		"      Avec le tool copy light dans edit",
+		"    * Rename du key light <keyFog>",
+		"",
+		"-A Faire:",
+		"    * Un override sur <Visible To Camera> avec le ou les attributes (3DELIGHT)",
+		"      pour le layout avec le bon render layer selectionné",
+		"    * Mettre <visible to camera> a On  (layoutLgt_GeoAttr)",
+		"    * Mettre <Matte Object> a Off  (layoutLgt_GeoAttr)",
+		"    * Cast Shadow a off Pour le layout.",		
+		"    * Ajouter un plane(geo) Face a la camera si le layout ne couvre pas tout l'espace.",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"stage Pass (shadow):",
+		"",
+		"-Selection a faire: ",
+		"     * Triffids, roots",
+		"     * Le layout",
+		"     * Key light Pour le shadow (Un duplicate au besoin)",
+		"       Avec le tool copy light dans edit",
+		"     * Indirect Light Pour l occlusion",
+		"     * Rename du key light <keyShd>",
+		"",
+		"-A Faire:",
+		"    * Un override sur <Visible To Camera> avec le ou les attributes (3DELIGHT)",
+		"      pour le ou les triffid, roots etc.. et mettre a OFF",
+		"    * Mettre <Matte Object> a Off  (layoutLgt_GeoAttr)",
+		"    * Creation d'un Override et Ajustement de  l' occlusion (Max Distance)",
+		"    * Cast Shadow a off pour le receiver (Le Layout)",
+		"",
+		"-Add Reflection option AU BESOIN:",
+		"    * Dans Window/Assignment Panel:",
+		"    * Choisir le shader collection stage_sc.",
+		"    * Mettre a <none> dans le input surface dans la section Override Shaders.",
+		"    * Selection du layout et tout autre truc qui recoit de la reflection.",
+		"    * Mettre a <stage_shd> dans le input surface dans la section Collection Shaders.",
+		"    * Faire un override dans l'attribute 3DELIGHT du triffid,roots Specular Rays(Reflection) à Shader Color.",
+		"",
+		"resultat du rendu dans le:",
+		"      red: Shadow pass",
+		"      green: Occlusion pass",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"mask Pass (puzz matte):",
+		"",
+		"-Selection a faire: ",
+		"     * Triffids, roots",
+		"     * Le layout",
+		"     * Digi Double",
+		"",
+		"-A Faire:",
+		"    * Assigner les shader sur les objects",
+		"    * Mettre <Matte Object> a Off  (layoutLgt_GeoAttr)",
+		"    * Dans Window/Assignment Panel",
+		"    * Choisir le shader collection et assigner dans la section du millieu (Collection Shaders)",
+		"",
+		"       Code de couleur:",
+		"        Red == Root et Triffid",
+		"        Green == Digi Double",
+		"        Blue == Layout",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"lamp pass (fire effect or lamp effect):",
+		"",
+		"-Selection a faire: ",
+		"     * Triffids, roots",
+		"     * Le layout (Confirmation avec le Lead du departement)",
+		"     * Digi Double (Confirmation avec le Lead du departement)",
+		"",				
+		"info des nodes: ",				
+		"      render layer",
+		"      shadow collector compilé.",
+		"      shader plastic.",
+		"",
+		"-A Faire:",
+		"    * Mettre <Matte Object> a Off  (layoutLgt_GeoAttr)",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"Extra Pass:",
+		"",
+		"-Selection a faire: ",
+		"     * Geo à renderer",
+		"",				
+		"info des nodes: ",				
+		"      render layer",
+		"",
+		"-A Faire:",
+		"",
+		"",
+		"-----------------------------------------------------------------------------------------",
+		"-----------------------------------------------------------------------------------------",
+		"",
+		"",
+		"Info:",
+		"    Les renders layers et shaders collections se retrouvent dans renderPass_XXX.mel",
+		"    dans Render Sets",
+		"",
+		"-DELIGHT Attribute",
+		"    L'attribute à éditer pour hider le primary visibility :layoutLgt_GeoAttr",
+		""
+	};
+	if(`window -exists renderPassHelpUI`)
+	{
+		deleteUI renderPassHelpUI;
+	}
+	window -t "render Pass Help" renderPassHelpUI;
+		scrollLayout;
+			columnLayout;
+			for($elem in $helpTExt)
+			{
+				text -l $elem;
+			}
+		setParent..;
+	showWindow renderPassHelpUI;
+ 	window -e -w 550 - h 600 renderPassHelpUI;
+	
+}

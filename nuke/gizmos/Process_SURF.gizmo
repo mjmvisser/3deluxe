@@ -1,0 +1,23 @@
+#! /opt/Nuke6.0v1/Nuke6.0 -nx
+version 6.0 v1
+Gizmo {
+}
+ Input {
+  inputs 0
+  name SURF
+  xpos -48
+  ypos -190
+ }
+add_layer {incandescence incandescence.red incandescence.green incandescence.blue}
+ Shuffle {
+  in incandescence
+  name Shuffle1
+  xpos -48
+  ypos -124
+ }
+ Output {
+  name Output1
+  xpos -48
+  ypos -44
+ }
+end_group

@@ -1,0 +1,511 @@
+//
+//Create a light (indirect and env) in a lighting group
+//////
+global proc string[] dl_indirectEnvLightCreateGrp()
+{
+
+	string $newLightCreate[];
+	string $lightingGrp[] = `ls "dl_light"`;
+    string $lightGroup;
+	if(`objExists "dl_light"`)
+	{
+		$newLightCreate = `dl_indirectEnvLightCreate`;
+        $lightGroup = `group -em -n "dl_EnvIndLgt"`;
+                
+        parent $newLightCreate $lightGroup;
+        parent $lightGroup dl_light;
+	}
+	else
+	{
+		string $sceneSel[] = `ls -type transform`;
+		string $lightGroupSel[] = `selByAttrTag lightRig $sceneSel`;
+		
+		if(size($lightGroupSel) == 1)
+		{
+			$newLightCreate = `dl_indirectEnvLightCreate`;
+			parent $newLightCreate $lightGroupSel[0];
+			
+		}
+		else
+		{
+			$newLightCreate = `dl_indirectEnvLightCreate`;
+			$lightGroup = `group -em -n "dl_light"`;
+	
+			//ADD ATTRIBUTE TAG
+			//to delete light 
+			addAttr -ln "toDelete" -dt "string" $lightGroup;
+			addAttr -ln "lightRig" -dt "string" $lightGroup;
+					
+			parent $newLightCreate $lightGroup;
+			
+			string $envIndlightGroup = `group -em -n "dl_EnvIndLgt"`;
+			parent $newLightCreate $envIndlightGroup;
+			parent $envIndlightGroup $lightGroup;
+			
+			
+		}
+	}
+
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tx");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ty");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tz");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rx");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ry");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rz");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sx");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sy");
+    setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sz");
+    
+    return {$newLightCreate[0],$newLightCreate[1],$newLightCreate[2],$newLightCreate[4]};
+}
+
+
+//
+//Add placement for physical sky
+//////
+global proc string[] dl_placementPhysicalSkyCreateGrp()
+{
+    loadPlugin -qt sun;
+    string $sun[] = `ls -type "sunDirection"`;
+    if(size($sun[0])>0)
+    {
+        warning "Only on physical sky";
+        return {"",""};
+    }
+    else
+    {
+
+        string $newLightCreate[];
+        string $lightingGrp[] = `ls "dl_light"`;
+        string $sunRigGroup;
+        if(`objExists "dl_light"`)
+        {
+            $newLightCreate= `dl_physicalSkyPlacement`;
+            $sunRigGroup = `group -em -n "dl_sunRig"`;
+            parent $newLightCreate[3] $newLightCreate[4] $sunRigGroup;
+            parent $sunRigGroup dl_light;
+        }
+        else
+        {
+            string $sceneSel[] = `ls -type transform`;
+            string $lightGroupSel[] = `selByAttrTag lightRig $sceneSel`;
+            
+            if(size($lightGroupSel) == 1)
+            {
+                $newLightCreate = `dl_physicalSkyPlacement`;
+                parent $newLightCreate[3] $lightGroupSel[0];
+                
+            }
+            else
+            {
+                $newLightCreate = `dl_physicalSkyPlacement`;
+                string $lightGroup = `group -em -n "dl_light"`;
+        
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tx");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ty");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tz");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rx");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ry");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rz");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sx");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sy");
+                setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sz");
+        
+                //ADD ATTRIBUTE TAG
+                //to delete light 
+                addAttr -ln "toDelete" -dt "string" $lightGroup;
+                addAttr -ln "lightRig" -dt "string" $lightGroup;
+                        
+                parent $newLightCreate[3] $lightGroup;
+                
+                string $sunRigGroup = `group -em -n "dl_sunRig"`;
+                parent $newLightCreate[3] $newLightCreate[4] $sunRigGroup;
+                parent $sunRigGroup $lightGroup;
+    
+            }
+        }
+        //
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".tx");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".ty");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".tz");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".rx");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".ry");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".rz");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".sx");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".sy");
+        setAttr -lock true -keyable false -channelBox false ($sunRigGroup + ".sz");
+        return {$newLightCreate[0],$newLightCreate[1],$newLightCreate[2],$newLightCreate[3],$newLightCreate[5]};
+    }
+}
+
+
+//create env/indirect light node 
+global proc string[] dl_indirectEnvLightCreate()
+{
+	string $lightEnvRfl =  `shadingNode -asLight dl_envLightShape`;
+	string $lightEnvOcc =  `shadingNode -asLight dl_indirectLightShape`;
+	//to delete light 
+	addAttr -ln "toDelete" -dt "string" $lightEnvRfl;		
+	addAttr -ln "toDelete" -dt "string" $lightEnvOcc;
+		
+	string $lightEnvShapeRfl[] = `listRelatives -s $lightEnvRfl`;
+	string $lightEnvShapeOcc[] = `listRelatives -s $lightEnvOcc`;
+    addAttr -ln "toDelete" -dt "string" $lightEnvShapeRfl;
+    addAttr -ln "toDelete" -dt "string" $lightEnvShapeOcc;
+	
+	string $delightCS = `DCS_create`;
+	setAttr ($delightCS + ".drawMethod") 3;
+	setAttr ($delightCS + ".textureIsHDRI") 1;
+		
+	//occlusion
+	connectAttr -f ($delightCS + ".message") ($lightEnvShapeOcc[0] + ".envSpace");
+	
+	//reflection
+	connectAttr -f ($delightCS + ".message") ($lightEnvShapeRfl[0] + ".envSpace");		
+		
+	string $delightCSTransForm[] = `listRelatives -p $delightCS`;
+	$delightCSTransForm[0] = `rename $delightCSTransForm[0] DelightCoordinate`;
+	
+	setAttr ($delightCSTransForm[0] + ".rotateX") -90;
+	setAttr ($delightCSTransForm[0] + ".rotateY") -90;
+	setAttr ($delightCSTransForm[0] + ".scaleX") .15;
+	setAttr ($delightCSTransForm[0] + ".scaleY") .15;
+	setAttr ($delightCSTransForm[0] + ".scaleZ") .15;
+			
+	//Light env Attribute (indirect light)
+	//Point-based occlusion
+    
+    setAttr -type "string" ($lightEnvOcc + ".occPtcFile") "";
+    setAttr -type "string" ($lightEnvOcc + ".indirectPtcFile") "";
+	setAttr ($lightEnvOcc + ".occMaxDistance") 2500;
+	setAttr ($lightEnvOcc + ".occRayBias") 0.01;
+	setAttr ($lightEnvOcc + ".occMaxSolidAngle") 0.1;
+	setAttr ($lightEnvOcc + ".occClamp") 1;
+	setAttr ($lightEnvOcc + ".occHitSides") 2;
+
+	setAttr ($lightEnvOcc + ".envConvolveMode") 0;
+	setAttr ($lightEnvOcc + ".occMethod") 2;
+	setAttr ($lightEnvOcc + ".indirectMethod") 0;
+	setAttr ($lightEnvOcc + ".indirectClamp") 1;
+		
+	//envRfl
+	setAttr -type "string" ($lightEnvShapeRfl[0] + ".occPtcFile") "";
+    setAttr ($lightEnvShapeRfl[0] + ".occMaxDistance") 2500;
+    setAttr ($lightEnvShapeRfl[0] + ".occRayBias") 0.01;
+    setAttr ($lightEnvShapeRfl[0] + ".occMaxSolidAngle") 0.1;        
+	setAttr ($lightEnvShapeRfl[0] + ".occMethod") 0;
+	setAttr ($lightEnvShapeRfl[0] + ".occClamp") 1;
+	setAttr ($lightEnvShapeRfl[0] + ".occHitSides") 2;
+	
+setAttr -type "string" dl_indirectLightShape1.occPtcFile "";
+setAttr -type "string" dl_indirectLightShape1.indirectPtcFile "";
+
+    
+    
+	//to delete light
+	addAttr -ln "toDelete" -dt "string" $delightCSTransForm[0];
+    	
+return {$lightEnvRfl,$lightEnvOcc,$delightCSTransForm[0]};	
+}
+
+
+
+global proc string[] dl_physicalSkyPlacement()
+{
+    //Placement for physical aky
+    
+    loadPlugin -qt sun;
+    string $sunDirection = `createNode sunDirection`;
+    addAttr -k 1 -ln "manualControl"  -dv 1 -at bool  $sunDirection;
+    
+    
+    string $annotationSun = `createNode annotationShape`;
+    setAttr -type "string" ($annotationSun + ".text") "SUN";
+    
+    string $annotationSunTransform[] =`listRelatives -p $annotationSun`;
+    
+    
+    //add sun node to default light set
+    int $index = getNextFreeMultiIndex( "defaultLightSet.dnSetMembers", 0);
+    connectAttr ($sunDirection + ".message") ("defaultLightSet.dnSetMembers[" + $index + "]");
+    
+    //pivot
+    string $sunRotation = `curve -n "sunPivot" -p 0 0 0`;
+    string $sunRotationShape[] = `listRelatives -s $sunRotation`;
+    connectAttr -f ($sunRotationShape[0] + ".worldMatrix[0]") ($annotationSun + ".dagObjectMatrix[0]");
+    //curve pivot hide
+    setAttr ($sunRotationShape[0] + ".template") 1;
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".tx");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".ty");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".tz");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".rx");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".ry");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".rz");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".sx");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".sy");
+    setAttr -lock true -keyable false -channelBox false ($sunRotation + ".sz");
+    
+    //intensity/color control
+    string $sunIntensity = `curve -n "intensityColor" -p 0 0 0`;
+    setAttr ($sunIntensity + ".translateZ") 1;
+    string $sunIntensityShape[] = `listRelatives -s $sunRotation`;
+    parentConstraint -mo -weight 1 $sunRotation $sunIntensity;
+    //curve pivot hide
+    //setAttr ($sunIntensityShape[0] + ".template") 1;
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".tx");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".ty");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".tz");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".rx");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".ry");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".rz");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".sx");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".sy");
+    setAttr -lock true -keyable false -channelBox false ($sunIntensity + ".sz");
+    
+    string $selector = `createNode choice`;
+    connectAttr -f ($sunDirection + ".manualControl") ($selector + ".selector");
+    
+    string $manualControl = `joint -n "lgtJointControl" -rad 10 -p 0 0 0`;
+    connectAttr -f ($manualControl + ".translate") ($sunRotation + ".translate");
+    connectAttr -f ($manualControl + ".rotate") ($sunRotation + ".rotate");
+    //add to default light set
+    int $index = getNextFreeMultiIndex( "defaultLightSet.dnSetMembers", 0);
+    connectAttr ($manualControl  + ".message") ("defaultLightSet.dnSetMembers[" + $index + "]");
+
+
+    
+    addAttr -k 1 -ln "sunIntensityMultiplier" -dv 1 -at double  -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "sunSize"  -dv 4 -at double -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "sunDiskIntensity" -dv 1  -at double -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "physkySunGlowIntensity" -dv 1 -at double -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "haze" -dv 0 -at double -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "redBlueShift" -dv 0 -at double -min 0 -max 10 $manualControl;
+    addAttr -k 1 -ln "saturation" -dv 1 -at double -min 0 -max 1 $manualControl;
+    addAttr -k 1 -ln "horizonBlur" -dv .1 -at double -min 0 -max 10 $manualControl;
+    //addAttr -k 1 -ln "physkyHorizonHeight" -dv 0 -at double -min -5 -max 5 $manualControl;
+    addAttr -longName groundColor -usedAsColor -attributeType float3 $manualControl;
+    addAttr -k 1 -longName redGround -dv 0.1 -attributeType "float" -parent groundColor;
+    addAttr -k 1 -longName greenGround -dv 0.1 -attributeType "float" -parent groundColor;
+    addAttr -k 1 -longName blueGround -dv 0.1 -attributeType "float" -parent groundColor;
+    
+    addAttr -longName nightColor -usedAsColor -attributeType float3 $manualControl;
+    addAttr -k 1 -longName redNight -dv 0.0 -attributeType "float" -parent nightColor;
+    addAttr -k 1 -longName greenNight -dv 0.0 -attributeType "float" -parent nightColor;
+    addAttr -k 1 -longName blueNight -dv 0.0 -attributeType "float" -parent nightColor;
+    
+    addAttr -longName sunTint -usedAsColor -attributeType float3 $manualControl;
+    addAttr -k 1 -longName redSunTint -dv 1 -attributeType "float" -parent sunTint;
+    addAttr -k 1 -longName greenSunTint -dv 1 -attributeType "float" -parent sunTint;
+    addAttr -k 1 -longName blueSunTint -dv 1 -attributeType "float" -parent sunTint;
+
+    addAttr -longName imagerTint -usedAsColor -attributeType float3 $manualControl;
+    addAttr -k 1 -longName redImagerTint -dv 1 -attributeType "float" -parent imagerTint;
+    addAttr -k 1 -longName greenImagerTint -dv 1 -attributeType "float" -parent imagerTint;
+    addAttr -k 1 -longName blueImagerTint -dv 1 -attributeType "float" -parent imagerTint;
+        
+    //lock translate 
+    transformLimits -tx 0 0 -etx 1 1 $manualControl;
+    transformLimits -ty 0 0 -ety 1 1 $manualControl;
+    transformLimits -tz 0 0 -etz 1 1 $manualControl;    
+    transformLimits -sx 1 1 -esx 1 0 $manualControl;
+    transformLimits -sy 1 1 -esy 1 0 $manualControl;
+    transformLimits -sz 1 1 -esz 1 0 $manualControl;    
+    setAttr ($manualControl + ".overrideEnabled") 1;
+    setAttr ($manualControl + ".overrideColor") 22;
+    
+    
+    string $translateIcon = `curve -d 1 -p -1 0 -1 -p -1 0 -3 -p -2 0 -3 -p 0 0 -5 -p 2 0 -3 -p 1 0 -3 -p 1 0 -1 -p 3 0 -1 -p 3 0 -2 -p 5 0 0 -p 3 0 2 -p 3 0 1 -p 1 0 1 -p 1 0 3 -p 2 0 3 -p 0 0 5 -p -2 0 3 -p -1 0 3 -p -1 0 1 -p -3 0 1 -p -3 0 2 -p -5 0 0 -p -3 0 -2 -p -3 0 -1 -p -1 0 -1 -k 0 -k 1 -k 2 -k 3 -k 4 -k 5 -k 6 -k 7 -k 8 -k 9 -k 10 -k 11 -k 12 -k 13 -k 14 -k 15 -k 16 -k 17 -k 18 -k 19 -k 20 -k 21 -k 22 -k 23 -k 24`;
+    addAttr -ln "translateControl" -dt "string" $translateIcon;
+    setAttr ($translateIcon + ".scaleX") .1;
+    setAttr ($translateIcon + ".scaleY") .1;
+    setAttr ($translateIcon + ".scaleZ") .1;
+    makeIdentity -apply true -s 1 $translateIcon;
+    string $cluster[] = `cluster $translateIcon`;
+
+    setAttr ($cluster[1] + ".visibility") 0;
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".tx");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".ty");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".tz");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".rx");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".ry");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".rz");
+    setAttr -lock true -keyable false -channelBox false ($cluster[1] + ".v");
+    
+    connectAttr -f ($manualControl + ".radius") ($cluster[1] + ".scaleX");
+    connectAttr -f ($manualControl + ".radius") ($cluster[1] + ".scaleY");
+    connectAttr -f ($manualControl + ".radius") ($cluster[1] + ".scaleZ");
+    
+   
+    transformLimits -rx 0 0 -erx 1 1 $translateIcon;
+    //transformLimits -ry 0 0 -ery 1 1 $translateIcon;//A OFF POUR LA ROTATION GLOBAL DE LA RIG EN MODE SUN
+    transformLimits -rz 0 0 -erz 1 1 $translateIcon;
+    transformLimits -sx 1 1 -esx 1 1 $translateIcon;
+    transformLimits -sy 1 1 -esy 1 1 $translateIcon;
+    transformLimits -sz 1 1 -esz 1 1 $translateIcon;
+    
+    setAttr ($translateIcon + ".overrideEnabled") 1;
+    setAttr ($translateIcon + ".overrideColor") 22;
+    
+    //creation du spot
+    string $light = `dl_LightCreate`;
+    string $lightShape[]  = `listRelatives -s $light`;
+    setAttr ($lightShape[0] + ".shadowType") 2;
+    setAttr ($lightShape[0] + ".lightType") 2;
+    setAttr ($lightShape[0] + ".orthoShadow") 1;
+    setAttr ($lightShape[0] + ".useAmbientOcclusion") 0;
+    setAttr ($light + ".overrideEnabled") 1;
+    setAttr ($light + ".overrideColor") 22;
+    setAttr ($light + ".ShadowMap") 0;
+    
+    connectAttr -f ($manualControl + ".scaleY") ($light + ".translateZ");
+    connectAttr -f ($manualControl  + ".radius") ($lightShape[0] + ".iconSize");
+    
+    setAttr -lock true -keyable false -channelBox false ($light + ".tx");
+    setAttr -lock true -keyable false -channelBox false ($light + ".ty");
+    setAttr -lock true -keyable false -channelBox false ($light + ".tz");
+    setAttr -lock true -keyable false -channelBox false ($light + ".rx");
+    setAttr -lock true -keyable false -channelBox false ($light + ".ry");
+    setAttr -lock true -keyable false -channelBox false ($light + ".rz");
+    setAttr -lock true -keyable false -channelBox false ($light + ".sx");
+    setAttr -lock true -keyable false -channelBox false ($light + ".sy");
+    setAttr -lock true -keyable false -channelBox false ($light + ".sz");
+    
+    
+    
+    parent $light $sunRotation;
+    parent $annotationSunTransform[0] $light;
+    parent -r -s $annotationSun $light;
+    delete $annotationSunTransform[0];
+    //parent $locatorAnnotation $sunRotation;
+    
+    //color curve
+    string $colorControlR = `createNode animCurveUU -n "lightColorR"`;
+    setKeyframe -f 0 -v 0.86 $colorControlR;
+    setKeyframe -f 1 -v 0.87 $colorControlR;
+    keyTangent -edit -weightedTangents true $colorControlR;
+    keyTangent -e -f 0 -outAngle 0 -outWeight 10 $colorControlR;
+    keyTangent -e -f 0 -inAngle 0 -inWeight 10 $colorControlR;
+    keyTangent -e -f 1 -outAngle 0 -outWeight 10 $colorControlR;
+    keyTangent -e -f 1 -inAngle 0 -inWeight 10 $colorControlR;    
+    
+    string $colorControlG = `createNode animCurveUU -n "lightColorG"`;
+    setKeyframe -f 0 -v 0.36 $colorControlG;
+    setKeyframe -f 1 -v 0.92 $colorControlG;
+    keyTangent -edit -weightedTangents true $colorControlG;
+    keyTangent -index 0 -inTangentType fixed $colorControlG;
+    keyTangent -index 0 -outTangentType fixed $colorControlG;
+    
+    keyTangent -e -f 0 -outAngle 2.35 -outWeight 9.0 $colorControlG;
+    keyTangent -e -f 0 -inAngle 2.35 -inWeight 9.0 $colorControlG;
+    keyTangent -e -f 1 -outAngle 0 -outWeight 10 $colorControlG;
+    keyTangent -e -f 1 -inAngle 0 -inWeight 10 $colorControlG;
+    
+    string $colorControlB = `createNode animCurveUU -n "lightColorB"`;
+    setKeyframe -f 0 -v 0.05 $colorControlB;
+    setKeyframe -f 1 -v 0.92 $colorControlB;
+    keyTangent -edit -weightedTangents true $colorControlB;
+    keyTangent -index 0 -inTangentType fixed $colorControlB;
+    keyTangent -index 0 -outTangentType fixed $colorControlB;
+    
+    keyTangent -e -f 0 -outAngle 3.0 -outWeight 8.0 $colorControlB;
+    keyTangent -e -f 0 -inAngle 3.0 -inWeight 8.0 $colorControlB;
+    keyTangent -e -f 1 -outAngle 0 -outWeight 10 $colorControlB;
+    keyTangent -e -f 1 -inAngle 0 -inWeight 10 $colorControlB;
+    
+    //intensity curve
+    string $lightIntensity = `createNode animCurveUU -n "lightIntensity"`;
+    setKeyframe -f 0 -v 0.25 $lightIntensity;
+    setKeyframe -f 1 -v 2 $lightIntensity;
+    keyTangent -edit -weightedTangents true $lightIntensity;
+    keyTangent -index 0 -inTangentType fixed $lightIntensity;
+    keyTangent -index 0 -outTangentType fixed $lightIntensity;
+    keyTangent -e -f 0 -outAngle 16.5 -outWeight 2.5 $lightIntensity ;
+    keyTangent -e -f 0 -inAngle 15 -inWeight 3 $lightIntensity ;
+    keyTangent -e -f 1 -outAngle 0 -outWeight 10 $lightIntensity ;
+    keyTangent -e -f 1 -inAngle 0 -inWeight 10 $lightIntensity;
+
+
+    string $lightMultiply = `shadingNode -asUtility multiplyDivide`;
+    addAttr -k- 1 -ln "intensityOutput"  -at double $lightMultiply;
+    
+    connectAttr -f ($lightMultiply + ".outputX") ($lightMultiply + ".intensityOutput");
+    connectAttr -f ($lightMultiply + ".intensityOutput") ($lightShape[0] + ".intensity");
+    connectAttr -f ($manualControl + ".sunIntensityMultiplier") ($lightMultiply + ".input2X");
+    
+    connectAttr -f ($lightIntensity + ".output") ($lightMultiply + ".input1X");
+
+    
+    string $desaturate = `shadingNode -asUtility remapHsv`;    
+    addAttr -ln "outLightColor"  -at double3  $desaturate;
+    addAttr -ln "outLightColorX"  -at double -p outLightColor  $desaturate;
+    addAttr -ln "outLightColorY"  -at double -p outLightColor  $desaturate;
+    addAttr -ln "outLightColorZ"  -at double -p outLightColor  $desaturate;
+    connectAttr -f ($desaturate + ".outColor") ($desaturate + ".outLightColor");
+    
+    //Tint Color for sun light
+    string $lightColor = `shadingNode -asUtility multiplyDivide`;
+
+    addAttr -longName sunColor -usedAsColor -attributeType float3 $lightColor;
+    addAttr -k 1 -longName redGround -dv 1 -attributeType "float" -parent sunColor;
+    addAttr -k 1 -longName greenGround -dv 1 -attributeType "float" -parent sunColor;
+    addAttr -k 1 -longName blueGround -dv 1 -attributeType "float" -parent sunColor;
+    
+    addAttr -longName outSunColor -usedAsColor -attributeType float3 $lightColor;
+    addAttr -k 1 -longName outRedGround -dv 1 -attributeType "float" -parent outSunColor;
+    addAttr -k 1 -longName outGreenGround -dv 1 -attributeType "float" -parent outSunColor;
+    addAttr -k 1 -longName outBlueGround -dv 1 -attributeType "float" -parent outSunColor;
+     
+    connectAttr -f ($lightColor + ".sunColor") ($lightColor + ".input2");
+    connectAttr -f ($lightColor + ".output") ($lightColor + ".outSunColor");
+    
+    connectAttr -f ($sunIntensity + ".translateY") ($colorControlR + ".input");
+    connectAttr -f ($sunIntensity + ".translateY") ($colorControlG + ".input");
+    connectAttr -f ($sunIntensity + ".translateY") ($colorControlB + ".input");
+    connectAttr -f ($sunIntensity + ".translateY") ($lightIntensity + ".input");
+    
+    connectAttr -f ($colorControlR + ".output") ($desaturate + ".colorR");
+    connectAttr -f ($colorControlG + ".output") ($desaturate + ".colorG");
+    connectAttr -f ($colorControlB + ".output") ($desaturate + ".colorB");
+    connectAttr -f ($desaturate + ".outLightColor") ($lightColor + ".input1");
+    connectAttr -f ($lightColor + ".outSunColor") ($lightShape[0] + ".lightColor");
+    
+    //connectAttr -f ($manualControl + ".saturation") ($desaturate + ".saturation[0].saturation_FloatValue");
+    connectAttr -f ($manualControl + ".saturation") ($desaturate + ".saturation[1].saturation_FloatValue");
+    connectAttr -f ($manualControl + ".redBlueShift") ($desaturate + ".saturation[0].saturation_FloatValue");
+    connectAttr -f ($manualControl + ".sunTint") ($lightColor + ".sunColor");
+    
+    connectAttr -f ($sunDirection + ".rotate") ($selector + ".input[0]");
+    connectAttr -f ($manualControl + ".rotate") ($selector + ".input[1]");
+    connectAttr -f ($selector + ".output") ($sunRotation + ".rotate");
+    
+    string $listToAddDeleteAttr[] =
+    {
+    ($sunDirection),
+    ($annotationSun),
+    ($sunRotation),
+    ($sunIntensity),
+    ($selector),
+    ($manualControl),
+    ($light),
+    ($desaturate),
+    ($colorControlR),
+    ($colorControlG),
+    ($colorControlB),
+    ($lightIntensity),
+    ($translateIcon),
+    ($lightMultiply),
+    ($lightColor)
+    };
+    
+    //Add attribute for delete Sun Placement
+    for($elem in $listToAddDeleteAttr)
+    {
+        addAttr -ln "sunPlacement" -dt "string" $elem;
+    }
+    
+    parent $sunRotation $sunIntensity $manualControl $translateIcon;
+    string $renameLight = `rename $light "Sun"`;
+    //add color to wireframe
+    //color -ud 6 $sun[0] $manualControl;\\
+    return {$sunRotation,$sunIntensity,$manualControl,$translateIcon,$cluster[1],$renameLight,$lightColor};
+}

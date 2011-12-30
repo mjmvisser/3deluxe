@@ -1,0 +1,1179 @@
+// Copyright (C) 1997-2010 Autodesk, Inc., and/or its licensors.
+// All rights reserved.
+//
+// The coded instructions, statements, computer programs, and/or related
+// material (collectively the "Data") in these files contain unpublished
+// information proprietary to Autodesk, Inc. ("Autodesk") and/or its licensors,
+// which is protected by U.S. and Canadian federal copyright law and by
+// international treaties.
+//
+// The Data is provided for use exclusively by You. You have the right to use,
+// modify, and incorporate this Data into other products for purposes authorized 
+// by the Autodesk software license agreement, without fee.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. AUTODESK
+// DOES NOT MAKE AND HEREBY DISCLAIMS ANY EXPRESS OR IMPLIED WARRANTIES
+// INCLUDING, BUT NOT LIMITED TO, THE WARRANTIES OF NON-INFRINGEMENT,
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, OR ARISING FROM A COURSE 
+// OF DEALING, USAGE, OR TRADE PRACTICE. IN NO EVENT WILL AUTODESK AND/OR ITS
+// LICENSORS BE LIABLE FOR ANY LOST REVENUES, DATA, OR PROFITS, OR SPECIAL,
+// DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES, EVEN IF AUTODESK AND/OR ITS
+// LICENSORS HAS BEEN ADVISED OF THE POSSIBILITY OR PROBABILITY OF SUCH DAMAGES.
+
+//
+//  Description:
+//		This script is executed when a new scene file is created.  It
+//		will create panels if required or use existing panels.
+//
+//  Notes:
+//		Changes to filter categories affects all of the windows that
+//		use filters.  Make sure you are not affecting any of these
+//		scripts with your changes:
+//			dopeSheetPanel.mel
+//			graphEditorPanel.mel
+//			hyperGraphPanel.mel
+//			relationshipEditor.mel
+//			outlinerFilterCategories.mel
+//
+
+global proc int customLightFilterScript(string $name)
+{
+    string $type = nodeType($name);
+    string $classification[] = getClassification($type); 
+    string $parts[] = stringToStringArray($classification[0], ":");
+
+    if ($parts[0] == "light")
+        return 1;
+    else
+        return 0;
+}
+
+global proc initDefaultFilters() {
+
+	string $objectFilter[], $attributeFilter[];
+	int    $objectFilterIndex = 0, $attributeFilterIndex = 0;
+
+	if (!`itemFilter -exists DefaultGeometryFilter`) {
+
+		// ------------------------------------------------------------
+		//
+		//	ASSETS	
+		//
+		//
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter
+				-byType container -byType dagContainer
+				-text (uiRes("m_initDefaultFilters.kAsset"))
+				-category "Modeling"
+				-classification "builtIn"
+				DefaultContainerFilter`;
+				
+		// ------------------------------------------------------------
+		//
+		//	MODELING
+		//
+		//
+
+		//	All geometry.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+				-byType nurbsSurface 
+				-byType nurbsCurve 
+				-byType mesh
+				-byType subdiv
+				-text (uiRes("m_initDefaultFilters.kGeometry"))
+				-category "Modeling"
+				-classification "builtIn"
+				DefaultGeometryFilter`;
+
+		//	NURBS objects.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+				-byType nurbsSurface 
+				-byType nurbsCurve
+				-text (uiRes("m_initDefaultFilters.kNURBSObjects"))
+				-category "Modeling"
+				-classification "builtIn"
+				DefaultNURBSObjectsFilter`;
+	
+		//	Polygon objects.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType mesh 
+			-text (uiRes("m_initDefaultFilters.kPolygonObjects"))
+			-category "Modeling"
+			-classification "builtIn"
+			DefaultPolygonObjectsFilter`;
+	
+		//	Subdiv objects.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType subdiv 
+			-text (uiRes("m_initDefaultFilters.kSubdivObjects"))
+			-category "Modeling"
+			-classification "builtIn"
+			DefaultSubdivObjectsFilter`;
+	
+		//	Cameras.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType "camera" 
+			-text (uiRes("m_initDefaultFilters.kCameras"))
+			-category "Camera"
+			-classification "builtIn"
+			DefaultCameraShapesFilter`;
+
+		// ------------------------------------------------------------
+		//
+		//	ANIMATING
+		//
+		//
+
+		//	Joints.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType joint 
+			-text (uiRes("m_initDefaultFilters.kJoints"))
+			-category "Animating"
+			-classification "builtIn"
+			DefaultJointsFilter`;
+
+		//	IkHandles.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType ikHandle
+			-text (uiRes("m_initDefaultFilters.kIkHandles"))
+			-category "Animating"
+			-classification "builtIn"
+			DefaultIkHandlesFilter`;
+	
+		// Characters
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter
+			-byType "character"
+			-text (uiRes("m_initDefaultFilters.kCharacters"))
+			-category "Animating"
+			-classification "builtIn"
+			characterSetsFilter`;
+
+		// Clips
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter
+			-byType "animClip"
+			-text (uiRes("m_initDefaultFilters.kClips"))
+			-category "Animating"
+			-classification "builtIn"
+			clipsFilter`;
+
+		// ------------------------------------------------------------
+		//
+		//	SETS
+		//
+		//
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byType "partition" -text (uiRes("m_initDefaultFilters.kPartitons"))
+			-category "Sets"
+			-classification "builtIn"
+			partitionFilter`;
+
+		//	Sets.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType objectSet 
+			-text (uiRes("m_initDefaultFilters.kSets"))
+			-category "Sets" -category "Modeling"
+			-classification "builtIn"
+			DefaultSetsFilter`;
+	
+		// The default set filter for the outliner
+		//
+		itemFilter 
+			-byScript setFilterScript 
+			-category "Sets"
+			-classification "builtIn"
+			defaultSetFilter;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript clusterSetsFilterScript
+			-text (uiRes("m_initDefaultFilters.kClusterSets"))
+			-category "Sets"
+			-classification "builtIn"
+			clusterSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript deformerSetsFilterScript 
+			-text (uiRes("m_initDefaultFilters.kDeformerSets"))
+			-category "Sets"
+			-classification "builtIn"
+			deformerSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript latticeSetsFilterScript 
+			-text (uiRes("m_initDefaultFilters.kLatticeSets"))
+			-category "Sets"
+			-classification "builtIn"
+			latticeSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript nonLinearSetsFilterScript 
+			-text (uiRes("m_initDefaultFilters.kNonLinearSets"))
+			-category "Sets"
+			-classification "builtIn"
+			nonLinearSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript skinClusterSetsFilterScript 
+			-text (uiRes("m_initDefaultFilters.kSkinClusterSets"))
+			-category "Sets"
+			-classification "builtIn"
+			skinClusterSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter -byScript jointClusterSetsFilterScript 
+			-text (uiRes("m_initDefaultFilters.kJointClusterSets"))
+			-category "Sets"
+			-classification "builtIn"
+			jointClusterSetsFilter`;
+
+		itemFilter -byScript otherDeformerSetsFilterScript 
+			-classification "builtIn"
+			otherDeformerSetsFilter;
+
+		// ------------------------------------------------------------
+		//
+		//	LIGHTING
+		//
+		//
+
+		//	All lights.
+		//
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-lights 1
+			-text (uiRes("m_initDefaultFilters.kLights"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultMayaLightsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter
+			-byScript customLightFilterScript
+			-uniqueNodeNames 1
+			-text (uiRes("m_initDefaultFilters.kLights"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultCustomLightsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter
+			-union "DefaultMayaLightsFilter" "DefaultCustomLightsFilter"
+			-text (uiRes("m_initDefaultFilters.kLights"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultAllLightsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType opticalFX
+			-text (uiRes("m_initDefaultFilters.kOpticalFX"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultOpticalFXFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-union "DefaultAllLightsFilter" "DefaultOpticalFXFilter"
+			-text (uiRes("m_initDefaultFilters.kLightsAndLightSets"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultLightsAndOpticalFXFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-lightSets 1 
+			-text (uiRes("m_initDefaultFilters.kLightsSets"))
+			-category "Sets" -category "Lighting"
+			-classification "builtIn"
+			lightSetFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-exclusiveLights 1 
+			-text (uiRes("m_initDefaultFilters.kLightsIllumLinkedObject"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultExclLightShapesFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-nonExclusiveLights 1  
+			-text (uiRes("m_initDefaultFilters.kLightsIllumByDefault"))
+			-category "Lighting"
+			-classification "builtIn"
+			DefaultNonExclLightShapesFilter`;
+
+		// ------------------------------------------------------------
+		//
+		//	RENDER
+		//
+		//
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-renderableObjectSets 1 
+			-text (uiRes("m_initDefaultFilters.kRenderableObjectSets"))
+			-category "Sets" -category "Render"
+			-classification "builtIn"
+			renderableObjectSetFilter`;
+
+		if (`isTrue "DynamicsExists"`) {
+			$objectFilter[$objectFilterIndex++] = `
+				itemFilter 
+				-byType "nurbsSurface"
+				-byType "mesh"
+				-byType "subdiv"
+				-byType "particle"
+				-text (uiRes("m_initDefaultFilters.kRenderableObjectsDynamicsExists"))
+				-category "Render"
+				-classification "builtIn"
+				renderableObjectShapeFilter`;
+		} else {
+			//
+			// Don't use particles unless dynamics is loaded.
+			//
+			$objectFilter[$objectFilterIndex++] = `
+				itemFilter 
+				-byType "nurbsSurface"
+				-byType "mesh"
+				-byType "subdiv"
+				-text (uiRes("m_initDefaultFilters.kRenderableObjects"))
+				-category "Render"
+				-classification "builtIn"
+				renderableObjectShapeFilter`;
+		}
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType "shadingEngine" 
+			-text (uiRes("m_initDefaultFilters.kShadingGroups"))
+			-category "Render"
+			-category "ShadingGroup"
+			-classification "builtIn"
+			DefaultShadingGroupsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType "textureBakeSet" 
+			-byType "vertexBakeSet" 
+			-text (uiRes("m_initDefaultFilters.kBakeSets"))
+			-category "Render"
+			-category "Sets"
+			-category "BakeSets"
+			-classification "builtIn"
+			DefaultBakeSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType "renderPassSet"
+			-text (uiRes("m_initDefaultFilters.kRenderPassSet"))
+			-category "Render"
+			-category "Sets"
+			-classification "builtIn"
+			renderPassSetsFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilter 
+			-byType "renderPass"
+			-text (uiRes("m_initDefaultFilters.kRenderPass"))
+			-category "Render"
+			-classification "builtIn"
+			renderPassesFilter`;
+
+		// ------------------------------------------------------------
+		//
+		//	TEXTURING
+		//
+		//
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-shaders 1  
+			-text (uiRes("m_initDefaultFilters.kMaterials"))
+			-category "Texturing"
+			-category "Material"
+			-classification "builtIn"
+			DefaultMaterialsFilter`;
+
+		// If render library (a.k.a. fiji) is installed, create filter for facades
+		if (getenv("ALIAS_RENDER_LIB_PATH") != "") {
+			$objectFilter[$objectFilterIndex++] = `
+				itemFilter
+				-byType "materialFacade" 
+				-text (uiRes("m_initDefaultFilters.kMaterialFacades"))
+				-category "Texturing"
+				-category "Material"
+				-classification "builtIn"
+				DefaultMaterialFacadeFilter`;
+		}
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-anyTextures 1 
+			-text (uiRes("m_initDefaultFilters.kTextures"))
+			-category "Texturing"
+			-category "Texture"
+			-classification "builtIn"
+			DefaultTexturesFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-textures2d 1 
+			-text (uiRes("m_initDefaultFilters.kTextures2D"))
+			-category "Texturing"
+			-category "Texture"
+			-classification "builtIn"
+			DefaultTextures2dFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender 
+			-textures3d 1 
+			-text (uiRes("m_initDefaultFilters.kTextures3D"))
+			-category "Texturing"
+			-category "Texture"
+			-classification "builtIn"
+			DefaultTextures3dFilter`;
+
+		// ------------------------------------------------------------
+		//
+		//	mental ray
+		//
+		//
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray"
+			-category "mentalray"
+			-text (uiRes("m_initDefaultFilters.kAllMentalRayShaders"))
+			-classification "builtIn"
+			DefaultMrNodesFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/material"
+			-category "mentalray"
+			-category "Material"
+			-text (uiRes("m_initDefaultFilters.kMentalrayMaterials")) 
+			-classification "builtIn"
+			DefaultMrMaterialFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/shadow"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayShadowShaders")) 
+			-classification "builtIn"
+			DefaultMrShadowFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/volume"
+			-category "mentalray"
+			-category "Material"
+			-text (uiRes("m_initDefaultFilters.kMentalrayVolumeShaders")) 
+			-classification "builtIn"
+			DefaultMrVolumeFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/displace"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayDisplacementShaders")) 
+			-classification "builtIn"
+ 			DefaultMrDisplacementFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/photon"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayPhotonShaders")) 
+			-classification "builtIn"
+			DefaultMrPhotonFilter`;
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/photonvol"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayPhotonVolumeShaders")) 
+			-classification "builtIn"
+			DefaultMrPhotonVolumeFilter`;	
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/texture"
+			-category "mentalray"
+			-category "Texture"
+			-text (uiRes("m_initDefaultFilters.kMentalrayTextureShaders")) 
+			-classification "builtIn"
+			DefaultMrTextureFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/environment"
+			-category "mentalray"
+			-category "Material"
+			-text (uiRes("m_initDefaultFilters.kMentalrayEnvironmentShaders")) 
+			-classification "builtIn"
+			DefaultMrEnvironmentFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/light"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayLightShaders")) 
+			-classification "builtIn"
+			DefaultMrLightFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/emitter"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayPhotonEmitterShaders")) 
+			-classification "builtIn"
+			DefaultMrEmitterFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/lightmap"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayLightmapShaders")) 
+			-classification "builtIn"
+			DefaultMrLightmapFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/lens"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayLensShaders")) 
+			-classification "builtIn"
+			DefaultMrLensFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/output"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayOutputShaders")) 
+			-classification "builtIn"
+			DefaultMrOutputFilter`;
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/geometry"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayGeometryShaders")) 
+			-classification "builtIn"
+			DefaultMrGeometryFilter`;
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/contour/store"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayContourStoreShaders")) 
+			-classification "builtIn"
+			DefaultMrContourStoreFilter`;	
+		
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/contour/contrast"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayContourContrastShade")) 
+			-classification "builtIn"
+			DefaultMrContourContrastFilter`;	
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/contour/shader"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayContourShaders")) 
+			-classification "builtIn"
+			DefaultMrContourShaderFilter`;	
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/contour/output"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kContourOutputMentalrayOutputShaders")) 
+			-classification "builtIn"
+			DefaultMrContourOutputFilter`;		
+						
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/composite"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalraySampleCompositingShaders")) 
+			-classification "builtIn"
+			DefaultMrSampleCompositingFilter`;			
+
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/conversion"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayDataConversionShader")) 
+			-classification "builtIn"
+			DefaultMrDataConversionFilter`;
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/state"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayStateShaders")) 
+			-classification "builtIn"
+			DefaultMrStateFilter`;
+			
+		$objectFilter[$objectFilterIndex++] = `
+			itemFilterRender
+			-nc "rendernode/mentalray/misc"
+			-category "mentalray"
+			-category "Utility"
+			-text (uiRes("m_initDefaultFilters.kMentalrayMiscShaders")) 
+			-classification "builtIn"
+			DefaultMrMiscFilter`;
+
+
+		// ------------------------------------------------------------
+		//
+		//	Hypergraph/hypershade container node
+		//
+		//
+        itemFilter
+            -byType "container" -byType "dagContainer" 
+            -text (uiRes("m_initDefaultFilters.kAssetNodes")) 
+            -category "ContainerNodes"
+            -classification "builtIn"
+            DefaultContainerNodeFilter;
+		
+		// ------------------------------------------------------------
+		//
+		//	MULTILISTER
+		//
+		//
+
+		itemFilterRender 
+			-shaders 1 
+			-anyTextures 1 
+			-lights 1 
+			-postProcess 1  
+			-text (uiRes("m_initDefaultFilters.kMaterialsTexturesAndLights")) 
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultMaterialsTexturesLightShapesFilter;
+
+		itemFilter 
+			-byType "shaderGlow" 
+			-text (uiRes("m_initDefaultFilters.kShaderGlow"))   
+			-category "Multilister"
+			-category "PostProcess"
+			-classification "builtIn"
+			DefaultShaderGlowFilter;
+
+		itemFilter 
+			-byType "shaderGlow" 
+			-negate 1 
+			-text (uiRes("m_initDefaultFilters.kNoShaderGlow"))   
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultNoShaderGlowFilter;
+
+		itemFilterRender 
+			-anyTextures 1 
+			-lights 1 
+			-postProcess 1  
+			-text (uiRes("m_initDefaultFilters.kLightsAndTextures")) 
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultLightShapesTexturesFilter;
+
+		itemFilter 
+			-union "DefaultAllLightsFilter" "lightSetFilter"
+			-text (uiRes("m_initDefaultFilters.kUnionLightsAndLightSets")) 
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultLightLinkingLightFilter;
+
+		itemFilterRender 
+			-lights 1 
+			-postProcess 1 
+			-text (uiRes("m_initDefaultFilters.kLightsAndPostProcess")) 
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultLightShapesPostProcsFilter;
+
+		itemFilter 
+			-difference "DefaultLightShapesPostProcsFilter" "DefaultShaderGlowFilter" 
+			-text (uiRes("m_initDefaultFilters.kLightsAndPostProcessExceptShader")) 
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultLightShapesFilter;
+
+		if (`licenseCheck -m "edit" -typ "complete"`) {
+			itemFilter 
+				-byType "imagePlane" 
+				-text (uiRes("m_initDefaultFilters.kImagePlanes")) 
+				-category "Multilister"
+				-classification "builtIn"
+				DefaultImagePlanesFilter;
+
+			itemFilter 
+				-union "DefaultCameraShapesFilter" "DefaultImagePlanesFilter" 
+				-text (uiRes("m_initDefaultFilters.kCamerasAndImagePlanes"))  
+				-category "Multilister"
+				-category "Camera"
+				-classification "builtIn"
+				DefaultCameraShapesImagePlanesFilter;
+		} else {
+			itemFilter
+				-byType "camera"
+				-text (uiRes("m_initDefaultFilters.kMulilisterCamera"))
+				-category "Multilister"
+				-category "Camera"
+				-classification "builtIn"
+				DefaultCameraShapesImagePlanesFilter;
+		}
+
+		itemFilterRender 
+			-postProcess 1 
+			-text (uiRes("m_initDefaultFilters.kPostProcess"))
+			-category "Multilister"
+			-category "PostProcess"
+			-classification "builtIn"
+			DefaultPostProcFilter;
+
+		itemFilter 
+			-union "DefaultTexturesFilter" "DefaultShadingGroupsFilter"
+			-text (uiRes("m_initDefaultFilters.kShadingGroupsAndTextures"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultTexturesSGFilter;
+
+		itemFilter 
+			-union "DefaultLightShapesTexturesFilter" "DefaultShadingGroupsFilter" 
+			-text (uiRes("m_initDefaultFilters.kShadingGroupsTexturesAndLights"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultSGLightShapesTexturesFilter;
+
+		itemFilter 
+			-union "DefaultLightShapesPostProcsFilter" "DefaultShadingGroupsFilter" 
+			-text (uiRes("m_initDefaultFilters.kShadingGroupsLightsAndPostProcess"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultSGLightShapesFilter;
+
+		itemFilter 
+			-union "DefaultMaterialsTexturesLightShapesFilter" "DefaultShadingGroupsFilter" 
+			-text (uiRes("m_initDefaultFilters.kShadingGroupsMaterialsTexturesLights"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultBasicRenderNodesFilter;
+
+		itemFilter 
+			-union "DefaultMaterialsFilter" "DefaultShadingGroupsFilter" 
+			-text (uiRes("m_initDefaultFilters.kUnionMaterialsShadingGroups"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultShadingGroupsAndMaterialsFilter;
+
+		itemFilter
+			-union "DefaultMaterialsFilter" "DefaultShaderGlowFilter"
+			-text (uiRes("m_initDefaultFilters.kUnionMaterialsShaderGlow"))
+			-category "Multilister"
+			-category "Material"
+			-category "PostProcess"
+			-classification "builtIn"
+			DefaultMaterialsAndShaderGlowFilter;
+
+		itemFilter 
+			-union "renderableObjectShapeFilter" "renderableObjectSetFilter"
+			-text (uiRes("m_initDefaultFilters.kUnionObjectShapeObjectSet"))
+			-category "Multilister"
+			-classification "builtIn"
+			renderableObjectsAndSetsFilter;
+
+		itemFilterRender 
+			-renderUtilityNode 1  
+			-text (uiRes("m_initDefaultFilters.kRenderUtilities"))
+			-category "Multilister"
+			-category "Utility"
+			-classification "builtIn"
+			DefaultRenderUtilitiesFilter;
+
+		itemFilter 
+			-byScript "thingUsesImageFile" 
+			-secondScript "thingsUseImageFile" 
+			-text (uiRes("m_initDefaultFilters.kUsesImageFile"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultUsesImageFileFilter;
+
+		itemFilterRender 
+			-shaders 1 
+			-anyTextures 1 
+			-lights 1 
+			-postProcess 1 
+			-renderUtilityNode 1 
+			-text (uiRes("m_initDefaultFilters.kAllRenderClassifications"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultAllRenderClassificationsFilter;
+
+		itemFilter 
+			-union "DefaultAllRenderClassificationsFilter" "DefaultShadingGroupsFilter" 
+			-text (uiRes("m_initDefaultFilters.kRenderNodes"))
+			-category "Multilister"
+			-classification "builtIn"
+			DefaultAllRenderNodesFilter;
+
+		itemFilter 
+			-union "renderableObjectsAndSetsFilter" "DefaultShadingGroupsFilter"
+			-classification "builtIn"
+			lightLinkingObjectFilter;
+	
+		// ------------------------------------------------------------
+		//
+		//  All shading nodes filter.
+        //  This filter is a union of all the shading node filters
+        //  used by hyper shade default tabs in its first pane.	
+		//
+		//
+        string $shadingNodeFilters[] = { 
+			"DefaultMaterialsAndShaderGlowFilter",
+			"DefaultTexturesFilter",
+			"DefaultRenderUtilitiesFilter",
+			"DefaultLightsAndOpticalFXFilter",
+			"DefaultCameraShapesImagePlanesFilter",
+			"DefaultBakeSetsFilter",
+            "DefaultShadingGroupsFilter"};
+
+        string $filter = $shadingNodeFilters[0];
+        int $i;
+        int $total = size($shadingNodeFilters);
+        for ($i = 1; $i < $total; $i++)
+        { 
+            $filter = `itemFilter
+                -union $filter $shadingNodeFilters[$i]`;
+        }
+        itemFilter -edit 
+			-classification "builtIn"
+            $filter;
+        rename $filter DefaultAllShadingNodesFilter;
+
+		// ------------------------------------------------------------
+		//
+		//	ATTRIBUTES
+		//
+		//
+
+		//	Hidden attributes.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-hidden true 
+			-text (uiRes("m_initDefaultFilters.kHidden"))
+			-classification "builtIn"
+			DefaultHiddenAttributesFilter`;
+
+		//	Attributes that are driven by animation curves.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-hasCurve true 
+			-text (uiRes("m_initDefaultFilters.kDrivenByAnimCurve"))
+			-classification "builtIn"
+			animCurveFilter`;
+
+		//	Attributes that are driven by expressions.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-hasExpression true 
+			-text (uiRes("m_initDefaultFilters.kDrivenByExpression"))
+			-classification "builtIn"
+			expressionFilter`;
+
+		//	Attributes that are driven by driven keys.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-hasDrivenKey true 
+			-text (uiRes("m_initDefaultFilters.kDrivenByDrivenKey"))
+			-classification "builtIn"
+			drivenKeyFilter`;
+
+		//	Keyable attributes.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-keyable true 
+			-text (uiRes("m_initDefaultFilters.kKeyable"))
+			-classification "builtIn"
+			keyableFilter`;
+
+		//	Scale attribute.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-byName "scale?" 
+			-text (uiRes("m_initDefaultFilters.kScale"))
+			-classification "builtIn"
+			scaleFilter`;
+
+		//	Rotate attribute.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-byName "rotate?" 
+			-text (uiRes("m_initDefaultFilters.kRotate"))
+			-classification "builtIn"
+			rotateFilter`;
+
+		//	Translate attribute.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-byName "translate?" 
+			-text (uiRes("m_initDefaultFilters.kTranslate"))
+			-classification "builtIn"
+			translateFilter`;
+
+		//	Scale, rotate, and translate attributes.
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr 
+			-scaleRotateTranslate true 
+			-text (uiRes("m_initDefaultFilters.kScaleRotateTranslate"))
+			-classification "builtIn"
+			scaleRotateTranslateFilter`;
+
+		// Attributes that are dynamic (user defined)
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr
+			-dynamic true
+			-text (uiRes("m_initDefaultFilters.kUserDefined"))
+			-classification "builtIn"
+			dynamicFilter`; 
+		
+		// Attributes that are dynamic (user defined)
+		//
+		$attributeFilter[$attributeFilterIndex++] = `
+			itemFilterAttr
+			-published true
+			-text (uiRes("m_initDefaultFilters.kPublished"))
+			-classification "builtIn"
+			publishedFilter`; 
+
+		//
+		//	Attach the default filters to the filter UI.
+		//
+		filterUIUpdateDefaultFilters();
+		filterUIAddDefaultObjectFilters($objectFilter);
+		filterUIAddDefaultAttributeFilters($attributeFilter);
+	}
+	filterUIClearNonMenuFilters();
+}
+
+// 
+// Description:
+//	The following scripts are specific filters for:
+//	- Cluster Sets Filter
+//	- Joint Cluster Sets Filter
+//	- Skin Cluster Sets Filter
+//	- Lattice Sets Filter
+//	- Nonlinear Sets Filter
+//	- Other Deformer Sets Filters
+//	- All Deformer Sets Filters
+
+global proc int clusterSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for cluster sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $nodeType = `nodeType $node`;
+		if ($nodeType == "cluster")
+			return true;
+	}
+
+	return false;
+}
+
+global proc int jointClusterSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for jointCluster sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $nodeType = `nodeType $node`;
+		if ($nodeType == "jointCluster")
+			return true;
+	}
+
+	return false;
+}
+
+global proc int skinClusterSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for skinCluster sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $nodeType = `nodeType $node`;
+		if ($nodeType == "skinCluster")
+			return true;
+	}
+
+	return false;
+}
+
+global proc int latticeSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for ffd sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $nodeType = `nodeType $node`;
+		if ($nodeType == "ffd")
+			return true;
+	}
+
+	return false;
+}
+
+global proc int nonLinearSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for nonLinear sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $nodeType = `nodeType $node`;
+		if ($nodeType == "nonLinear")
+			return true;
+	}
+
+	return false;
+}
+
+global proc int otherDeformerSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for other deformer sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $isADeformer[] = `ls -type geometryFilter $node`;
+		if (size($isADeformer) == 1) {
+			string $nodeType = `nodeType $node`;
+			if (($nodeType != "cluster") &&
+				($nodeType != "jointCluster") &&
+				($nodeType != "skinCluster") &&
+				($nodeType != "ffd") &&
+				($nodeType != "nonLinear")) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+global proc int deformerSetsFilterScript(string $name)
+//
+// Description:
+//	script filter for deformer sets
+//
+{
+	if (!`objExists ($name + ".usedBy")`) {
+		return false;
+	}
+	
+	string $nodeList[] = `listConnections ($name + ".usedBy")`;
+
+	for ($node in $nodeList) {
+		string $filters[] = `ls -type geometryFilter $node`;
+		if (size($filters)) {
+			if (nodeType($node) != "tweak") {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}

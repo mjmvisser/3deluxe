@@ -1,0 +1,67 @@
+#! /opt/Nuke6.0v1/Nuke6.0 -nx
+version 6.0 v1
+Gizmo {
+ addUserKnob {20 User}
+ addUserKnob {41 value l "reflection intensity" T ReflectionIntensity.value}
+ addUserKnob {41 value_1 l "refraction intensity" T Refractiontensity.value}
+ addUserKnob {41 value_2 l "subsurface intensity" T SubsurfaceIntensity.value}
+}
+ Input {
+  inputs 0
+  name TRACE
+  xpos -107
+  ypos -276
+ }
+set N12df3360 [stack 0]
+add_layer {reflection reflection.red reflection.green reflection.blue}
+ Shuffle {
+  in reflection
+  name Channel_reflection
+  xpos -219
+  ypos -176
+ }
+ Multiply {
+  name ReflectionIntensity
+  xpos -219
+  ypos -148
+ }
+push 0
+push $N12df3360
+add_layer {subsurface subsurface.red subsurface.green subsurface.blue}
+ Shuffle {
+  in subsurface
+  name Channel_subsurface
+  xpos 15
+  ypos -178
+ }
+ Multiply {
+  name SubsurfaceIntensity
+  xpos 15
+  ypos -150
+ }
+push $N12df3360
+add_layer {refraction refraction.red refraction.green refraction.blue}
+ Shuffle {
+  in refraction
+  name Channel_refraction
+  xpos -107
+  ypos -176
+ }
+ Multiply {
+  name Refractiontensity
+  xpos -107
+  ypos -148
+ }
+ Merge2 {
+  inputs 3+1
+  operation plus
+  name Plus
+  xpos -107
+  ypos -58
+ }
+ Output {
+  name Output1
+  xpos -107
+  ypos 35
+ }
+end_group

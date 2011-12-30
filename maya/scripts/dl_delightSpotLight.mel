@@ -1,0 +1,286 @@
+//Uber SpotLight with 3delight attributes
+//
+
+global proc string dl_delightSpotLightCreate()
+{
+	string $newLightCreate;
+	string $lightingGrp[] = `ls "dl_light"`;
+	if(`objExists "dl_light"`)
+	{
+		$newLightCreate = `dl_LightCreate`;
+		parent $newLightCreate dl_light;
+	}
+	else
+	{
+		
+		string $sceneSel[] = `ls -type transform`;
+		string $lightGroupSel[] = `selByAttrTag lightRig $sceneSel`;
+		
+		if(size($lightGroupSel) == 1)
+		{
+			$newLightCreate = `dl_LightCreate`;
+			parent $newLightCreate $lightGroupSel[0];
+		}
+		else
+		{
+			$newLightCreate = `dl_LightCreate`;
+			string $lightGroup = `group -em -n "dl_light"`;
+			
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tx");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ty");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".tz");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rx");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".ry");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".rz");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sx");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sy");
+			setAttr -lock true -keyable false -channelBox false ($lightGroup + ".sz");
+			
+			//ADD ATTRIBUTE TAG
+			//to delete light 
+			addAttr -ln "toDelete" -dt "string" $lightGroup;
+			addAttr -ln "lightRig" -dt "string" $lightGroup;
+					
+			parent $newLightCreate $lightGroup;
+		}
+	}
+return 	$newLightCreate;
+}
+
+global proc string dl_LightCreate()
+{
+
+
+	//UberLight Create
+	string $spotTranform = `shadingNode -asLight dl_uberLightShape`;
+	
+	//Remove unused Attribute form uber spot light	
+	setAttr -cb 0 ($spotTranform + ".localPositionX");
+	setAttr -cb 0 ($spotTranform + ".localPositionY");
+	setAttr -cb 0 ($spotTranform + ".localPositionZ");
+	setAttr -cb 0 ($spotTranform + ".localScaleX");
+	setAttr -cb 0 ($spotTranform + ".localScaleY");
+	setAttr -cb 0 ($spotTranform + ".localScaleZ");
+	
+	setAttr -k 0 ($spotTranform + ".barnDoorBottomAngle");
+	setAttr -k 0 ($spotTranform + ".barnDoorBottomEdge");
+	setAttr -k 0 ($spotTranform + ".barnDoorBottomRoll");
+	setAttr -k 0 ($spotTranform + ".barnDoorLeftAngle");
+	setAttr -k 0 ($spotTranform + ".barnDoorLeftEdge");
+	setAttr -k 0 ($spotTranform + ".barnDoorLeftRoll");
+	setAttr -k 0 ($spotTranform + ".barnDoorRightAngle");
+	setAttr -k 0 ($spotTranform + ".barnDoorRightEdge");
+	setAttr -k 0 ($spotTranform + ".barnDoorRightRoll");
+	setAttr -k 0 ($spotTranform + ".barnDoorTopAngle");
+	setAttr -k 0 ($spotTranform + ".barnDoorTopEdge");
+	setAttr -k 0 ($spotTranform + ".barnDoorTopRoll");	
+	setAttr -k 0 ($spotTranform + ".cutOn") 0.01;
+	setAttr -k 0 ($spotTranform + ".cutOnEdge") 0;
+	setAttr -k 0 ($spotTranform + ".cutOnShape") 1;
+	setAttr -k 0 ($spotTranform + ".cutOff") 1000000;
+	setAttr -k 0 ($spotTranform + ".cutOffEdge") 0;
+	setAttr -k 0 ($spotTranform + ".cutOffShape") 1;
+	setAttr -k 0 ($spotTranform + ".barnDoorLeftLength") 0;
+	setAttr -k 0 ($spotTranform + ".barnDoorRightLength") 0;
+	setAttr -k 0 ($spotTranform + ".barnDoorTopLength") 0;
+	setAttr -k 0 ($spotTranform + ".barnDoorBottomLength") 0;
+	setAttr -k 0 ($spotTranform + ".lightType") 0;
+	setAttr -k 0 ($spotTranform + ".beamDistribution") 0;
+	setAttr -k 0 ($spotTranform + ".noiseAmplitude") 0;
+	setAttr -k 0 ($spotTranform + ".noiseFrequency") 4;
+	setAttr -k 0 ($spotTranform + ".noiseOffset1") 0;
+	setAttr -k 0 ($spotTranform + ".noiseOffset2") 0;
+	setAttr -k 0 ($spotTranform + ".noiseOffset3") 0;	
+	setAttr -k 0 ($spotTranform + ".maxIntensity");
+	setAttr -k 0 ($spotTranform + ".lightColorR");
+	setAttr -k 0 ($spotTranform + ".lightColorG");
+	setAttr -k 0 ($spotTranform + ".lightColorB");
+	setAttr -k 0 ($spotTranform + ".shadowColorR");
+	setAttr -k 0 ($spotTranform + ".shadowColorG");
+	setAttr -k 0 ($spotTranform + ".shadowColorB");
+	setAttr -k 0 ($spotTranform + ".shadowFilterType");
+	setAttr -k 0 ($spotTranform + ".shadowSamples");
+	setAttr -k 0 ($spotTranform + ".useSoftShadowDecay");
+	setAttr -k 0 ($spotTranform + ".shadowMinimumRadius");
+	setAttr -k 0 ($spotTranform + ".shadowMaximumRadius");
+	setAttr -k 0 ($spotTranform + ".selfShadowReduce");
+	setAttr -k 0 ($spotTranform + ".shadowDecay");
+	setAttr -k 0 ($spotTranform + ".shadowDecayCutOn");
+	setAttr -k 0 ($spotTranform + ".shadowDecayCutOff");
+	setAttr -k 0 ($spotTranform + ".traceSampleCone");
+	setAttr -k 0 ($spotTranform + ".traceSamples");
+	setAttr -k 0 ($spotTranform + ".traceBias");
+	setAttr -k 0 ($spotTranform + ".displayPenumbraAngle");
+	setAttr -k 0 ($spotTranform + ".displayLightLimits");
+	setAttr -k 0 ($spotTranform + ".displayBarnDoors");
+	setAttr -k 0 ($spotTranform + ".displayFalloff");
+	setAttr -k 0 ($spotTranform + ".shadowType");
+	
+	
+	//Edit Attribute for the default light
+	setAttr ($spotTranform + ".shadowType") 1;
+	setAttr ($spotTranform + ".penumbraAngle") 0;
+	setAttr ($spotTranform + ".displayPenumbraAngle") 1;
+						
+	//to delete light 
+	addAttr -ln "toDelete" -dt "string" $spotTranform;
+	
+	//Light Shape Node
+	string $lightCreate[] = `listRelatives $spotTranform`;
+
+	
+
+	//Add/Set New Attribute
+	addAttr -ln "ShadowMap" -at bool -dv 1 $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".ShadowMap");
+	
+	addAttr -ln "Resolution"  -at long  -min 32 -max 4096 -dv 512 $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".Resolution");
+	
+	addAttr -ln "shadowMapShadingRate"  -at double -dv 1 $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".shadowMapShadingRate");
+	
+	addAttr -ln "shadowMapType"  -at "enum" -en "normal=5:deep=6:"  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".shadowMapType");
+	
+	addAttr -ln "shadowDepthFilter"  -at "enum" -en "min:max:average:midpoint"  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".shadowDepthFilter");
+	
+	addAttr -ln "shadowMapPixelSamples"  -at long  -min 1 -dv 2 $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".shadowMapPixelSamples");
+	
+	addAttr -ln "generateFirstFrameOnly"  -at bool  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".generateFirstFrameOnly");
+	
+	addAttr -ln "generateWithMotionBlur"  -at bool  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".generateWithMotionBlur");
+	
+	addAttr -ln "generateCubeShadowMap"  -at bool  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".generateCubeShadowMap");
+	
+	addAttr -ln "keyLight"  -at bool  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".keyLight");
+	
+	addAttr -ln "samples"  -at long -dv 32 $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".samples");
+	
+	addAttr -ln "samplingStrategy"  -at "enum" -en "Faster:Better"  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".samplingStrategy");
+	
+	addAttr -ln "transformationBlur"  -at "enum" -en "Off:On:Inherit"  $lightCreate[0];
+	setAttr -e-keyable true ($lightCreate[0] + ".transformationBlur");
+		
+	//
+	int $lightSetCount = python("import delight.components;delight.components.lightsetcount");
+	
+	string $lightsetEnum = "0";
+	for($i = 1; $i < $lightSetCount; $i++)
+		$lightsetEnum += ":" + $i;
+	
+	//add light selector key rim fill custom
+	eval("addAttr -k 1 -ln lightset -at enum -en \"" + $lightsetEnum + "\" " + $lightCreate[0]);
+	
+	string $floatToString = `createNode dl_floatToString`;
+	string $concatString = `createNode dl_concatString`;
+	setAttr($concatString + ".m[0]", 1);
+	setAttr($concatString + ".m[1]", 1);
+	setAttr -type "string"  ($concatString + ".inputString[0]") "lightset_";
+	
+	connectAttr($lightCreate[0] + ".lightset",  $floatToString + ".inputFloat");
+	connectAttr($floatToString + ".outputString", $concatString + ".inputString[1]");
+
+	//Create delightLightAttribs node with attributes			
+	string $lightAttrDL = DLA_create();
+    
+	
+		
+	//add attribute
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "shadowMapsAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "shadowObjectsAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "photonMapsAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "categoryAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "motionBlurAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "areaLightAttrGrp" 1;
+	AE_addRemoveMenuItemCommand "MayaWindow" $lightAttrDL "MEL_ScriptsAttrGrp" 1;	
+	
+	
+	
+	
+	//to delete light 
+	addAttr -ln "toDelete" -dt "string" $lightAttrDL;
+	
+	// Create the node.			
+	string $newNode = `createNode delightShapeSet`;
+	//to delete light 
+	addAttr -ln "toDelete" -dt "string" $newNode;
+	//
+	// Add the standard attributes to the node.
+	//
+	
+	delightSetPluginVersion($newNode);			
+	DL_initShapeSetNode($newNode);
+				
+	//Add Attribute to delightLightAttribs
+	addAttr 
+	-longName usedBy3dfm 
+	-attributeType message
+	$lightAttrDL;
+	
+	setAttr ($lightAttrDL + ".generateShadowMaps") 1;
+	
+	//Connect 3delight node attribute to 3delight set node
+	connectAttr ($lightAttrDL + ".usedBy3dfm") ($newNode + ".lightAttribs");			
+	
+	//choice --> delight attribute
+	//connectAttr -f ($dl_choiceCotegory + ".output") ($lightAttrDL + ".category");	
+	connectAttr -f ($concatString + ".outputString") ($lightAttrDL + ".category");	
+	
+	
+	//Hide attribute in channelBox
+	connectAttr -f ($lightCreate[0] + ".ShadowMap") ($lightAttrDL + ".generateShadowMaps");
+	connectAttr -f ($lightCreate[0] + ".Resolution") ($lightAttrDL + ".shadowMapResolutionX");
+	connectAttr -f ($lightCreate[0] + ".Resolution") ($lightAttrDL + ".shadowMapResolutionY");	
+	connectAttr -f ($lightCreate[0] + ".shadowMapShadingRate") ($lightAttrDL + ".shadowMapShadingRate");
+
+	connectAttr -f ($lightCreate[0] + ".shadowMapType") ($lightAttrDL + ".shadowMapType");
+	connectAttr -f ($lightCreate[0] + ".shadowDepthFilter") ($lightAttrDL + ".shadowDepthFilter");
+	
+	connectAttr -f ($lightCreate[0] + ".shadowMapPixelSamples") ($lightAttrDL + ".shadowMapPixelSamplesX");
+	connectAttr -f ($lightCreate[0] + ".shadowMapPixelSamples") ($lightAttrDL + ".shadowMapPixelSamplesY");
+	connectAttr -f ($lightCreate[0] + ".generateFirstFrameOnly") ($lightAttrDL + ".generateFirstFrameOnly");
+	//connectAttr -f ($lightCreate[0] + ".generateWithMotionBlur") ($lightAttrDL + ".generateWithMotionBlur");
+	connectAttr -f ($lightCreate[0] + ".generateCubeShadowMap") ($lightAttrDL + ".generateCubeShadowMap");
+	connectAttr -f ($lightCreate[0] + ".keyLight") ($lightAttrDL + ".keyLight");
+	connectAttr -f ($lightCreate[0] + ".samples") ($lightAttrDL + ".samples");
+	connectAttr -f ($lightCreate[0] + ".samplingStrategy") ($lightAttrDL + ".samplingStrategy");
+	connectAttr -f ($lightCreate[0] + ".transformationBlur") ($lightAttrDL + ".transformationBlur");
+
+
+	connectAttr ($lightCreate[0] + ".instObjGroups[0]") ($newNode + ".dagSetMembers[0]");
+	
+	//set attribute for the 3delight light node attribute attached to the uber spot light
+	setAttr ($lightCreate[0] + ".shadowMapType") 6;
+		
+	setAttr -k 0 ($lightCreate[0] + ".shadowMapShadingRate");
+	setAttr -k 0 ($lightCreate[0] + ".shadowDepthFilter");
+	setAttr -k 0 ($lightCreate[0] + ".generateFirstFrameOnly");
+	setAttr -k 0 ($lightCreate[0] + ".generateWithMotionBlur");
+	setAttr -k 0 ($lightCreate[0] + ".generateCubeShadowMap");
+	setAttr -k 0 ($lightCreate[0] + ".keyLight");
+	setAttr -k 0 ($lightCreate[0] + ".samples");
+	setAttr -k 0 ($lightCreate[0] + ".samplingStrategy");
+	setAttr -k 0 ($lightCreate[0] + ".transformationBlur");
+	
+	select $lightCreate[0];
+	dl_spotLightPresetAttributeDisplay short;
+
+
+    rename $lightAttrDL ($spotTranform + "_lgtAttr");
+    
+    return $spotTranform;
+}
+
+
+
+
+

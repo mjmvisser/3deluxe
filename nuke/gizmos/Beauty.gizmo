@@ -1,0 +1,167 @@
+#! /opt/Nuke6.0v1/Nuke6.0 -nx
+version 6.0 v1
+Gizmo {
+ inputs 0
+}
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 44
+  name Read_BTY
+  xpos -195
+  ypos 73
+ }
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 4
+  name Read_AUX
+  xpos -80
+  ypos 75
+ }
+ Read {
+  inputs 0
+  format "480 270 0 0 480 270 1.00013 "
+  version 3
+  name Read_TRACE
+  xpos 54
+  ypos 71
+ }
+ Process_TRACE {
+  name Process_TRACE1
+  xpos 54
+  ypos 258
+ }
+ Read {
+  inputs 0
+  format "480 270 0 0 480 270 1.00013 "
+  version 22
+  name ReadSurface
+  xpos 168
+  ypos 72
+ }
+set Nb40c50e0 [stack 0]
+ Dot {
+  name Dot3
+  xpos 279
+  ypos 200
+ }
+set Nb40d2ea0 [stack 0]
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 5
+  name Read_ENV
+  xpos 274
+  ypos 73
+ }
+ Process_ENV {
+  inputs 2
+  name Process_ENV1
+  xpos 274
+  ypos 260
+ }
+push 0
+push 0
+push 0
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 2
+  name Read_LS2
+  xpos 599
+  ypos 74
+ }
+push $Nb40d2ea0
+ Dot {
+  name Dot1
+  xpos 389
+  ypos 200
+ }
+set Nb40cd820 [stack 0]
+ Dot {
+  name Dot2
+  xpos 499
+  ypos 200
+ }
+set Nb40d03b0 [stack 0]
+ Dot {
+  name Dot4
+  xpos 609
+  ypos 200
+ }
+ Process_LS {
+  inputs 2
+  name Process_LS2
+  xpos 599
+  ypos 261
+  Global 1
+  Intensity 1
+  Shadow 1
+  Saturation 1
+  Hue 1
+  Color 1
+ }
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 6
+  name Read_LS1
+  xpos 489
+  ypos 74
+ }
+push $Nb40d03b0
+ Process_LS {
+  inputs 2
+  name Process_LS1
+  xpos 489
+  ypos 261
+  Global 1
+  Intensity 1
+  Shadow 1
+  Saturation 1
+  Hue 1
+  Color 1
+ }
+push 0
+push $Nb40c50e0
+ Process_SURF {
+  name Process_SURF1
+  xpos 168
+  ypos 259
+ }
+ Read {
+  inputs 0
+  format "960 540 0 0 960 540 1.00013 "
+  version 8
+  name Read_LS0
+  xpos 379
+  ypos 74
+ }
+push $Nb40cd820
+ Process_LS {
+  inputs 2
+  name Process_LS0
+  xpos 379
+  ypos 260
+  Global 1
+  Intensity 1
+  Shadow 1
+  Saturation 1
+  Hue 1
+  Color 1
+ }
+ Merge2 {
+  inputs 9+1
+  operation plus
+  also_merge all
+  name Plus
+  xpos 330
+  ypos 364
+ }
+ Output {
+  name Output1
+  xpos 330
+  ypos 435
+ }
+end_group

@@ -1,0 +1,1880 @@
+source "dl_lightGenLoad.mel";
+source "dl_delightSpotLight.mel";
+source "dl_indirectEnvLightCreate.mel";
+source "dl_lightingUtility.mel";
+source "dl_lightLink.mel";
+source "dl_checkList.mel";
+source "dl_utilPass.mel";
+source "AEdelightLightAttribsTemplate.mel";
+source "dl_relationShipRenderPassEditor.mel";
+source "dl_condorSub.mel";
+
+//////////////////////////////////////////////////////////////////////////////
+//SELECTION BY ATTRIBUTE
+//////////////////////////////////////////////////////////////////////////////
+//Selection avec les attribute
+//$fileType = nom de lattribute a chercher
+//
+//$fileSel Liste dans laquelle trouver l attribute en question
+global proc string[] selByAttrTag(string $fileType, string $fileSel[])
+{
+	string $baseName[];
+	clear ($baseName);
+	for($elem in $fileSel)
+		{
+		       if (`attributeExists $fileType $elem`)
+		       {
+			      $baseName[size( $baseName)] = $elem;
+		       }
+		}
+return $baseName;
+}
+
+global proc dl_CreateLightRig()
+{
+	string $locatorLightRig[] = `ls -type delightCoordinateSystem`;
+	string $locatorLightRigTrans[] = `listRelatives -p $locatorLightRig`;
+	
+	string $searchForNode[] = `selByAttrTag toDelete $locatorLightRigTrans`;
+	
+	if(size($searchForNode) > 0)
+	{
+		warning "You Cant put more than one Light Rig.";
+	}
+	else
+	{
+		dl_lightGenLoad;
+	}
+}
+
+global proc dl_interestSet()
+{
+	string $panelView = `getPanel -withFocus`;
+	string $camView  = `modelPanel -q -camera $panelView`;	
+	viewLookAt  $camView;
+}
+
+
+global proc dl_setFarClipPlaneLightCamera()
+{
+	string $panelView = `getPanel -withFocus`;
+	string $camView  = `modelPanel -q -camera $panelView`;
+	setAttr ($camView + ".farClipPlane") 100000000;
+}
+
+
+global proc dl_createSpotLightInView()
+{
+	string $panelView = `getPanel -withFocus`;
+	string $camView  = `modelPanel -q -camera $panelView`;
+		
+	if(`nodeType $camView` == "camera")
+	{
+		warning "Go to the perspective view";
+	}
+	
+	else
+	{
+		string $spotLight = `dl_delightSpotLightCreate`;
+		float $interest = `getAttr ($camView + ".centerOfInterest")`;
+	
+		float $valusTranslate[] = `getAttr ($camView + ".translate")`;
+		float $valuesRotate[] = `getAttr ($camView + ".rotate")`;
+	
+	
+		setAttr ($spotLight+ ".rotate") $valuesRotate[0] $valuesRotate[1] $valuesRotate[2];
+	
+		setAttr ($spotLight+ ".translate") $valusTranslate[0] $valusTranslate[1] $valusTranslate[2];
+	
+		lookThru $spotLight;	
+			
+		string $panelView = `getPanel -withFocus`;
+		string $camView  = `modelPanel -q -camera $panelView`;
+			
+		setAttr ($camView + ".centerOfInterest") $interest;
+		setAttr ($camView + ".farClipPlane") 100000000;
+		setAttr ($camView + ".focalLength") 14;
+	}
+		
+}
+
+
+global proc dl_deleteLight(int $lightCase)
+{
+	//$lightCase
+	//1 = delete selected light
+	//0 = delete light rig
+
+
+	string $lightSelToDelete[];
+	if($lightCase == 0)
+	{
+		$lightSelToDelete = `ls`;		
+	}
+	else
+	{
+		
+		string $lightSel[] = `ls -sl`;
+		string $lightSelShape[] =  `listRelatives $lightSel[0]`;
+		string $delightnodeListe[] = `listConnections $lightSelShape[0]`;
+		$lightSelToDelete = stringArrayCatenate($lightSel, $delightnodeListe);
+		
+		
+	}
+	
+	string $lightToDelete[] = `selByAttrTag toDelete $lightSelToDelete`;
+    string $sunplacementToDelete[] = `selByAttrTag sunPlacement $lightSelToDelete`;
+    $lightToDelete = stringArrayCatenate($lightToDelete,$sunplacementToDelete);
+	for($elem in $lightToDelete)
+	{
+		lockNode -l 0 $elem;
+	}
+	if(size($lightToDelete) > 0)
+	{
+		delete $lightToDelete;
+	}
+	//dl_lightListSel();
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//Hud Selector/////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+global proc dl_hudSelector(string $HUD)
+{
+	string $selList[] = `ls -sl`;
+	string $listShape[] = `listRelatives $selList`;
+	
+	for($elem in $listShape)
+	{
+		if( `nodeType $elem` == "dl_uberLightShape")
+		{
+			switch ($HUD)
+			{	
+				case "dl_HUDPenumbra":
+				//PENUMBRA
+					float $value = `hudSlider -q -v $HUD`;
+					setAttr ($elem  + ".penumbraAngle") $value;
+				break;
+				
+				case "dl_HUDConeAngler":
+				//CONE ANGLE
+					float $value = `hudSlider -q -v $HUD`;
+					setAttr ($elem  + ".coneAngle") $value;		
+				break;
+							
+				case "dl_HUDIconSize":
+				//ICON SIZE
+					float $value = `hudSlider -q -v $HUD`;
+					setAttr ($elem  + ".iconSize") $value;					
+				break;
+										
+				case "dl_HUDCutOff":
+					setAttr ($elem  + ".displayLightLimits") 1;
+					float $value = `hudSlider -q -v $HUD`;
+					if($value == 250)
+					{
+						setAttr ($elem  + ".cutOff") 1000000;
+						setAttr ($elem  + ".cutOffEdge") 0;
+					}
+					else
+					{
+						setAttr ($elem  + ".cutOff") $value;
+					}
+				break;
+
+				case "dl_HUDCutOffEdge":
+					setAttr ($elem  + ".displayLightLimits") 1;
+					float $value = `hudSlider -q -v $HUD`;
+					setAttr ($elem  + ".cutOffEdge") $value;
+				break;
+			}
+
+		}
+        if( `nodeType $elem` == "camera")
+        {
+            switch ($HUD)
+            {
+                case "dl_HUDCameraOverscan":
+                float $value = `hudSlider -q -v $HUD`;
+                setAttr ($elem  + ".overscan") $value;
+                break;
+            }
+        }	
+    }
+}
+
+
+string $lightCam[] = `ls -sl`;
+string $lightCamShape[] = `listRelatives -s $lightCam`;
+string $lightCamera;    
+for($elem in $lightCamShape)
+{
+    if(`nodeType $elem` == "camrera");
+    {
+        $lightCamera = $elem;
+    }
+}
+
+global proc dl_turnOnOffLightHUD()
+{
+	if(`headsUpDisplay -exists dl_HUDPenumbra`)
+	{
+		headsUpDisplay -remove dl_HUDPenumbra;
+		headsUpDisplay -remove dl_HUDConeAngler;
+		headsUpDisplay -remove dl_HUDIconSize;
+		headsUpDisplay -remove dl_HUDCutOff;
+		headsUpDisplay -remove dl_HUDCutOffEdge;
+        headsUpDisplay -remove dl_HUDCameraOverscan;
+	}
+	else
+	{	
+		dl_hudLightCreate;
+	}
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//HUD Control                      /////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+global proc dl_hudLightCreate()
+{
+	hudSlider -section 2
+			-block 5
+			-visible 1
+			-label "Cone Angle:"
+			-value 40
+			-type "float"
+			-minValue 1
+			-maxValue 90
+			-labelWidth 80
+			-valueWidth 50
+			-sliderLength 250
+			-sliderIncrement 0.1
+			-pressCommand "dl_hudSelector( \"dl_HUDConeAngler\" )"
+			-dragCommand "dl_hudSelector( \"dl_HUDConeAngler\" )"
+			-releaseCommand "dl_hudSelector( \"dl_HUDConeAngler\" )"
+			dl_HUDConeAngler;
+	
+	
+	hudSlider -section 2
+			-block 4
+			-visible 1
+			-label "Penumbra:"
+			-value 0
+			-type "float"
+			-minValue 0
+			-maxValue 20
+			-labelWidth 80
+			-valueWidth 50
+			-sliderLength 250
+			-sliderIncrement 0.1
+			-pressCommand "dl_hudSelector( \"dl_HUDPenumbra\" )"
+			-dragCommand "dl_hudSelector( \"dl_HUDPenumbra\" )"
+			-releaseCommand "dl_hudSelector( \"dl_HUDPenumbra\" )"
+			dl_HUDPenumbra;
+	
+	
+	
+	hudSlider -section 2
+			-block 3
+			-visible 1
+			//-bs "large"
+			-label "Icon Size:"
+			-value 1
+			-type "float"
+			-minValue 1
+			-maxValue 100
+			-labelWidth 80
+			-valueWidth 50
+			-sliderLength 250
+			-sliderIncrement 0.1
+			-pressCommand "dl_hudSelector( \"dl_HUDIconSize\" )"
+			-dragCommand "dl_hudSelector( \"dl_HUDIconSize\" )"
+			-releaseCommand "dl_hudSelector( \"dl_HUDIconSize\" )"
+			dl_HUDIconSize;
+			
+			
+	hudSlider -section 2
+			-block 6
+			-visible 1
+			-label "Cut Off:"
+			-value 0
+			-type "float"
+			-minValue 0
+			-maxValue 250
+			-labelWidth 80
+			-valueWidth 50
+			-sliderLength 250
+			-sliderIncrement 0.1
+			-pressCommand "dl_hudSelector( \"dl_HUDCutOff\" )"
+			-dragCommand "dl_hudSelector( \"dl_HUDCutOff\" )"
+			-releaseCommand "dl_hudSelector( \"dl_HUDCutOff\" )"
+			dl_HUDCutOff;
+	
+	
+	hudSlider -section 2
+			-block 7
+			-visible 1
+			-label "Cut Off Edge:"
+			-value 0
+			-type "float"
+			-minValue 0
+			-maxValue 100
+			-labelWidth 80
+			-valueWidth 50
+			-sliderLength 250
+			-sliderIncrement 0.1
+			-pressCommand "dl_hudSelector( \"dl_HUDCutOffEdge\" )"
+			-dragCommand "dl_hudSelector( \"dl_HUDCutOffEdge\" )"
+			-releaseCommand "dl_hudSelector( \"dl_HUDCutOffEdge\" )"
+			dl_HUDCutOffEdge;
+            
+            
+    hudSlider -section 2
+            -block 8
+            -visible 1
+            -label "Camera Overscan:"
+            -value 1
+            -type "float"
+            -minValue 0.01
+            -maxValue 2
+            -labelWidth 80
+            -valueWidth 50
+            -sliderLength 250
+            -sliderIncrement 0.1
+            -pressCommand "dl_hudSelector( \"dl_HUDCameraOverscan\" )"
+            -dragCommand "dl_hudSelector( \"dl_HUDCameraOverscan\" )"
+            -releaseCommand "dl_hudSelector( \"dl_HUDCameraOverscan\" )"
+            dl_HUDCameraOverscan;
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Export/Import Light Rig old way to be delete
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc int dl_lightExp(string $filename, string $fileType)
+{
+	string $fileSel[] = `ls`;
+	string $lightNode[] = `selByAttrTag toDelete $fileSel`;
+    string $lightPlacement[] = `selByAttrTag sunPlacement $fileSel`;
+    $listToExport = stringArrayCatenate($lightNode, $lightPlacement);
+    
+	//To delete the camShape from the lookTru action in maya
+	string $camSelection[] = `listRelatives -s -type "camera" $listToExport`;
+	if(size($camSelection) > 0)
+	{
+		delete $camSelection;
+	}
+	select -r -ne $listToExport;
+	file -op "v=0" -typ "mayaAscii" -pr -es $filename;
+return 1;
+}
+
+global proc dl_lightExpBrowser()
+{
+	if(`objExists lightgen_control`)
+	{
+		warning "Light Rig already in the scene";
+	}
+	else
+	{
+		//window browser
+		//fileBrowserDialog -m 0 -fc "dl_DoLoadLiteGen2" -ft "mel" -an "Parse MelScript" -om "Go";	
+		fileBrowser "dl_lightExp" "Export Light Rig" "ma" 0;
+		string $workingPath = `getenv PWD`;
+		string $lgtDir = `match "^.*/" $workingPath`;		
+		pv_goDirectory $lgtDir;
+	}
+}
+
+global proc int dl_lightImport(string $filename, string $fileType)
+{
+	string $path = $filename;
+	string $filepart = `match "[^/\\]*$" $path`;
+	string $no_component = `match "^[^\.]*" $filepart`;
+
+	//file -import -type "mayaAscii" -options "v=0;p=17" $filename;
+	file -import -type "mayaAscii" -rpr $no_component $filename;
+return 1;
+}
+
+global proc dl_lightImportBrowser()
+{
+	string $locatorLightRig[] = `ls -type delightCoordinateSystem`;
+	string $locatorLightRigTrans[] = `listRelatives -p $locatorLightRig`;
+	
+	string $searchForNode[] = `selByAttrTag toDelete $locatorLightRigTrans`;
+	
+	if(size($searchForNode) > 0)
+	{
+		warning "You Cant put more than one Light Rig.";
+	}
+	else
+	{
+		//window browser
+		//fileBrowserDialog -m 0 -fc "dl_DoLoadLiteGen2" -ft "mel" -an "Parse MelScript" -om "Go";	
+		fileBrowser "dl_lightImport" "Import Light Rig" "ma" 0;
+		string $workingPath = `getenv PWD`;
+		string $lgtDir = `match "^.*/" $workingPath`;
+		pv_goDirectory $lgtDir;
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Export/Import Light Rig END
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Add Image plane
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc int dl_createImagePlane(string $filename, string $fileType)
+{
+
+	string $shaderList[] = `ls -type delightShader`;
+	string $shaderListTag[] = `selByAttrTag imagePlaneDelight $shaderList`;
+	
+	if(size($shaderListTag) > 0)
+	{	
+		string $path = `getenv PWD`;
+		system ("mkdir " + $path + "/LgtImagePlane");
+		//string $dir = `match "^.*/" $filename`;		
+		string $fileName = `basenameEx $filename`;
+		string $tdlFile = ($fileName + ".tdl");	
+		//make tdl file
+		system ("tdlmake " +  $filename + " " + $path + "/LgtImagePlane/" + $tdlFile);
+		
+		string $removeExt = (`match "^[^\.]*" $filename` + ".#.tdl");	
+		$filename = $removeExt;
+		
+		string $cameraSel[] = `ls -sl`;
+		string $cameraSelShape[] = `listRelatives -s $cameraSel[0]`;
+	}
+	else
+	{
+	
+		string $path = `getenv PWD`;
+		
+		system ("mkdir " + $path + "/LgtImagePlane");
+		//string $dir = `match "^.*/" $filename`;	
+		string $namePadNum = `basenameEx $filename`;
+		string $tdlFile = ($namePadNum + ".tdl");	
+		//make tdl file
+		system ("tdlmake " +  $filename + " " + $path + "/LgtImagePlane/" + $tdlFile);
+		
+		string $removeExt = (`match "^[^\.]*" $namePadNum` + ".#.tdl");
+		
+		string $cameraSel[] = `ls -sl`;
+		string $cameraSelShape[] = `listRelatives -s $cameraSel[0]`;	
+	
+		//creation du image plane
+		string $dl_ImagePLane[] = `dl_addShaderImagePlane`;
+		connectAttr -f ($cameraSelShape[0] + ".instObjGroups[0]") ($dl_ImagePLane[0] + ".dagSetMembers[0]");
+	
+		setAttr -type "string" ($dl_ImagePLane[1] + ".bgtexture") ($path + "/LgtImagePlane/" + $removeExt);
+	}
+return 1;
+}
+
+global proc dl_createImagePlaneBrowser()
+{
+	string $cameraSel[] = `ls -sl`;
+	if(size($cameraSel) == 1)
+	{
+		string $cameraSelShape[] = `listRelatives -s $cameraSel[0]`;
+		if(`nodeType $cameraSelShape[0]` == "camera")
+		{			
+			fileBrowser "dl_createImagePlane" "Open" "ltd" 0;
+			string $workingPath = `getenv PWD`;
+			string $remove = `match ".*pipeline" $workingPath`;
+			string $pathVariable = `getenv HOME`;
+			string $repository = $pathVariable;
+			string $lgtDir = ($remove + $repository);
+			pv_goDirectory $lgtDir;
+		}
+		else
+		{
+			warning "Select Camera to attach the image plane";
+		}
+	}
+	else
+	{
+		warning "Select Only One Camera to attach the image plane";
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Add Image plane END
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc dl_LoadDelightAttr()
+{
+	string $TSLSel[] = `ls -sl`;
+	string $dl_LightShape[] = `listRelatives -s  $TSLSel[0]`;	
+	string $dl_DelightShapeSet[] = `listConnections -type delightShapeSet -c 0  $dl_LightShape[0]`;
+	string $dl_DelightAttribs[] = `listConnections -type delightLightAttribs -c 0 $dl_DelightShapeSet[0]`;
+	select $dl_DelightAttribs[0];
+}
+
+global proc dl_lightListWindowShowAE()
+{
+	string $TSLSel[] = `ls -sl`;
+	if (`strcmp $TSLSel[0] "none"`)
+	{
+		select $TSLSel;
+	}
+	ShowAttributeEditorOrChannelBox;
+}
+
+global proc dl_lightListWindowLookThruSel()
+{
+	string $objSel[] = `ls -sl`;
+	string $lightSel[] = `selByAttrTag toDelete $objSel`;
+
+	if(size($lightSel) < 1)
+	{	
+		warning "no light are selected";
+	}
+	else
+	{	
+        
+        string $TSLSel[] = `ls -sl`;
+        string $TSLSelshape[] = `listRelatives -s $TSLSel[0]`;
+        string $lookThruLight= {};
+        for($elem in $TSLSelshape)
+        {
+            if(`nodeType $elem` == "dl_uberLightShape")
+            {
+                $lookThruLight = $elem;
+            }
+        }
+        
+        lookThru $lookThruLight;
+        
+		string $panelView = `getPanel -withFocus`;
+		string $camView  = `modelPanel -q -camera $panelView`;
+		setAttr ($camView + ".farClipPlane") 10000000;
+		setAttr ($camView + ".focalLength") 14;
+	}
+}
+
+global proc d_lightListWindowLookThruCam(string $camSel)
+{	
+	lookThru $camSel;
+	select $camSel;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Rename Tool
+//////////////////////////////////////////////////////////////////////////////////////////
+//Info: rename selected items
+//
+//
+global proc dl_lightListWindowRenameSelect()
+{
+	string $result = `promptDialog 
+		-title "Rename"
+		-message "Enter Name:"
+		-button "OK" -button "Cancel"
+		-defaultButton "OK" -cancelButton "Cancel"
+		-dismissString "Cancel"`;
+
+	string $source[] = `ls -sl`;
+	for($elem in $source)
+	{
+		if ($result == "OK") {		
+			string $text = `promptDialog -query -text`;
+			rename $elem $text;
+		}
+			
+	}
+
+	if ($result == "OK")
+	{
+		print "done!!!";
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Rename Tool END
+//////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Light Color Edit with color picker
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc dl_EditLightColor()
+{
+	
+	string $objSel[] = `ls -sl`;
+	string $lightSel[] = `selByAttrTag toDelete $objSel`;
+
+	if(size($lightSel) < 1)
+	{	
+		warning "no light are selected";
+	}
+	else
+	{
+	//showWindow ColorEditor;
+	
+	
+		string $objSel[] = `ls -sl`;
+		string $lightSel[] = `selByAttrTag toDelete $objSel`;
+	
+		float $sourceColorR = `getAttr ($lightSel[0] + ".lightColorR")`;
+		float $sourceColorG = `getAttr ($lightSel[0] + ".lightColorG")`;
+		float $sourceColorB = `getAttr ($lightSel[0] + ".lightColorB")`;
+	
+
+		if(size($lightSel) > 1)
+		{	
+			warning "More Than One Are Selected";
+		}
+		else
+		{
+			float $formColorR = `getAttr ($lightSel[0] + ".lightColorR")`;
+			float $formColorG = `getAttr ($lightSel[0] + ".lightColorG")`;
+			float $formColorB = `getAttr ($lightSel[0] + ".lightColorB")`;
+						
+						
+			string $result, $buffer[];
+			$result = `colorEditor -rgb $formColorR $formColorG $formColorB`;
+			tokenize($result, $buffer);
+			
+			if(!`strcmp "0 0 0 0" $result`)
+			{
+
+			}
+			else
+			{			
+				float $colorR = $buffer[0];
+				float $colorG = $buffer[1];
+				float $colorB = $buffer[2];		
+				setAttr ($lightSel[0] + ".lightColorR") $colorR;
+				setAttr ($lightSel[0] + ".lightColorG") $colorG;
+				setAttr ($lightSel[0] + ".lightColorB") $colorB;
+			}
+		}
+		
+	}
+
+
+}	
+//////////////////////////////////////////////////////////////////////////////////////////
+//END
+//////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Light Shadow Color and intensity Edit with color/alpha picker
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc dl_EditLightShadowColor()
+{
+	string $objSel[] = `ls -sl`;
+	string $lightSel[] = `selByAttrTag toDelete $objSel`;
+
+	if(size($lightSel) < 1)
+	{	
+		warning "no light are selected";
+	}
+	else
+	{	
+	
+		float $formColorR = `getAttr ($lightSel[0] + ".shadowColorR")`;
+		float $formColorG = `getAttr ($lightSel[0] + ".shadowColorG")`;
+		float $formColorB = `getAttr ($lightSel[0] + ".shadowColorB")`;
+		float $formColorA = `getAttr ($lightSel[0] + ".shadowIntensity")`;
+	
+					
+		string $result, $buffer[];
+		$result = `colorEditor -rgb $formColorR $formColorG $formColorB -a $formColorA`;
+		tokenize($result, $buffer);		
+	
+		if(!`strcmp "0 0 0 0" $result`)
+		{
+		}
+		else
+		{	
+	
+			float $colorR = $buffer[0];
+			float $colorG = $buffer[1];
+			float $colorB = $buffer[2];
+			float $colorA = `colorEditor -query -alpha`;
+		
+			print $colorA;
+			
+			for($elem in $lightSel)
+			{
+		
+				setAttr ($elem + ".shadowColorR") $colorR;
+				setAttr ($elem + ".shadowColorG") $colorG;
+				setAttr ($elem + ".shadowColorB") $colorB;
+				setAttr ($elem + ".shadowIntensity") $colorA;
+		
+			}
+		}
+	}
+
+}	
+//////////////////////////////////////////////////////////////////////////////////////////
+//END
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+global proc string[] dl_renderMultiFrame()
+{
+	
+	string $renderPass = `dl_returnRenderLayer`;	
+	
+	//save rib
+	setAttr ($renderPass + ".renderMode") 1;
+	
+	
+	string $framesList[];
+	string $ribPath[];
+	//frame to render
+	string $frames = `textField -q -text dl_CommandFieldTF`;
+	if(size($frames) > 0)
+	{
+		tokenize($frames, ",", $framesList);
+		
+		for($f in $framesList)
+		{
+			currentTime $f;
+			//save rib file name + frame number
+			setAttr -type "string" ($renderPass+ ".ribFilename") "3delight/<scene>/rib/<scene>_<pass>.`currentTime -q;`.<ext>";
+	
+			string $rib_file = getAttr($renderPass + ".ribFilename");
+			$rib_file = DL_getExpandedFilename($rib_file, "", $renderPass, "rib");			
+			$ribPath[size($ribPath)] = $rib_file;
+			dl_RenderPass;
+		}
+		
+	}
+	else
+	{
+		dl_RenderPass;
+	}
+		
+	setAttr -type "string" ($renderPass+ ".ribFilename") "3delight/<scene>/rib/<scene>_<pass>.<ext>";
+	setAttr ($renderPass + ".renderMode") 3;	
+return $ribPath;
+}
+
+
+
+global proc string[] dl_renderMultiFrameCameraView()
+{
+	
+	string $renderPass = `dl_returnRenderLayer`;	
+		
+	string $cameraview[] = `ls -type cameraView`;
+
+	//save rib
+	setAttr ($renderPass + ".renderMode") 1;
+	string $ribPath[];
+	if(size($cameraview) > 0)
+	{
+
+		for($v in $cameraview)
+		{
+			cameraView -e -camera persp -sc $v;
+			//save rib file name + frame number
+			setAttr -type "string" ($renderPass+ ".ribFilename") ("3delight/<scene>/rib/<scene>_<pass>"+ $v +".<ext>");
+	
+			string $rib_file = getAttr($renderPass + ".ribFilename");
+			$rib_file = DL_getExpandedFilename($rib_file, "", $renderPass, "rib");			
+			$ribPath[size($ribPath)] = $rib_file;
+			dl_RenderPass;
+		}
+		
+	}
+	else
+	{
+		dl_RenderPass;
+	}
+		
+	setAttr -type "string" ($renderPass+ ".ribFilename") "3delight/<scene>/rib/<scene>_<pass>.<ext>";
+	setAttr ($renderPass + ".renderMode") 3;	
+return $ribPath;
+}
+
+
+//From DELIGHT script
+global proc dl_startMultiBackgroundRender(string $renderOption)
+{
+
+	string $renderPass = `dl_returnRenderLayer`;
+
+	string $renderRib[];
+	switch ($renderOption)
+			{
+				
+				case "frames":
+				//Frames option
+				$renderRib = `dl_renderMultiFrame`;
+				
+				break;
+				
+				
+				case "cameraView":
+				//rende camera view
+				$renderRib = `dl_renderMultiFrameCameraView`;
+				
+				break;				
+				
+			}
+
+
+	
+	string $cmd_prefix = "";
+	string $cmd_suffix = " 2>&1 &";
+/*	
+	string $os = `about -os`;
+	if ($os == "nt" || $os == "win64")
+	{
+	$cmd_prefix = "shell ";
+	$log_file = DL_substituteAllString($log_file, "/", "\\");
+	}
+*/	
+	string $extra_params = getAttr($renderPass + ".backgroundRenderParams");
+	$extra_params = DL_substituteAllString($extra_params, "\r", " ");
+	
+	string $cmd = $cmd_prefix + "renderdl " + $extra_params;
+	
+	string $cmdCombine;
+	for($path in $renderRib)
+	{
+		//$cmdCombine += ($cmd + $path + ";" + " " + "rm -f " + $path + ";");
+        $cmdCombine += ($cmd + $path + ";");
+	}
+
+	//$path += $log_file + "\"" + $cmd_suffix + ";";
+	
+	//$cmd = ($cmdCombine + " " + $cmd_suffix);
+	
+	$cmd = ($cmdCombine + $cmd_suffix);
+	
+	print ($cmd + "\n");
+	
+	//render command
+	system($cmd);
+	
+	//print("Render process started; output logged into " + $log_file + "\n");
+}
+
+
+
+global proc dl_setPassForRenderPreview(string $renderPass)
+{
+    setAttr ($renderPass + ".animation") 0;
+    string $prev_parent = `setParent -q`;
+    string $prefix = AE_getWindowBaseNameFromParent($prev_parent) + "_DRP_";
+
+    int $index[] = `DRP_getDisplayIndices $renderPass`;
+    for($i in $index)
+    {
+        string $display = `getAttr ($renderPass + ".displayDrivers[" + $i + "]")`;
+        if(!`gmatch "mplay" $display`)
+        {
+            setAttr -type "string" ($renderPass + ".displayDrivers[" + $i + "]") mplay;
+        }
+    }
+}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//Render Menu
+//////////////////////////////////////////////////////////////////////////////////////////
+global proc dl_RenderPass()
+{
+
+	string $delightAttrSel[] = `ls -type delightGeoAttribs`;
+
+	string $renderPassList[] = `ls -type "delightRenderPass"`;
+	
+	if(size($renderPassList) < 1)
+	{
+        //string $renderPass = `DL_createRenderPassNode`;
+		//delightRender $renderPass;
+        //dl_CreateCustomPassUI;
+        if(!objExists("quickRenderPass"))rename(`DL_createFullRenderPassNode`, "quickRenderPass");delightRender quickRenderPass;delete quickRenderPass;
+	}
+    else
+    {
+        global string $gDelightLastRenderedPass;
+        if(size($gDelightLastRenderedPass) > 0)
+        delightRender $gDelightLastRenderedPass;
+        else
+        delightRender $renderPassList[0];
+
+    }
+    /*
+	else
+	{						
+		if(`window -exists dl_LightControlUI`)
+		{
+			string $renderPassList[] = `ls -type delightRenderPass`;
+			
+			for($elem in $renderPassList)
+			{
+				int $value = `menuItem -q -rb ($elem + "_menu")`;
+				if($value == 1)
+				{
+                    dl_setPassForRenderPreview $elem;
+					delightRender $elem;
+				}
+			}
+		}
+		else
+		{
+            if(`window -exists dl_CreateCustomPassUI`)
+            {
+                string $renderPass = `dl_returnRenderLayer`;
+                dl_setPassForRenderPreview $renderPass;
+                delightRender $renderPass;
+			}
+            else
+            {
+                global string $gDelightLastRenderedPass;
+                if(size($gDelightLastRenderedPass) == 0)
+                {
+                    string $renderPassList[] = `ls -type delightRenderPass`;
+                    dl_setPassForRenderPreview $renderPassList[0];
+                    delightRender $renderPassList[0];
+                }
+                else
+                {
+                    dl_setPassForRenderPreview $gDelightLastRenderedPass;
+                    delightRender $gDelightLastRenderedPass;
+                }
+            } 
+		}
+		
+	}	
+	*/
+}
+
+
+global proc editRendePass(string $menuName)
+{
+    
+    select $menuName;
+    
+    global string $gDelightLastRenderedPass;
+    $gDelightLastRenderedPass = $menuName;
+    
+/*
+	string $renderPassList[] = `ls -type delightRenderPass`;
+	for($elem in $renderPassList)
+	{
+		if(`window -exists dl_LightControlUI`)
+		{
+			int $value = `menuItem -q -rb ($elem + "_menu")`;
+			if($value == 1)	
+			{
+				select $elem;
+				string $renderLayer[] = `listConnections -type "renderLayer" $elem`;
+				if(size($renderLayer) > 0)
+				{
+					editRenderLayerGlobals -currentRenderLayer $renderLayer[0];
+                    global string $gDelightLastRenderedPass;
+                    string $gDelightLastRenderedPass = $renderPassList[0];
+				}
+				else
+				{
+					editRenderLayerGlobals -currentRenderLayer defaultRenderLayer;
+				}
+				if($condition == 1)
+				{
+					openAEWindow;
+				}
+                else            
+				{
+					print "Pass Selected";
+				}
+			}
+		}
+	}
+ */   
+//dl_SavePresetForoutLighter();	
+}
+
+global proc dl_DeleteRenderPass(int $option)
+{
+    //delete All
+    if($option == 1)
+    {
+        string $renderPassList[] = `ls -type delightRenderPass`;
+        string $menuItemToDelete;
+        editRenderLayerGlobals -currentRenderLayer defaultRenderLayer;
+        for($elem in $renderPassList)
+        {
+            if(`menuItem -exists ($elem + "_menu")`)
+            {
+                $menuItemToDelete = ($elem + "_menu");
+                deleteUI -menuItem $menuItemToDelete;
+            }
+            string $listSelection[] = `ls`;
+            string $todelete[] = `selByAttrTag ("renderPass" + $elem) $listSelection`;
+            delete $todelete;
+        }
+    }
+    //delete selected layer
+    else
+    {
+        editRenderLayerGlobals -currentRenderLayer defaultRenderLayer;
+        string $passToDelete = `dl_returnRenderLayer`;
+        string $menuItemToDelete = ($passToDelete + "_menu");
+        if(`menuItem -exists $menuItemToDelete`)
+        {
+            deleteUI -menuItem $menuItemToDelete;
+        }
+        string $listSelection[] = `ls`;
+        string $todelete[] = `selByAttrTag ("renderPass" + $passToDelete) $listSelection`;
+        delete $todelete;
+    }
+}
+
+//Add render pass to the render menu
+global proc dl_PassToRender()
+{
+	string $renderPassSelection[] = `ls -type delightRenderPass`;
+	
+	if(`window -exists dl_LightControlUI`)
+	{
+		if(`radioMenuItemCollection -exists dl_RadioMenu`)
+		{
+		
+			for($eachPass in $renderPassSelection)
+			{
+				if(`menuItem -exists ($eachPass + "_menu")`)
+				{
+					deleteUI ($eachPass + "_menu");
+				}
+			}
+		
+			deleteUI dl_RadioMenu;
+	
+			
+			radioMenuItemCollection -p dl_MenuRender dl_RadioMenu;
+			for($eachPass in $renderPassSelection)
+			{
+					menuItem -rb 1 -p dl_MenuRender -c ("editRendePass " + $eachPass) -label $eachPass ($eachPass + "_menu");			
+			}
+	
+	
+		}
+	
+		else
+		{
+			radioMenuItemCollection -p dl_MenuRender dl_RadioMenu;
+			for($eachPass in $renderPassSelection)
+			{
+					menuItem -rb 1 -p dl_MenuRender -c ("editRendePass " + $eachPass) -label $eachPass ($eachPass + "_menu");			
+			}	
+			
+		}
+	}
+}
+
+
+global proc int dl_PtcViewOpen(string $filename, string $fileType)
+{	
+	system("ptcview " + $filename + ">/dev/null 2>&1 &");
+    return 1;
+}
+
+global proc dl_PtcView()
+{
+	//window browser
+	//fileBrowserDialog -m 0 -fc "dl_DoLoadLiteGen2" -ft "mel" -an "Parse MelScript" -om "Go";	
+	fileBrowser "dl_PtcViewOpen" "Open" "ptc" 0;
+
+
+	////
+	//find project
+	////
+	string $filename = `file -q -sn`;
+	string $filenameDir = (`pwd` + "/");
+	string $removeExt;
+	if(size($filename) > 1)
+	{
+		////
+		//define scene name without ext
+		////
+		string $fileNameShort = `file -q -sn -shn`;
+		$removeExt = `match "^[^\.]*" $fileNameShort`;
+	}
+	else
+	{
+		$filenameDir = (`pwd` + "/");
+		$removeExt = "untitled";		
+	}
+
+	////
+	//path to the log
+	////
+	string $completePath = ("3delight/" + $removeExt + "/ptcLgt");
+	
+	
+	////
+	//Log path to load
+	////
+	string $finalPath = $filenameDir + $completePath;
+	
+	////
+	//set path in file browser
+	////
+	pv_goDirectory $finalPath;
+}
+
+
+global proc createSceneTest()
+{
+	string $laBoule[] = `polySphere`;
+	move 0 1 0 $laBoule;
+	string $lePlane[] = `polyPlane`;
+	scale 10 1 10 $lePlane; 
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//GUI SECTION
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+//
+//channelBox menu
+//
+global proc dl_channelBoxChangePrecision()
+{
+		int $text;
+		string $result = `promptDialog
+		-title "Decimal Precision"
+		-text "3"
+		-message "Enter number of decimal places:"
+		-button "OK" -button "Cancel"
+		-defaultButton "OK" -cancelButton "Cancel"
+		-dismissString "Cancel"`;
+	
+		if ($result == "OK") 
+		{
+			$text = `promptDialog -query -text`;
+			channelBox -e -precision $text dl_LightEditCB;
+		}
+}		
+		
+        
+//Layout gui
+////
+global proc dl_OutLighterLayout()
+{
+	int $valueFull = 100;
+	int $valueNormal = 53;
+
+	int $visibility = `frameLayout -q -vis dl_LightControlEditFL`;
+	if($visibility == 0)
+	{
+		frameLayout -e -vis 1 dl_LightControlEditFL;
+		formLayout -edit
+			//LIGHT SECTION
+			-attachPosition dl_LightControlLightFL left 0 0
+			-attachPosition dl_LightControlLightFL right 0 53
+			
+		dl_LightControlFL;		
+	}
+	else
+	{
+		frameLayout -e -vis 0 dl_LightControlEditFL;
+		formLayout -edit
+			//LIGHT SECTION
+			-attachPosition dl_LightControlLightFL left 0 0
+			-attachPosition dl_LightControlLightFL right 0 100
+			
+		dl_LightControlFL;			
+	}	
+}
+
+/*
+//Save the selection of the render pass and load
+////
+global proc dl_SavePresetForoutLighter()
+{
+	string $renderPassList[] = `ls -type delightRenderPass`;
+	string $RenderPassNode;
+	if(`window -exists dl_LightControlUI`)
+	{
+		for($elem in $renderPassList)
+		{
+			int $value = `menuItem -q -rb ($elem + "_menu")`;
+			if($value == 1)
+			{
+				$RenderPassNode = $elem;
+			}
+		}
+	}	
+	$path = dl_PresetPathUser() + "presetLgt";
+	$fileId = `fopen $path "w"`;
+	fprint $fileId  $RenderPassNode;
+	fclose $fileId;
+}
+*/
+global proc dl_loadrenderPassSelection()
+{
+    global string $gDelightLastRenderedPass;
+    if(`objExists $gDelightLastRenderedPass`)
+    {
+        menuItem -e -rb 1 ($gDelightLastRenderedPass + "_menu");
+    }
+
+    else
+    {
+        string $renderPassList[] = `ls -type delightRenderPass`;
+        if(size($renderPassList) < 1)
+        {
+        }
+        else
+        {
+            menuItem -e -rb 1 ($renderPassList[0] + "_menu");
+        }
+    }    
+    
+/*
+	$path = dl_PresetPathUser() + "presetLgt";
+    if(`filetest -f $path` == 0);
+    else
+    {	
+        int $filePaths = `fopen $path "r"`;
+ 
+		string $renderPassNode = `fgetline $filePaths`;
+		if(`objExists $renderPassNode`)
+		{
+			menuItem -e -rb 1 ($renderPassNode + "_menu");
+		}
+		else
+		{
+			string $renderPassList[] = `ls -type delightRenderPass`;
+			if(size($renderPassList) < 1)
+			{
+			}
+			else
+			{
+				menuItem -e -rb 1 ($renderPassList[0] + "_menu");
+			}	
+		}
+	}
+*/
+}	
+
+
+global proc dl_refreshRenderMenuOnSelectRenderLayer()
+{
+	//string for tool name
+	string $toolName = "outlighterRenderLayer";
+	string $treeControl = ($toolName + "RenderLayerEditor");			
+	string $laSel[] =  `treeView -q -si $treeControl`;
+	
+	string $renderPass[] = `listConnections  $laSel`;
+	for($elem in $renderPass)
+	{
+		if(`nodeType $elem` == "delightRenderPass")
+		{
+			if(`window -exists dl_LightControlUI`)
+			{
+				string $renderPassList[] = `ls -type delightRenderPass`;
+				if(size($renderPassList) < 1)
+				{
+				}
+				else
+				{
+					menuItem -e -rb 1 ($elem + "_menu");
+				}
+			}
+		}
+	}
+}
+
+//END
+////
+
+//define the user workspace
+global proc string dl_PresetPathUser()
+{
+	string $path = getenv("HOME") + "/.dl_light";
+	sysFile -md  $path;
+	return $path  + "/";
+}
+
+global proc dl_MMForMaya()
+{
+	if(`menu -exists MMDOM`)
+	{
+	}
+	else
+	{	
+		string $windowToAttach[] = `getPanel -type modelPanel`;
+		for($elem in $windowToAttach)
+		{
+			dl_MarkingMenuLight $elem;
+		}	
+	}
+
+}
+
+
+
+global proc dl_SelectAttachObjectToDelightAttr()
+{
+    string $selection[] = `ls -sl`;
+    string $new_selection[];
+    if(size($selection)>0)
+    {
+        if(`nodeType $selection[0]` == "delightGeoAttribs")
+        {
+            for($elem in $selection)
+            {
+                if(`nodeType $elem` == "delightGeoAttribs")
+                {
+                        string $shapes[];
+        
+                        $shapes = DL_getShapesFromObjectShader($elem);
+                        appendStringArray($new_selection, $shapes, size($shapes));
+                }
+            }
+            $new_selection = stringArrayCatenate ($new_selection, $selection);
+            select -noExpand $new_selection;
+        }
+    }
+    
+}
+
+
+//
+//OutLighter Filter Display
+//
+global proc dl_OutLinerFilter(string $filter)
+{
+ 	outlinerEditor -edit -dag 1 -mainListConnection $filter dl_OutLinerPanel;
+ 	
+ 	if(!`strcmp($filter) "dl_LightList"`)
+ 	{
+ 		frameLayout -e  -l "Light" dl_LightControlLightFL;
+ 	}
+ 	else
+ 	{
+ 		frameLayout -e  -l "OutLiner" dl_LightControlLightFL;
+ 	}
+    dl_AddPopupToOutlighter; 
+}
+
+global proc dl_OutLinerShaderFilter()
+{
+	string $delightShaderSel[] = `ls -type "delightSurfaceShader"`;
+	string $delightShaderSelTag[] = `selByAttrTag renderPassfog $delightShaderSel`;
+	
+	if(`selectionConnection -exists shaderList`)
+	{
+		deleteUI shaderList;
+	}
+	
+	selectionConnection shaderList;
+
+    for($shader in $delightShaderSel)
+    {
+        selectionConnection -e -s $shader shaderList;
+    }
+	
+	outlinerEditor -edit -dag 0 -mainListConnection shaderList dl_OutLinerPanel;
+	
+	frameLayout -e  -l "Shader" dl_LightControlLightFL;
+    dl_AddPopupToOutlighter;
+}
+
+global proc dl_OutLinerObjDelightFilter()
+{
+	string $delightAttrSel[] = `ls -type "delightGeoAttribs"`;
+
+	if(`selectionConnection -exists attributesList`)
+	{
+		deleteUI attributesList;
+	}
+	
+	selectionConnection attributesList;
+    for($attr in $delightAttrSel)
+    {
+        selectionConnection -e -s $attr attributesList;
+    }
+	
+	outlinerEditor -edit -dag 0 -mainListConnection attributesList dl_OutLinerPanel;
+	
+	frameLayout -e  -l "Geo Attributes" dl_LightControlLightFL;
+    dl_AddPopupToOutlighter;
+}
+
+global proc dl_OutLinerRenderPassFilter()
+{
+    string $delightAttrSel[] = `ls -type "delightRenderPass"`;
+
+    if(`selectionConnection -exists renderPasslist`)
+    {
+        deleteUI renderPasslist;
+    }
+
+    selectionConnection renderPasslist;
+    for($attr in $delightAttrSel)
+    {
+        selectionConnection -e -s $attr renderPasslist;
+    }
+
+    outlinerEditor -edit -dag 0 -mainListConnection renderPasslist dl_OutLinerPanel;
+
+    frameLayout -e  -l "Render Pass" dl_LightControlLightFL;
+    dl_AddPopupRenderPassToOutlighter;
+}
+
+
+
+global proc dl_OutLinerRenderCommand()
+{
+    string $pass[] = `ls -sl`;
+    delightRender $pass[0];
+}
+
+////
+//Proc to delete the popup menu and create new popup menu
+////
+global proc dl_AddPopupToOutlighter()
+{
+	//Filter For the Outliner
+	
+	string $popupMenuToDelete = `outlinerEditor -q -control dl_OutLinerPanel`;
+
+	string $popup_menus[] = `control -q -popupMenuArray $popupMenuToDelete`;
+	for($curr_menu in $popup_menus)
+	{
+		deleteUI $curr_menu;
+	}
+
+		popupMenu -b 3 -parent dl_OutLinerPanel outlinerPMOprtion;
+		
+		menuItem -rp "NW" -c "dl_OutLinerShaderFilter" -label "Shader";
+		menuItem -rp "N" -c "dl_OutLighterLayout" -label "Layout Switch";
+		menuItem -rp "NE" -c "dl_OutLinerFilter dl_LightList" -l "Light List";
+		menuItem -rp "E" -c "dl_CopyLight" -label "Copy Light";
+		menuItem -rp "S" -c "dl_multiSunAttributeEditor" -l "Sun Editor";
+		menuItem -rp "W" -c "dl_renderPassUI" -label "Pass Editor";		
+		menuItem -rp "SW" -c "dl_OutLinerObjDelightFilter" -label "Obj Attrib";
+		menuItem -rp "SE" -c "dl_OutLinerFilter worldList" -label "Outliner";			
+		
+		menuItem -c "dl_delightSpotLightCreate" -label "SpotLight";
+        menuItem -c "dl_EditLightColor" -l "Edit Color";      
+		menuItem -c "dl_deleteLight 1" -l "Delete Selected Light";
+		menuItem -c "dl_indirectEnvFileBrowser" -label "Attach HDR";
+		menuItem -divider true;
+        menuItem -subMenu true -label "Geo Attribute" dl_DelightAttributeMenu;
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection attach" -label "Attach";
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection delete" -label "Break";
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection create" -label "Create";
+        setParent -menu ..;
+		menuItem -subMenu true -label "More Filter" dl_FilterMenu;
+			menuItem -c "dl_OutLinerFilter dl_LightList" -label "Light Filter";
+			menuItem -c "dl_OutLinerFilter worldList" -label "Outliner Filter";
+			menuItem -c "dl_OutLinerObjDelightFilter" -label "Delight Obj Attr";
+			menuItem -c "dl_OutLinerShaderFilter" -label "Shader";
+		setParent -menu ..;	
+		menuItem -divider true;
+		menuItem -subMenu true -label "Display" dl_DisplayMenu;
+			menuItem -cb 0 -c "dl_PopupmenuShowDagOnly" -label "Show Dag Only";
+			menuItem -cb 0 -c "dl_PopupmenuShowShape" -label "Show Shape";			
+		setParent -menu ..;
+		menuItem -divider true;		
+
+}
+
+global proc dl_AddPopupRenderPassToOutlighter()
+{
+    //Filter For the Outliner
+    
+    string $popupMenuToDelete = `outlinerEditor -q -control dl_OutLinerPanel`;
+
+    string $popup_menus[] = `control -q -popupMenuArray $popupMenuToDelete`;
+    for($curr_menu in $popup_menus)
+    {
+        deleteUI $curr_menu;
+    }
+
+        popupMenu -b 3 -parent dl_OutLinerPanel outlinerPMOprtion;
+        
+        menuItem -rp "NW" -c "dl_OutLinerShaderFilter" -label "Shader";
+        menuItem -rp "N" -c "dl_OutLighterLayout" -label "Layout Switch";
+        menuItem -rp "NE" -c "dl_OutLinerFilter dl_LightList" -l "Light List";
+        menuItem -rp "E" -c "dl_CopyLight" -label "Copy Light";
+        menuItem -rp "S" -c "dl_multiSunAttributeEditor" -l "Sun Editor";
+        menuItem -rp "W" -c "dl_OutLinerRenderCommand" -label "Render";
+        menuItem -rp "SW" -c "dl_OutLinerObjDelightFilter" -label "Obj Attrib";
+        menuItem -rp "SE" -c "dl_OutLinerFilter worldList" -label "Outliner";           
+
+
+/*        
+        menuItem -c "dl_delightSpotLightCreate" -label "SpotLight";
+        menuItem -c "dl_EditLightColor" -l "Edit Color";      
+        menuItem -c "dl_deleteLight 1" -l "Delete Selected Light";
+        menuItem -c "dl_indirectEnvFileBrowser" -label "Attach HDR";
+        menuItem -divider true;
+        menuItem -subMenu true -label "Geo Attribute" dl_DelightAttributeMenu;
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection attach" -label "Attach";
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection delete" -label "Break";
+            menuItem -c "dl_attachDeleteAttribsNodeToSelection create" -label "Create";
+        setParent -menu ..;
+        menuItem -subMenu true -label "More Filter" dl_FilterMenu;
+            menuItem -c "dl_OutLinerFilter dl_LightList" -label "Light Filter";
+            menuItem -c "dl_OutLinerFilter worldList" -label "Outliner Filter";
+            menuItem -c "dl_OutLinerObjDelightFilter" -label "Delight Obj Attr";
+            menuItem -c "dl_OutLinerShaderFilter" -label "Shader";
+        setParent -menu ..; 
+        menuItem -divider true;
+        menuItem -subMenu true -label "Display" dl_DisplayMenu;
+            menuItem -cb 0 -c "dl_PopupmenuShowDagOnly" -label "Show Dag Only";
+            menuItem -cb 0 -c "dl_PopupmenuShowShape" -label "Show Shape";          
+        setParent -menu ..;
+        menuItem -divider true;     
+*/
+}
+
+
+////
+//Filter for shape and dag object for the popup menu 
+////
+global proc dl_PopupmenuShowDagOnly()
+{
+	int $statusOfdisplay = `outlinerEditor -q -showDagOnly dl_OutLinerPanel`;
+	if($statusOfdisplay == 0)
+	{
+		outlinerEditor -e -showDagOnly 1 dl_OutLinerPanel;
+	}
+	else
+	{
+		outlinerEditor -e -showDagOnly 0 dl_OutLinerPanel;
+	}
+
+}
+
+global proc dl_PopupmenuShowShape()
+{
+	int $statusOfdisplay = `outlinerEditor -q -showShapes dl_OutLinerPanel`;
+	if($statusOfdisplay == 0)
+	{
+		outlinerEditor -e -showShapes 1 dl_OutLinerPanel;
+	}
+	else
+	{
+		outlinerEditor -e -showShapes 0 dl_OutLinerPanel;
+	}
+
+}
+
+
+global proc dl_MarkingMenuLight(string $attachWindow)
+{
+	popupMenu -aob 1 -sh 1 -alt 1 -mm 1 -parent $attachWindow MMLightTool;
+		menuItem -rp "NW" -c "dl_renderPassUI" -label "Pass Editor";
+		menuItem -rp "N" -c "dl_lightControl" -l "OutLighter";
+		menuItem -rp "NE" -c "dl_interestSet" -l "Aim To";
+		menuItem -rp "E" -c "dl_lightListWindowLookThruSel" -l "Look Thru";
+		menuItem -rp "S" -c "dl_multiSunAttributeEditor" -l "Sun Editor";
+		menuItem -rp "W" -c "dl_RenderPass" -label "Last Render";
+        menuItem -ob 1 -c "dl_ptcToolboxCreateWindow";
+		menuItem -rp "SW" -c "system(\"killall renderdl\")" -label "Kill All Render";
+        menuItem -rp "SE" -c "dl_turnOnOffLightHUD" -label "Light HUD";
+		
+        
+        menuItem  -subMenu true -label "Lighting";
+            menuItem -c "dl_createSpotLightInView" -l "Create Spot>>LookThru";
+            menuItem -c "dl_EditLightColor" -l "Edit Color";
+            menuItem -c "dl_EditLightShadowColor" -l "Edit Shadow Color";
+            menuItem -c "dl_CopyLight" -label "Copy Light";
+            menuItem -c "dl_deleteLight 1" -l "Delete Selected Light";
+            menuItem -c "dl_deleteLight 0" -l "Delete Light Rig";
+        setParent -menu ..;         
+        
+        menuItem  -subMenu true -label "Rendering";
+            menuItem -c "dl_renderOnFarmUI" -label "Render on Farm";
+            menuItem -c "dl_uiSetToolContext(\"dl_cropTool\", 0);" -label "Render Region";
+        setParent -menu ..;
+		menuItem -divider true;
+		menuItem -divider true;
+        menuItem -c "dl_setFarClipPlaneLightCamera" -l "Set Far Clip Plane";
+        menuItem -c "openKonsole" -label "Open Konsole";
+        menuItem -c "dl_OpenLogFile" -label "Open Log";
+
+
+    popupMenu -aob 1  -sh 1 -alt 1 -ctl 1 -mm 1 -parent $attachWindow MMLightTool2;
+        menuItem -rp "NW" -c "dl_renderPassUI" -label "Pass Editor";
+        menuItem -rp "N" -c "dl_lightControl" -l "OutLighter";
+        menuItem -rp "NE" -c "dl_renderOnFarmUI" -label "Render On Farm";
+        menuItem -rp "E" -c "dl_uiSetToolContext(\"dl_cropTool\", 0);" -label "Render Region";
+        menuItem -rp "S" -c "dl_OpenLogFile" -l "Open Log";
+        menuItem -rp "W" -c "dl_RenderPass" -label "Last Render";
+        menuItem -ob 1 -c "dl_ptcToolboxCreateWindow";
+        
+        menuItem -rp "SW" -c "system(\"killall renderdl\")" -label "Kill All Render";
+        menuItem -rp "SE" -c "openKonsole" -label "Open Konsole";
+}
+
+global proc dl_lightControl()
+{
+
+
+	if(`panel -exists dl_OutLinerPanel`)
+	{
+		deleteUI -panel dl_OutLinerPanel;
+	}
+
+	if(`window -exists dl_LightControlUI`)
+	{
+		deleteUI dl_LightControlUI;
+	}
+	
+	window -menuBar true -title "OutLighter" dl_LightControlUI;
+
+	menu 
+		-label "File" 
+		-tearOff true;
+
+		//menuItem -c "dl_CreateLightRig()" -label "Light Gen" -ann "Create Light Rig with a Mel Script generated by HdrShop";
+		menuItem  -c "dl_importLightRigGenBrowser" -label "Open light Rig" -ann "Import Light Rig Saved by the user";
+		menuItem -c "dl_exportLightRigGenBrowser" -label "Export Light Rig" -ann "Export Light Rig";
+		menuItem -divider true;
+		menuItem -c "deleteUI dl_LightControlUI" -label "Exit" -ann "Exit OutLighter";
+	menu 
+		-label "Edit" 
+		-tearOff true;
+
+		menuItem -c "dl_EditLightColor" -l "Edit Color" -ann "Edit Color for one selected Light";
+		menuItem -c "dl_EditLightShadowColor" -l "Edit Shadow Color" -ann "Edit Shadow Color/Intensity for Selected Lights ---- Usage: RGB for the color Alpha for intensity";
+		menuItem -c "dl_CopyLight" -label "Copy Light";		
+		menuItem -c "dl_indirectEnvFileBrowser" -l "Attach HDR";
+		menuItem -subMenu true -label "Delete All By Type" deleteAllBySubMenu;
+		menuItem -c "dl_deleteLight 0" -l "Light Rig" -ann "Delete Every Light created by this tool in the scene !!!";
+		menuItem -c "dl_deleteAllByCrap" -l "Crap";
+		setParent -menu..;
+		menuItem -divider true;//Fixer le create spotlight avec le nom du group
+		menuItem -c "dl_lightListWindowRenameSelect" -l "Rename";
+		menuItem -c "dl_LoadDelightAttr" -l "Select Delight Attr";
+		menuItem -c "dl_lightingUtilitySetupWriteShadowMapApply" -l "Setup Write Shadow Map Attr";
+		menuItem -divider true;
+		menuItem -c "dl_deleteLight 1" -l "Delete Selected Light";		
+		
+
+	menu 
+		-label "Create" 
+		-tearOff true;
+
+        menuItem -subMenu true -label "Lights" lightsSubMenu;
+            menuItem -en 1 -p lightsSubMenu -c "dl_delightSpotLightCreate" -label "SpotLight";
+            menuItem -c "dl_indirectEnvLightCreateGrp" -label "Indirect/Env Light";
+            menuItem -c "trf_lightCausticBrowser" -label "Caustic";
+            menuItem -c "dl_placementPhysicalSkyCreateGrp" -label "Sun";
+        setParent -menu..;
+		menuItem -c "dl_createImagePlaneBrowser" -label "Image Plane";
+	
+		menuItem -subMenu true -label "Light Rig" FireSubMenu;
+            menuItem -c "dl_DefaultRigCreate" -label "IBL";
+            menuItem -c "dl_physicslSkyRigCreate" -label "Physical Sky";
+			//menuItem -en 1 -p FireSubMenu -c "dl_fireSpot" -label "Create Fire Spot";
+			//menuItem -en 1 -p FireSubMenu -c "Trf_fireSpotColor" -label "Create colored Fire Spot";
+		setParent -menu..;
+
+		
+		menuItem -subMenu true -label "Delight Attribute" AddDelightAttrSubMenu;		
+			//menuItem -en 0 -p AddDelightAttrSubMenu -c "addSelFOccGeoAttribute 1 dl_SelfOccON" -label "Add selfOcclude ON";
+			menuItem -p AddDelightAttrSubMenu -c "addSelFOccGeoAttribute 0 layoutLgt" -label "SelfOcclude";
+		setParent -menu..;
+		
+		menuItem -c "createSceneTest" -label "Scene Test";
+		
+		
+		
+		menuItem -divider true;
+
+	menu 
+		-label "Show" 
+		-tearOff true;
+		menuItem -c "dl_OutLinerFilter dl_LightList" -label "Light Filter";
+		menuItem -c "dl_OutLinerFilter worldList" -label "Outliner Filter";
+		menuItem -c "dl_OutLinerObjDelightFilter" -label "Delight Obj Attr";
+		menuItem -c "dl_OutLinerShaderFilter" -label "Shader";
+        menuItem -c "dl_OutLinerRenderPassFilter" -label "Render Pass";
+					
+		menuItem -divider true;
+
+	menu 
+		-label "Window" 
+		-tearOff true;
+        menuItem -c "dl_renderOnFarmUI" -label "Render on Farm";
+        menuItem -c "dl_renderPassUI" -label "Render Pass Editor";
+        menuItem -c "dl_multiSunAttributeEditor" -label "Sun Editor" -ann "Edit Sun Attributes";
+        menuItem -c "dl_dispBoundUI" -label "Displacement Bound Editor";
+		menuItem -c "L_checkList" -label "Check List" -ann "Les Choses a faire et a ne po oublier";
+		menuItem -c "L_setRenderStats" -label "Multi Render Stats" -ann "Turn ON/OFF Render stats for a selection";
+		//menuItem -c "dl_OutLightLinkerUI" -label "Light/Shadow Links" -ann "Make light/Shadow Links";
+		menuItem -c "dl_OpenLogFile" -label "Render Log" -ann "Display render log";
+		menuItem -c "dl_PuzzleTool" -label "Puzzle Editor";
+		menuItem -divider true;
+		menuItem -c "DL_shaderAssignmentPanel" -label "Assignment Panel";
+		menuItem -c "openDelightAttribsNodeManager" -label "Attributes Node Manager";
+		
+		
+		menuItem -divider true;
+		menuItem -c "openKonqueror" -label "Open Browser";
+		menuItem -c "openKonsole" -label "Open Konsole";
+		
+		
+		menuItem -divider true;
+
+	menu 
+		-label "Cam" 
+		-tearOff true;
+			string $camList[] = `listCameras -p`;
+			for($elem in $camList)
+			{
+				menuItem  -c ("d_lightListWindowLookThruCam(\"" + $elem + "\")") -label $elem;
+			}
+			
+			menuItem -divider true;
+/*
+	menu 
+		-label "Render" 
+		-tearOff true
+        -pmc dl_loadrenderPassSelection
+		dl_MenuRender;
+        
+			menuItem -c "dl_RenderPass" -label "Render" -ann "---- To Render The Selected Pass ----";
+            menuItem -c "system \"killall renderdl\"" -label "Kill All Render" -ann "---- Kill All Render ----";
+			menuItem -subMenu true -label "Pass" passSubMenu;	
+				menuItem -p passSubMenu	 -c "dl_CreateCustomPassUI" -label "Pass Editor";
+				menuItem -en 0 -p passSubMenu	 -c "dl_AddSecondaryPass" -label "Add Secondary Pass";
+				menuItem -en 0 -p passSubMenu	 -c "dl_DefaultPass" -label "Default";			
+				menuItem -p passSubMenu -divider true;
+				//menuItem -p passSubMenu	 -c "editRendePass gg" -label "Edit";
+				//menuItem -p passSubMenu	 -c "dl_DeleteRenderPass 0" -label "Delete";
+			setParent -menu..;
+			menuItem -subMenu true -label "Ptc Files" bakeSubMenu;	
+				menuItem -p bakeSubMenu -c "dl_ptcFileBrowser 1" -label "Attach Self Occlude Ptc File" -ann "---- To Assign Ptc File For Env And Indirect light----";
+				menuItem -p bakeSubMenu -c "dl_ptcFileBrowser 0" -label "Attach Non Self Occlude Ptc File" -ann "---- To Assign Non Self Occlude Ptc File For Env And Indirect light----";
+			setParent -menu..;
+			menuItem -subMenu true -label "ZZZ" ZZZSubMenu;
+				menuItem -p ZZZSubMenu	 -c "dl_setCamZZZ" -label "Set ZZZ";		
+			setParent -menu..;			
+			
+			//menuItem -c "dl_OpenLogFile" -label "Open Log";
+           // menuItem -c "dl_LoadLogFilePrintInOutPut" -label "Output Log";
+			menuItem -subMenu true -label "Resolution Preset" qualityPreset;
+				//menuItem -p qualityPreset -c "dl_RenderPassPreSet" -label "HI"
+				menuItem -p qualityPreset -c "dl_renderPassResolutionSize full" -label "full";
+				menuItem -p qualityPreset -c "dl_renderPassResolutionSize half" -label "half";
+				menuItem -p qualityPreset -c "dl_renderPassResolutionSize quarter" -label "quarter";
+			setParent -menu..;
+		
+			menuItem -divider true;
+			
+	setParent..;
+
+	menu 
+		-label "Help" 
+		-tearOff true;
+			menuItem  -c "outLighterHelp" -label "Help Tool";
+			menuItem  -c "L_checkList" -label "Check List";
+			//menuItem  -c "renderPassHelp" -label "Render Layer";
+			
+			//menuItem -divider true;
+			//menuItem -label "About Tool";
+*/
+		string  $FL = `formLayout -ann "Press Alt Right Clic" dl_LightControlFL`;
+
+			frameLayout -l "Edit" dl_LightControlEditFL;
+				frameLayout -lv 0;
+					channelBox dl_LightEditCB;
+						popupMenu -b 3 channelBoxMenuPM;
+							menuItem -c "dl_spotLightPresetAttributeDisplay short" -l "Short Attribute List" ;
+							menuItem -c "dl_spotLightPresetAttributeDisplay full" -l "Full Attribute List" ;
+							menuItem -c "dl_channelBoxChangePrecision" -l "Change Precision..." ;				
+					//dl_MarkingMenuLight dl_LightControlFL;
+	
+				setParent..;
+			setParent..;
+	
+			frameLayout -l "Light" dl_LightControlLightFL;
+		
+			if(`selectionConnection -exists dl_LightList`)
+			{
+				deleteUI dl_LightList;
+			}
+			selectionConnection -obj defaultLightSet dl_LightList;
+	
+			string $panel = `outlinerPanel -mbv 0 dl_OutLinerPanel`;
+			string $outliner = `outlinerPanel -query -outlinerEditor $panel`;
+			outlinerEditor -edit
+			-mainListConnection "dl_LightList"
+			-selectionConnection "modelList"
+			-showShapes false
+			-showAttributes false
+			-showConnected false
+			-showAnimCurvesOnly false
+			-autoExpand false
+			-showDagOnly true
+			-ignoreDagHierarchy false
+			-expandConnections false
+			-showNamespace true
+			-showCompounds true
+			-showNumericAttrsOnly false
+			-highlightActive true
+			-autoSelectNewObjects false
+			-doNotSelectNewObjects false
+			-transmitFilters false
+			-showSetMembers true
+			-setFilter defaultSetFilter
+            -selectCommand dl_SelectAttachObjectToDelightAttr
+			$outliner;	
+			
+			
+			setParent..;
+	
+			formLayout -edit
+	
+			//LIGHT SECTION
+			-attachPosition dl_LightControlLightFL left 0 0
+			-attachPosition dl_LightControlLightFL right 0 53
+			-attachForm dl_LightControlLightFL top 1
+			-attachForm dl_LightControlLightFL bottom 0
+	
+			//EDIT SECTION
+			-attachPosition dl_LightControlEditFL left 0 53
+			-attachPosition dl_LightControlEditFL right 0 100
+			-attachForm dl_LightControlEditFL top 1
+			-attachForm dl_LightControlEditFL bottom 0
+	
+		$FL;
+	
+	
+	showWindow dl_LightControlUI;
+	window -e -w 300 -h 500 dl_LightControlUI;;
+	
+	//Ajoute les pass de render au menu
+	//dl_PassToRender();
+	//dl_MMForMaya();
+	dl_AddPopupToOutlighter();
+	//dl_loadrenderPassSelection();	
+    dl_OutLighterLayout;
+
+
+}
+dl_MMForMaya;
+//////////////////////////////////////////////////////////////////////////////////////////
+//GUI SECTION END
+//////////////////////////////////////////////////////////////////////////////////////////

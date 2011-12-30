@@ -1,0 +1,1538 @@
+/*
+	Copyright (c) 2006 soho vfx inc.
+	Copyright (c) 2006 The 3Delight Team.
+*/
+
+/*
+  The purpose of DSN_addCustomShaderNodeType and DSN_removeCustomShaderNodeType
+  is to allow user-defined shader nodes to be assigned using the same tools as
+  our own delightShader nodes. Simply register your type by calling
+  DSN_addCustomShaderNodeType( "yourNodeType" ) and define a procedure to
+  output it, such as:
+
+  global proc
+  DSN_outputCustom_yourNodeType( string $node, string $type, string $handle )
+  {
+    RiArchiveRecord -m "comment" -t $node;
+    RiArchiveRecord -m "comment" -t $type;
+    RiArchiveRecord -m "comment" -t $handle;
+  }
+*/
+global string $g_DL_customShaderNodeTypes[];
+
+global proc
+DSN_addCustomShaderNodeType( string $type )
+{
+  global string $g_DL_customShaderNodeTypes[];
+
+  if( -1 == DL_stringArrayIndexOf( $type, $g_DL_customShaderNodeTypes ) )
+  {
+    $g_DL_customShaderNodeTypes[size($g_DL_customShaderNodeTypes)] = $type;
+
+    if (DEX_getPanel() != "")
+    {
+      /* Refresh the shaders and attribs panel's filters. */
+      DEX_updateShadersAndAttribsMainSelectionConnection();
+      DEX_initPanel( "" );
+    }
+  }
+}
+
+global proc
+DSN_removeCustomShaderNodeType( string $type )
+{
+  global string $g_DL_customShaderNodeTypes[];
+
+  string $to_remove[] = { $type };
+  $g_DL_customShaderNodeTypes =
+    DL_stringArrayDifference( $g_DL_customShaderNodeTypes, $to_remove );
+
+  if (DEX_getPanel() != "")
+  {
+    /* Refresh the shaders and attribs panel's filters. */
+    DEX_updateShadersAndAttribsMainSelectionConnection();
+    DEX_initPanel( "" );
+  }
+}
+
+global proc string[]
+DSN_getShaderNodeTypes()
+{
+  string $types[];
+  clear($types);
+  $types[size($types)] = "delightShader";
+  $types[size($types)] = "delightSurfaceShader";
+  $types[size($types)] = "delightDisplacementShader";
+  $types[size($types)] = "delightLightShader";
+  $types[size($types)] = "delightAtmosphereShader"; 
+  $types[size($types)] = "delightInteriorShader"; 
+  $types[size($types)] = "delightImagerShader";
+
+  return $types;
+}
+
+global proc int
+DSN_isBuiltInShaderNodeType( string $type )
+{
+  string $types[] = DSN_getShaderNodeTypes();
+  for( $curr_type in $types )
+  {
+    if( $type == $curr_type )
+      return true;
+  }
+  
+  return false;
+}
+
+global proc int
+DSN_isCustomShaderNodeType( string $type )
+{
+  global string $g_DL_customShaderNodeTypes[];
+  for( $customType in $g_DL_customShaderNodeTypes )
+  {
+    if( $type == $customType )
+      return true;
+  }
+  
+  return false;
+}
+
+global proc int
+DSN_isShaderNodeType( string $type )
+{
+  if( DSN_isBuiltInShaderNodeType( $type ) )
+    return true;
+    
+  if( DSN_isCustomShaderNodeType( $type ) )
+    return true;
+
+  return false;
+}
+
+global proc string[]
+DSN_getAllShaderNodeTypes()
+{
+  global string $g_DL_customShaderNodeTypes[];
+
+  string $types[] = DSN_getShaderNodeTypes();
+  DL_stringArrayAppend( $types, $g_DL_customShaderNodeTypes );
+
+  return $types;
+}
+
+global proc string
+DSN_getShaderTypeString(string $node)
+{
+  // Will return "surface" for a surface shader, etc.
+  //
+  string $node_type = nodeType($node);
+  string $shader_type = "";
+  
+  if (DSN_isShaderNodeType($node_type))
+  {
+    if (DSN_isBuiltInShaderNodeType($node_type))
+    {
+      int $start = size("delight") + 1;
+      int $end = size($node_type) - size("Shader");
+
+      if ($end > $start)
+      {
+        $shader_type = substring($node_type, $start, $end);
+        $shader_type = tolower($shader_type);
+      }
+    }
+    
+    if ($shader_type == "")
+      $shader_type = getAttr($node + ".shaderType");
+  }
+  else
+    $shader_type = "";
+  
+  return $shader_type;
+}
+
+global proc string
+DSN_getAnnotation(string $key, string $annotations)
+{
+  // Look for "key=value;" in $annotations and return "value"
+  string $key = ";" + $key + "=";
+	string $value = match(($key + "[^;]*"), (";" + $annotations));
+  
+  if (size($value) > size($key))
+  {
+    // Strip the ";key=" and return what's left (value)
+    $value = substring($value, size($key) + 1, size($value));
+  }
+  
+  return $value;
+}
+
+proc
+copyShaderAttributes(string $old_shader_node, 
+                     string $new_shader_node)
+{
+  // Copy values for parameters whose name and type have not changed
+  string $old_names[];
+  string $new_names[];
+  string $old_types[];
+  string $new_types[];
+  int    $old_array_sizes[];
+  int    $new_array_sizes[];
+
+  $old_names = getAllMultiAttributeStringValues($old_shader_node + ".names");
+  $new_names = getAllMultiAttributeStringValues($new_shader_node + ".names");
+
+  $old_types = getAllMultiAttributeStringValues($old_shader_node + ".types");
+  $new_types = getAllMultiAttributeStringValues($new_shader_node + ".types");
+
+  $old_array_sizes = getAllMultiAttributeIntValues($old_shader_node + ".arraySizes");
+  $new_array_sizes = getAllMultiAttributeIntValues($new_shader_node + ".arraySizes");
+
+  for($old_index = 0; $old_index < size($old_names); $old_index++)
+  {
+    for($new_index = 0; $new_index < size($new_names); $new_index++)
+    {
+      if ($new_names[$new_index] == $old_names[$old_index])
+      {
+        if ($new_types[$new_index] == $old_types[$old_index])
+        {
+          // Copy the attributes if array sizes match
+          if ($new_array_sizes[$new_index] >= $old_array_sizes[$old_index])
+          {
+            int $max_size_for_single_attr_copy = 1;
+            
+            if ($new_types[$new_index] == "float")
+              $max_size_for_single_attr_copy = 3;
+              
+            if ($new_array_sizes[$new_index] <= $max_size_for_single_attr_copy)
+            {
+              DL_copyAttribute(
+                ($old_shader_node + "." + $old_names[$old_index]),
+                ($new_shader_node + "." + $new_names[$new_index]));
+            }
+            else
+            {
+              int $i;
+              for($i = 0; $i < $old_array_sizes[$old_index]; $i++)
+              {
+                DL_copyAttribute(
+                  ($old_shader_node + "." + $old_names[$old_index] + "_" + $i),
+                  ($new_shader_node + "." + $new_names[$new_index] + "_" + $i));
+              }
+            }
+          }
+        }
+        // Name match found so no need to search further
+        break;
+      }
+    }
+  }
+}
+
+proc string
+getStrippedLine(int $file)
+{
+  string $text;
+
+  $text = fgetline($file);
+  $text = delightStrip($text);
+
+  return $text;
+}
+
+proc float[]
+getShaderFloatDefaults(string $param_default)
+{
+  // TODO: gotta be able to deal with array parameter defaults
+  string  $tokens[];
+  int     $num_tokens;
+  float   $defaults[];
+
+  $num_tokens = tokenize($param_default, " ", $tokens);
+
+  for ($i = 0; $i < $num_tokens; $i++)
+  {
+    if ($tokens[$i] != "")
+      $defaults[$i] = $tokens[$i];
+    else
+      $defaults[$i] = 0;
+  }
+    
+
+  return $defaults;
+}
+
+proc string[]
+getShaderStringDefaults(string $param_default)
+{
+  // Converts a space-separated list of strings (each string is expected to be
+  // enclosed in double quotes) to a string array.
+  //
+  string $defaults[];
+  clear($defaults);
+  
+  while(size($param_default) > 0)
+  {
+    string $curr_default = match("\\\"[^\\\"]*\\\"", $param_default);
+    int $curr_default_size = size($curr_default);
+
+    if ($curr_default_size > 2)
+    {
+      // Set the default string value, removing the surrounding double quotes
+      $defaults[size($defaults)] = substring(
+        $curr_default, 
+        2, 
+        $curr_default_size - 1);
+    }
+    else
+    {
+      $defaults[size($defaults)] = "";
+    }
+    
+    $curr_default_size++;
+    int $param_default_size = size($param_default);
+    
+    if ($param_default_size > $curr_default_size)
+    {
+      $param_default = substring(
+        $param_default, 
+        $curr_default_size + 1,    // +1 to eat the separating space
+        $param_default_size);
+    }
+    else
+    {
+      $param_default = "";
+    }
+  }
+
+  return $defaults;
+}
+
+proc string
+getShaderNameFromFile(string $full_path)
+{
+  string  $file_name;
+  string  $shader_name;
+  string  $tokens[];
+  int     $num_tokens;
+
+  // split the path into its component parts
+  $num_tokens = tokenize($full_path, "/", $tokens);
+
+  // and grab the file name from the end
+  $file_name = $tokens[$num_tokens-1];
+
+  // take off the extension
+  string $extension = match("\\..*$", $file_name);
+
+  if ($extension != "")
+  {
+    $shader_name = substring($file_name,
+                             1,
+                             size($file_name) - size($extension));
+  }
+  else
+    $shader_name = $file_name;
+
+  return $shader_name;
+}
+
+proc
+setAttrMinMax(string $node, string $attr, string $min, string $max)
+{
+  string $attr_full_name = $node + "." + $attr;
+  
+  if ($min != "")
+  {
+    float $min_float = $min;
+    addAttr -e -min $min_float $attr_full_name;
+  }
+
+  if ($max != "")
+  {
+    float $max_float = $max;
+    addAttr -e -max $max_float $attr_full_name;
+  }
+}
+
+proc
+addParameterToShaderNode(string $new_node,
+                         string $parameter_info[])
+{
+  string  $param_name;
+  string  $param_storage;
+  string  $param_detail;
+  string  $param_type;
+  string  $param_space;
+  int     $param_array_size;
+  string  $param_default;
+  int     $valid_param;
+
+  $valid_param = 1;
+
+  $param_name = $parameter_info[0];
+  $param_storage = $parameter_info[1];
+  $param_detail = $parameter_info[2];
+  $param_type = $parameter_info[3];
+  $param_space = $parameter_info[4];
+  $param_array_size = $parameter_info[5];
+  
+  // All of the remaining tokens are part of the default value
+  $param_default = $parameter_info[6];
+  
+  int $info_size = size($parameter_info);
+  if ($info_size > 6)
+  {
+    int $i;
+    for ($i = 7; $i < $info_size; $i++)
+    {
+      $param_default += "," + $parameter_info[$i];
+    }
+  }
+
+  // Get the annotations for the parameter; we may need min / max values right
+  // away and will store the annotations string in a distinct attribute if
+  // we succeed at creating a valid attribute.
+  //
+  string $file = getAttr($new_node + ".shaderFile");
+  string $annotations = `delightShaderInfo -ak $param_name`;
+  string $min = DSN_getAnnotation("min", $annotations);
+  string $max = DSN_getAnnotation("max", $annotations);
+
+  string $gadget_type = DSN_getAnnotation("gadgettype", $annotations);
+  if (   $param_type == "float" 
+      && $param_array_size == 3 
+      && match("^colorslider", $gadget_type) != "")
+  {
+    $param_type = "color";
+  }
+  
+  // first we add the actual UI attribute
+  // We use compound attributes for fixed-size array; params represented by 
+  // a float2 or float3 attributes are special case.
+  //
+  int $is_compound = 0;
+
+  if ($param_type == "float")
+  {
+    if ($param_array_size > 3)
+      $is_compound = 1;
+  }
+  else if ($param_array_size > 1)
+    $is_compound = 1;
+  
+  if ($is_compound)
+  {
+    addAttr 
+      -ln $param_name 
+      -at "compound" 
+      -numberOfChildren $param_array_size
+      $new_node;
+  }
+    
+  if ($param_type == "string")
+  {
+    if (match("^connectednodeoptionmenu", $gadget_type) != "")
+    {
+      addAttr -ln $param_name -at "message" $new_node;
+    }
+    else
+    {
+      if ($is_compound)
+      {
+        string $defaults[] = getShaderStringDefaults($param_default);
+
+        int $i;
+        for ($i = 0; $i < $param_array_size; $i++)
+        {
+          addAttr 
+            -ln ($param_name + "_" + $i)
+            -dt "string" 
+            -parent $param_name 
+            $new_node;
+        }
+        
+        for ($i = 0; $i < $param_array_size; $i++)
+        {
+          string $attr_name = $param_name + "_" + $i;     
+          setAttr ($new_node + "." + $attr_name) -type "string" "dummy_value";
+          setAttr ($new_node + "." + $attr_name) -type "string" $defaults[$i];
+        }
+      }
+      else
+      {
+        addAttr -ln $param_name -dt "string" $new_node;
+
+        if ($param_default == "")
+        {
+          // If the attribute never gets assigned a non-empty value, we cannot
+          // interrogate its type correctly.
+          setAttr ($new_node + "." + $param_name) -type "string" "dummy_value";
+        }
+        
+        setAttr ($new_node + "." + $param_name) -type "string" $param_default;
+      }
+    }
+  }
+  else if ($param_type == "float")
+  {
+    string $attr_type = "float";
+    
+    if (match("^int", $gadget_type) != "")
+      $attr_type = "long";    
+
+    if ($param_array_size == 0 || $param_array_size == 1)
+    {
+      float $float_default = 0;
+      
+      if ($param_default != "")
+        $float_default = float($param_default);
+
+      addAttr -ln $param_name
+              -at $attr_type
+              -dv $float_default
+              -keyable true
+              $new_node;
+
+      setAttrMinMax($new_node, $param_name, $min, $max);
+    }
+    else if ($param_array_size == 2)
+    {
+      float $defaults[];
+
+      $defaults = getShaderFloatDefaults($param_default);
+
+      addAttr -ln $param_name -at ($attr_type + "2") $new_node;
+        addAttr -ln ($param_name + "X")
+                -at $attr_type
+                -dv $defaults[0]
+                -keyable true
+                -parent $param_name
+                $new_node;
+        addAttr -ln ($param_name + "Y")
+                -at $attr_type
+                -dv $defaults[1]
+                -keyable true
+                -parent $param_name
+                $new_node;
+
+        setAttrMinMax($new_node, ($param_name + "X"), $min, $max);
+        setAttrMinMax($new_node, ($param_name + "Y"), $min, $max);
+    }
+    else if ($param_array_size == 3)
+    {
+      float $defaults[];
+
+      $defaults = getShaderFloatDefaults($param_default);
+
+      addAttr -ln $param_name -at ($attr_type + "3") $new_node;
+        addAttr -ln ($param_name + "X")
+                -at $attr_type
+                -dv $defaults[0]
+                -keyable true
+                -parent $param_name
+                $new_node;
+        addAttr -ln ($param_name + "Y")
+                -at $attr_type
+                -dv $defaults[1]
+                -keyable true
+                -parent $param_name
+                $new_node;
+        addAttr -ln ($param_name + "Z")
+                -at $attr_type
+                -dv $defaults[2]
+                -keyable true
+                -parent $param_name
+                $new_node;
+
+        setAttrMinMax($new_node, ($param_name + "X"), $min, $max);
+        setAttrMinMax($new_node, ($param_name + "Y"), $min, $max);
+        setAttrMinMax($new_node, ($param_name + "Z"), $min, $max);
+    }
+    else
+    {
+      float $defaults[] = getShaderFloatDefaults($param_default);
+      
+      int $i;
+      for ($i = 0; $i < $param_array_size; $i++)
+      {
+        addAttr 
+          -ln ($param_name + "_" + $i) 
+          -at $attr_type
+          -dv $defaults[$i]
+          -keyable true
+          -parent $param_name
+          $new_node;
+      }
+      
+      for ($i = 0; $i < $param_array_size; $i++)
+      {
+        setAttrMinMax($new_node, ($param_name + "_" + $i), $min, $max);
+      }
+    }
+  }
+  else if (   $param_type == "point"
+           || $param_type == "vector"
+           || $param_type == "normal" )
+  {
+    float $defaults[];
+    $defaults = getShaderFloatDefaults($param_default);
+
+    int $num_elements = $param_array_size;
+
+    if ($num_elements < 1)
+      $num_elements = 1;
+          
+    int $i;
+    for ($i = 0; $i < $num_elements; $i++)
+    {
+      string $attr_name = $param_name;
+      
+      if ($num_elements > 1)
+        $attr_name += "_" + $i;
+      
+      if ($is_compound)
+      {
+        addAttr 
+          -ln $attr_name 
+          -at "float3" 
+          -parent $param_name 
+          $new_node;
+      }
+      else
+        addAttr -ln $attr_name -at "float3" $new_node;
+        
+      addAttr -ln ($attr_name + "X")
+              -at "float"
+              -dv $defaults[$i * 3]
+              -keyable true
+              -parent $attr_name
+              $new_node;
+      addAttr -ln ($attr_name + "Y")
+              -at "float"
+              -dv $defaults[$i * 3 + 1]
+              -keyable true
+              -parent $attr_name
+              $new_node;
+      addAttr -ln ($attr_name + "Z")
+              -at "float"
+              -dv $defaults[$i * 3 + 2]
+              -keyable true
+              -parent $attr_name
+              $new_node;
+    }
+    
+    for($i = 0; $i < $num_elements; $i++)
+    {
+      string $attr_name = $param_name;
+      
+      if ($num_elements > 1)
+        $attr_name += "_" + $i;
+
+      setAttrMinMax($new_node, ($attr_name + "X"), $min, $max);
+      setAttrMinMax($new_node, ($attr_name + "Y"), $min, $max);
+      setAttrMinMax($new_node, ($attr_name + "Z"), $min, $max);
+    }
+
+  }
+  else if ($param_type == "color")
+  {
+    float $defaults[];
+    $defaults = getShaderFloatDefaults($param_default);
+
+    int $num_elements = $param_array_size;
+
+    if ($num_elements < 1)
+      $num_elements = 1;
+  
+    int $i;
+    for ($i = 0; $i < $num_elements; $i++)
+    {
+      string $attr_name = $param_name;
+      
+      if ($num_elements > 1)
+        $attr_name += "_" + $i;
+      
+      if ($is_compound)
+      {
+        addAttr 
+          -ln $attr_name 
+          -at "float3" 
+          -usedAsColor 
+          -parent $param_name
+          $new_node;
+      }
+      else
+        addAttr -ln $attr_name -at "float3" -usedAsColor $new_node;
+
+      float $default_red = 0;
+      float $default_green = 0;
+      float $default_blue = 0;
+      
+      if ($i * 3 < size($defaults))
+      {
+        int $index = $i * 3;
+        $default_red = $defaults[$index];
+        $default_green = $defaults[$index + 1];
+        $default_blue = $defaults[$index + 2];
+      }
+    
+      addAttr -ln ($attr_name + "R")
+              -at "float"
+              -dv $default_red
+              -keyable true
+              -parent $attr_name
+              $new_node;
+      addAttr -ln ($attr_name + "G")
+              -at "float"
+              -dv $default_green
+              -keyable true
+              -parent $attr_name
+              $new_node;
+      addAttr -ln ($attr_name + "B")
+              -at "float"
+              -dv $default_blue
+              -keyable true
+              -parent $attr_name
+              $new_node;
+    }
+  }
+  else if ($param_type == "matrix")
+  {
+    if ($param_array_size == 0 || $param_array_size == 1)
+    {
+      addAttr -ln $param_name -at "matrix" $new_node;
+
+      float $defaults[] = getShaderFloatDefaults($param_default);
+
+      if( size($defaults) == 16 )
+      {
+        setAttr ($new_node + "." + $param_name) -type "matrix"
+          $defaults[0] $defaults[1] $defaults[2] $defaults[3]
+          $defaults[4] $defaults[5] $defaults[6] $defaults[7]
+          $defaults[8] $defaults[9] $defaults[10] $defaults[11]
+          $defaults[12] $defaults[13] $defaults[14] $defaults[15];
+      }
+    }
+    else
+    {
+      warning($param_name + " not added to " + $new_node + " because matrix arrays larger than 1 element are not supported at this time");
+      $valid_param = 0;
+    }
+  }
+
+  if ($valid_param)
+  {
+    $param_num = getNumMultiAttribElements($new_node + ".names");
+
+    // then add all of the parameter info attributes
+    setAttr ($new_node + ".names[" + $param_num + "]")
+            -type "string"
+            $param_name;
+    setAttr ($new_node + ".storageClasses[" + $param_num + "]")
+            -type "string"
+            $param_storage;
+    setAttr ($new_node + ".details[" + $param_num + "]")
+            -type "string"
+            $param_detail;
+    setAttr ($new_node + ".types[" + $param_num + "]")
+            -type "string"
+            $param_type;
+    setAttr ($new_node + ".spaces[" + $param_num + "]")
+            -type "string"
+            $param_space;
+    setAttr(($new_node + ".arraySizes[" + $param_num + "]"),
+            int($param_array_size));
+
+    // gotta get around a bug in Maya:
+    // setAttr node.string_attr -type "string" "-1"
+    // gives an error but 
+    // setAttr node.string_attr -type "string" -1
+    // does not.  Maya thinks that "-1" is a flag rather than the string value.
+    if ($param_type != "float" || $param_array_size > 1)
+    {
+      setAttr ($new_node + ".defaults[" + $param_num + "]")
+              -type "string"
+              $param_default;
+    }
+    else
+    {
+      float $float_default = 0;
+
+      if ($param_default != "")
+        $float_default = float($param_default);
+
+      setAttr ($new_node + ".defaults[" + $param_num + "]")
+              -type "string"
+              $float_default;
+    }
+    
+    if ($annotations != "")
+    {
+      string $annotations_attr = $param_name + "Annotations";
+      addAttr -hidden true -dt "string" -ln $annotations_attr $new_node;
+      setAttr ($new_node + "." + $annotations_attr) -type "string" $annotations;
+    }
+  }
+}
+
+global proc string
+DL_createSurfaceShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightSurfaceShader");
+  
+  return $node;
+}
+
+global proc string
+DL_createDisplacementShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightDisplacementShader");
+  
+  return $node;
+}
+
+global proc string
+DL_createLightShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightLightShader");
+  
+  return $node;
+}
+
+global proc string
+DL_createAtmosphereShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightAtmosphereShader");
+  
+  return $node;
+}
+
+global proc string
+DL_createInteriorShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightInteriorShader");
+  
+  return $node;
+}
+
+global proc string
+DL_createImagerShader(string $shader_file, int $output_shader_dir)
+{
+  string $node = 
+    DSN_create($shader_file, $output_shader_dir, "delightImagerShader");
+  
+  return $node;
+}
+
+global proc string
+DSN_create(string $shader_file, int $output_shader_dir, string $shader_node_type)
+{
+  string  $new_node;
+
+  string  $shader_name;
+  string  $shader_type;
+  int     $num_params;
+
+  // Open file. All subsequent operations will act on that file.
+  string $shader_info = `delightShaderInfo -beginShader $shader_file`;
+
+  string $shader_info = `delightShaderInfo -allInfo`;
+  string $shader_info_lines[];
+  tokenize $shader_info "\n" $shader_info_lines;
+
+  if ($shader_info != "" && size($shader_info_lines) >= 3)
+  {
+    $shader_name = $shader_info_lines[0];
+    $shader_type = $shader_info_lines[1];
+    $num_params = $shader_info_lines[2];
+
+    if ($shader_name == "<unknown>" || $shader_type == "-1")
+    {
+      delightShaderInfo -endShader;
+      return "";
+    }
+      
+    $new_node =
+      `createNode $shader_node_type -skipSelect -name ($shader_name + "1")`;
+    
+    DL_setVersionAttr($new_node);
+
+    addAttr -ln shaderType -dt "string" -hidden true $new_node;
+    setAttr ($new_node + ".shaderType") -type "string" $shader_type;
+    setAttr ($new_node + ".shaderType") -l true;
+
+    addAttr -ln shaderFile -dt "string" -hidden true $new_node;
+    setAttr ($new_node + ".shaderFile") -type "string" $shader_file;
+    setAttr ($new_node + ".shaderFile") -l true;
+    
+    addAttr -ln outputShaderDir -at "bool" -hidden true $new_node;
+    setAttr ($new_node + ".outputShaderDir") ($output_shader_dir == 1);
+    setAttr ($new_node + ".outputShaderDir") -l true;
+
+    // now add the multi attributes that will encode all of the data about
+    // each shader. We will use this when outputting RIB so that we don't have
+    // to re-read the shader file again.
+    addAttr -ln names -dt "string" -multi -hidden true $new_node;
+    addAttr -ln storageClasses -dt "string" -multi -hidden true $new_node;
+    addAttr -ln details -dt "string" -multi -hidden true $new_node;
+    addAttr -ln types -dt "string" -multi -hidden true $new_node;
+    addAttr -ln spaces -dt "string" -multi -hidden true $new_node;
+    addAttr -ln arraySizes -at long -multi -min 0 -dv 9999999 -hidden true $new_node;
+    addAttr -ln defaults -dt "string" -multi -hidden true $new_node;
+
+    // add the message attribute for connecting this shader to shapes
+    addAttr -ln attachedShaderSets -at message -hidden true $new_node;
+
+    string $parameters = `delightShaderInfo -parameters`;
+    string $param_line;
+    string $param_tokens[];
+    int    $num_tokens;
+
+    for ($param_num = 0; $param_num < $num_params; $param_num++)
+    {
+      $param_line = $shader_info_lines[3 + $param_num];
+
+      $num_tokens = tokenize($param_line, ",", $param_tokens);
+
+      addParameterToShaderNode($new_node, $param_tokens);
+    }
+
+    // Get the grouping annotations
+    string $ui_groups = `delightShaderInfo -ak "grouping"`;
+    
+    if ($ui_groups != "")
+    {
+      addAttr -ln "grouping" -dt "string" -hidden true $new_node;
+      
+      string $grouping = "";
+      string $groups[];
+      
+      tokenize($ui_groups, ";", $groups);
+      
+      // Keep only grouping annotations related to actual parameters
+      //
+      for($curr_group in $groups)
+      {
+        string $curr_attr = match("[^/]*$", $curr_group);
+
+        if (`attributeExists $curr_attr $new_node`)
+        {
+          $grouping += $curr_group + ";";
+        }
+      }
+      
+      setAttr ($new_node + ".grouping") -type "string" -l true $grouping;
+    }
+
+    // now that we've added everything lock the parameter info attributes
+    // there's no need for user to change them
+    setAttr ($new_node + ".names") -l true;
+    setAttr ($new_node + ".storageClasses") -l true;
+    setAttr ($new_node + ".details") -l true;
+    setAttr ($new_node + ".types") -l true;
+    setAttr ($new_node + ".spaces") -l true;
+    setAttr ($new_node + ".arraySizes") -l true;
+    setAttr ($new_node + ".defaults") -l true;
+  }
+  else
+  {
+    error(
+      "Could not get information about shader \"" 
+      + $shader_file 
+      + "\". The shader might need to be recompiled.");
+  }
+
+  DSN_hideAttributes($new_node, DPF_getHideShaderAttrsThreshold());
+
+  delightShaderInfo -endShader;
+
+  return $new_node;
+}
+
+proc string
+getPlugValueArrayAsString(string $plug)
+{
+  string $return_value = "";
+  string $plug_type = `getAttr -type $plug`;
+
+  if (match("^long", $plug_type) != "")
+    $return_value = intArrayToString(getAttr($plug));
+  else
+    $return_value = floatArrayToString(getAttr($plug));
+  
+  return $return_value;
+}
+
+// TODO: This procedure probably has more to do with the rendering process
+// than with the shader node. Perhaps it should be in DL_render.mel instead.
+//
+global proc
+DSN_output(string $shader_node, string $shader_type, string $light_handle_id)
+{
+  //
+  // Output the RIB for the shader node.
+  //
+  string $node_type = nodeType($shader_node);
+  
+  if( DSN_isCustomShaderNodeType($node_type) )
+  {
+    // Custom shader node.
+    catch( eval(
+      "DSN_outputCustom_" + nodeType($shader_node) + "(\"" + $shader_node +
+      "\",\"" + $shader_type + "\",\"" + $light_handle_id + "\")" ) );
+    return;
+  }
+
+  float   $num_variables;
+  
+  string  $shader_filename;
+
+  string  $curr_name;
+  string  $curr_type;
+  string  $curr_detail;
+  string  $curr_class;
+  string  $curr_default;
+  string  $curr_value;
+  int     $curr_array_size;
+  string  $curr_plug;
+
+  string  $shader_command;
+
+  switch($shader_type)
+  {
+    case "surface":
+      $shader_command = "RiSurface ";
+      break;
+
+    case "displacement":
+      $shader_command = "RiDisplacement ";
+      break;
+
+    case "light":
+      $shader_command = "RiLightSource ";
+      break;
+
+    case "arealight":
+      $shader_command = "RiAreaLightSource ";
+      break;
+
+    case "imager":
+      $shader_command = "RiImager ";
+      break;
+
+    case "atmosphere":
+      $shader_command = "RiAtmosphere ";
+      break;
+
+    case "interior":
+      $shader_command = "RiInterior ";
+      break;
+
+    case "exterior":
+      $shader_command = "RiExterior ";
+      break;
+
+  }
+
+  $shader_filename = getAttr($shader_node + ".shaderFile");
+
+  $shader_command += " -n ";
+  $shader_command += "\"";
+
+  
+  if (   objExists($shader_node + ".outputShaderDir") 
+      && getAttr($shader_node + ".outputShaderDir"))
+  {
+    string $render_pass = `delightRenderState -qrn`;
+    
+    if ($render_pass != "")
+    {
+			string $all_related_passes[] = DRP_getAllRelatedPasses($render_pass);
+      string $search_path = 
+				DRP_getHighestAttrString("shaderPath", $all_related_passes);
+				
+      $search_path = DL_substituteAllString($search_path, "@", "$DL_SHADERS_PATH");
+      $search_path = DL_substituteAllString($search_path, "&", "$DL_SHADERS_PATH");
+    
+      $shader_filename = DL_getShortestFilePath($shader_filename, $search_path);
+    }
+    
+    // Strip the extension
+    string $extension;
+    $extension = match("\.[^\.]*$", $shader_filename);
+    int $length;
+    $length = size($shader_filename) - size($extension);
+    $shader_command += substring($shader_filename, 1, $length);
+  }
+  else
+  {
+    $shader_command += basenameEx($shader_filename);
+  }
+
+  $shader_command += "\" ";
+
+  // deal with the light handle id, if necessary
+  if ($shader_type == "light" || $shader_type == "arealight")
+  {
+    $shader_command += " -p \"__handleid\" \"string\" ";
+    $shader_command += $light_handle_id;
+  }
+  
+  $num_variables = getNumMultiAttribElements($shader_node + ".names");
+
+  string  $names[];
+  string  $types[];
+  string  $details[];
+  string  $classes[];
+  string  $defaults[];
+  int     $array_sizes[];
+
+  $names = getAllMultiAttributeStringValues($shader_node + ".names");
+  $types = getAllMultiAttributeStringValues($shader_node + ".types");
+  $details = getAllMultiAttributeStringValues($shader_node + ".details");
+  $classes = getAllMultiAttributeStringValues($shader_node + ".storageClasses");
+  $defaults = getAllMultiAttributeStringValues($shader_node + ".defaults");
+  $array_sizes = getAllMultiAttributeIntValues($shader_node + ".arraySizes");
+
+  for ($i = 0; $i < $num_variables; $i += 1)
+  {
+    $curr_name = $names[$i];
+    $curr_type = $types[$i];
+    $curr_detail = $details[$i];
+    $curr_class = $classes[$i];
+    $curr_default = $defaults[$i];
+    $curr_array_size = $array_sizes[$i];
+
+    $curr_plug = $shader_node + "." + $curr_name;
+        
+	// map: mega exception to workaround a bug that causes Pref to pass thash value instead of default point(0,0,0)
+	// we never what this from anywere  but a primvar anyways
+	if($curr_name == "Pref")
+		continue;
+		
+    $shader_command  += " -p ";
+
+    // parameter name
+    $shader_command += "\"";
+    $shader_command += $curr_name;
+    $shader_command += "\" ";
+
+    // declaration
+    $shader_command += "\"";
+    $shader_command += $curr_detail;
+    $shader_command += " ";
+    $shader_command += $curr_type;
+    
+    if ($curr_array_size > 1)
+    {
+      $shader_command += "[";
+      $shader_command += $curr_array_size;
+      $shader_command += "]";
+    }
+
+    $shader_command += "\"";
+
+    // and finally value
+    if ($curr_type == "float")
+    {
+      if ($curr_array_size == 0 || $curr_array_size == 1)
+      {
+        $curr_value = getAttr($curr_plug);
+      }
+      else
+      {
+        $curr_value = getPlugValueArrayAsString($curr_plug);
+      }
+    }
+    else if (   $curr_type == "point"
+             || $curr_type == "vector"
+             || $curr_type == "normal"
+             || $curr_type == "color"
+             || $curr_type == "matrix")
+    {
+      if ($curr_array_size > 1)
+      {
+        string $attr_children[] = 
+          `attributeQuery -listChildren -node $shader_node $curr_name`;
+        
+        $curr_value = "";
+        
+        int $i;
+        for($i = 0; $i < size($attr_children); $i++)
+        {
+          $curr_value += 
+            getPlugValueArrayAsString($shader_node + "." + $attr_children[$i]);
+
+          if($i + 1 < size($attr_children))
+            $curr_value += " ";
+        }
+      }
+      else
+        $curr_value = getPlugValueArrayAsString($curr_plug);
+    }
+    else if ($curr_type == "string")
+    {
+      string $render_pass = `delightRenderState -qrn`;
+        
+      if ($curr_array_size > 1)
+      {
+        string $attr_children[] = 
+          `attributeQuery -listChildren -node $shader_node $curr_name`;
+        
+        $curr_value = "";
+        
+        int $i;
+        for($i = 0; $i < size($attr_children); $i++)
+        {
+          string $value = getAttr($shader_node + "." + $attr_children[$i]);
+          $value = DL_expandString($value, "", $render_pass);
+          
+          $curr_value += "\\\"" + $value + "\\\"";
+          
+          if($i + 1 < size($attr_children))
+            $curr_value += ", ";
+        }
+      }
+      else
+      {
+        if (`getAttr -type $curr_plug` == "message")
+        {
+          $curr_value = getConnectedNode($curr_plug);
+        }
+        else
+        {
+          $curr_value = getAttr($curr_plug);
+          $curr_value = DL_expandString($curr_value, "", $render_pass);
+        }
+      }
+    }
+    
+    $shader_command += "\"" + $curr_value + "\"";
+  }
+
+  eval($shader_command);
+}
+
+// TODO: This procedure probably has more to do with the rendering process
+// than with the shader node. Perhaps it should be in DL_render.mel instead.
+//
+global proc
+DSN_outputGeometryShader(string $shader_node, string $shader_type)
+{
+  // 
+  // This procedure outputs the RIB code that describes the specified geometry 
+  // shader.
+  //
+
+  DSN_output($shader_node, $shader_type, "");
+}
+
+// TODO: This procedure probably has more to do with the rendering process
+// than with the shader node. Perhaps it should be in DL_render.mel instead.
+//
+global proc
+DSN_outputImagerShader(string $shader_node)
+{
+  // 
+  // This procedure outputs the RIB code that describes the specified imager 
+  // shader.
+  //
+
+  DSN_output($shader_node, "imager", "");
+}
+
+// TODO: This procedure probably has more to do with the rendering process
+// than with the shader node. Perhaps it should be in DL_render.mel instead.
+//
+global proc
+DSN_outputLightShader(string $shader_node, string $light_shape)
+{
+  // 
+  // This procedure outputs the RIB code that describes the specified light 
+  // shader.
+  //
+
+  // We want to use the shortest unique path as the handle of the object
+  //
+  string $shortest_path[] = `ls $light_shape`;
+
+  string $light_type = `nodeType $light_shape`;
+
+  string $shader_type;
+  if ($light_type == "areaLight")
+    $shader_type = "arealight";
+  else
+    $shader_type = "light";
+
+  DSN_output($shader_node, $shader_type, $shortest_path[0]);
+}
+
+proc
+DSN_replaceShader(string $old_shader_node, string $new_shader_node)
+{
+  // Node replacement in sets
+  //
+  string $sets[] = `listSets -object $old_shader_node`;
+  for ($curr_set in $sets)
+  {
+    sets -add $curr_set $new_shader_node;
+    sets -remove $curr_set $old_shader_node;
+  }
+
+  DL_replaceShader($old_shader_node, $new_shader_node);
+}
+
+
+global proc
+DSN_reloadShader(string $old_shader_node)
+{
+  if ($old_shader_node == "" || size(`ls $old_shader_node`) == 0)
+    return;
+
+	if (`referenceQuery -isNodeReferenced $old_shader_node`)
+	{
+		warning($old_shader_node + " is a referenced node; update the reference " +
+			"scene or duplicate this node.");
+		return;
+	}
+
+  int $output_shader_dir = 0;
+  if( attributeExists("outputShaderDir", $old_shader_node) )
+  {
+    $output_shader_dir = getAttr( $old_shader_node + ".outputShaderDir" );
+  }
+
+  // Create new up-to-date shader node
+  string $new_shader_node;
+
+  $new_shader_node = DSN_create(
+    getAttr($old_shader_node + ".shaderFile"), 
+    $output_shader_dir,
+    nodeType($old_shader_node) );
+
+  if ($new_shader_node == "")
+    return;
+
+  // Copy values for parameters whose name and type have not changed
+  copyShaderAttributes($old_shader_node, $new_shader_node);
+
+  // Attach the new shader node to the same objects the old one was attached to
+  //
+  DSN_replaceShader($old_shader_node, $new_shader_node);
+
+  delete $old_shader_node;
+  rename $new_shader_node $old_shader_node;
+  
+  // Force UI update in the AE
+  global string $g_AEdelightShaderTemplate_current_shader_description;
+  $g_AEdelightShaderTemplate_current_shader_description = "";
+}
+
+global proc string
+DSN_replaceShaderWithFile(string $old_shader_node,
+                          string $new_shader_file,
+                          int $output_shader_dir)
+{
+  string $new_shader_node = "";
+
+  if ($old_shader_node == "" || size(`ls $old_shader_node`) == 0)
+    return "";
+
+	if (`referenceQuery -isNodeReferenced $old_shader_node`)
+	{
+		warning($old_shader_node + " is a referenced node; update the reference " +
+			"scene or duplicate this node.");
+		return "";
+	}
+
+  $new_shader_node = DSN_create(
+    $new_shader_file, 
+    $output_shader_dir, 
+    nodeType($old_shader_node));
+
+  if ($new_shader_node != "")
+  {
+    string $old_shader_type = getAttr($old_shader_node + ".shaderType");
+    string $new_shader_type = getAttr($new_shader_node + ".shaderType");
+    
+    if ($old_shader_type != $new_shader_type)
+    {
+      delete $new_shader_node;
+      warning("Selected file is not a " + $old_shader_type + " shader. Cancelling operation.");
+      return "";
+    }
+    
+    // Copy values for parameters whose name and type have not changed
+    copyShaderAttributes($old_shader_node, $new_shader_node);
+
+    // Attach the new shader node to the same objects the old one 
+    // was attached to
+    DSN_replaceShader($old_shader_node, $new_shader_node);
+
+    delete $old_shader_node;
+    $new_shader_node = `rename $new_shader_node $old_shader_node`;
+
+    // Force UI update in the AE
+    global string $g_AEdelightShaderTemplate_current_shader_description;
+    $g_AEdelightShaderTemplate_current_shader_description = "";
+  }
+
+  return $new_shader_node;
+}
+
+global proc string[]
+AEdelightShaderRelated(string $node)
+{
+  // This proc can't be in the AE template file as it is sourced too late to
+  // be effective the first time a shader node is displayed.
+  //
+  return AE_createDefaultRelatedNodesList($node);
+}
+
+global proc
+DSN_init(string $node)
+{
+  if (nodeType($node) == "delightShader")
+  {
+    string $shader_type = getAttr($node + ".shaderType");
+    string $shader_file = getAttr($node + ".shaderFile");
+
+    int $output_shader_dir = 0;
+    if (objExists($node + ".outputShaderDir"))
+      $output_shader_dir = getAttr($node + ".outputShaderDir");
+    
+    if ($shader_type == "volume")
+    {
+      string $connections[] = `listConnections 
+        -source false 
+        -destination true 
+        -plugs true 
+        ($node + ".message")`;
+
+      string $new_connections[] = DL_getMessagePlugsConnectedToNode($node);
+      DL_stringArrayAppend($connections, DL_getMessagePlugsConnectedToNode($node));
+
+      int $used_as_atmosphere = 0;
+      int $used_as_interior = 0;
+      
+      for ($curr_connection in $connections)
+      {
+        if (match("\.atmosphere", $curr_connection) != "")
+          $used_as_atmosphere = 1;
+        else if (match("\.interior", $curr_connection) != "")
+          $used_as_interior = 1;
+      }
+      
+      $shader_type = "atmosphere";
+
+      if ($used_as_atmosphere && $used_as_interior)
+      {
+        // This volume shader node is assigned as an atmosphere shader and as an 
+        // interior shader. Create 2 distinct shader nodes.
+        //
+        
+        // Create the interior shader node and copy the shader's attribute values
+        //
+        string $new_interior_node = 
+          `createNode "delightInteriorShader" -skipSelect -name $node`;
+        
+        DL_setVersionAttr($new_interior_node);
+        DL_duplicate($node, $new_interior_node);
+        
+        // Replace interior shader assignments - very similar to 
+        // DL_replaceShaders except that we only work on ".interior*" plugs
+        //
+        string $message_dst_plugs[] = `listConnections 
+          -source false 
+          -destination true
+          -plugs true
+          ($node + ".message")`;
+
+        for ($curr_plug in $message_dst_plugs)
+        {
+          if (match("\.interior", $curr_plug) != "")
+          {
+            disconnectAttr ($node + ".message") $curr_plug;
+            connectAttr ($new_interior_node + ".message") $curr_plug;
+          }
+        }
+
+        if (objExists($node + ".usedBy3dfm"))
+        {
+          $message_dst_plugs = `listConnections 
+            -source false 
+            -destination true
+            -plugs true
+            ($node + ".usedBy3dfm")`;
+
+          for ($curr_plug in $message_dst_plugs)
+          {
+            if (match("\.interior", $curr_plug) != "")
+            {
+              DL_disconnectNode($curr_plug);
+              DL_connectNodeToMessagePlug($new_interior_node, $curr_plug);
+            }
+          }
+        }
+        
+        // Rename the new interior shader node to a name similar to the 
+        // original node
+        //
+        rename $new_interior_node $node;
+
+        // The remaining of the function will deal with the "atmosphere" case
+      }
+      else if ($used_as_interior)
+        $shader_type = "interior";
+    }
+
+    string $new_node_type = "delight" + interToUI($shader_type) + "Shader";
+    string $new_node = `createNode $new_node_type -skipSelect -name $node`;
+    
+    DL_setVersionAttr($new_node);
+    
+    DL_duplicate($node, $new_node);
+
+    DSN_replaceShader($node, $new_node);
+
+    delete $node;
+    rename $new_node $node;
+  }
+}
+
+global proc
+DSN_hideAttributes(string $node, int $threshold)
+{
+  // If the given shader node has more parameters than the provided threshold,
+  // set the attributes associated to the parameters as "hidden" - this helps
+  // to speed up AE display when shader node has a lot of parameters.
+  //
+  int $num_params = getNumMultiAttribElements($node + ".names");
+  int $do_hide = $num_params > $threshold ? true : false;
+
+  delightMiscOps -hideAttrs $do_hide $node;
+}
+
+global proc
+DSN_hideAttributesOnAllShaderNodes()
+{
+  string $types[] = DSN_getAllShaderNodeTypes();
+  string $cmd = "ls ";
+
+  for ($curr_type in $types)
+    $cmd += "-type " + $curr_type + " ";
+    
+  int $threshold = DPF_getHideShaderAttrsThreshold();
+  
+  string $nodes[] = eval($cmd);
+  for ($curr_node in $nodes)
+  {
+    DSN_hideAttributes($curr_node, $threshold);
+  }
+}

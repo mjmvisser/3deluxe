@@ -1,0 +1,446 @@
+// Adapted from mentalrayCustomNodeUI.mel
+
+//*****************************************************************************
+//
+//  1. Definition of 3delight node categories and classifications.
+//
+//*****************************************************************************
+
+//
+//  This table defines the 3delight node categories.
+//  Each category has 4 pieces of information:
+//
+//      1) a title string for the category
+//      2) a string that can be used as a basis for
+//         naming Ui controls for the category
+//      3) the static classification for the category
+//      4) the Maya runtime classification for the category
+//
+//  The order of categories in the table dictates the order in which
+//  they will be displayed in the UI (currently just alphabetical).
+//  The global functions dlNumNodeCategories() and dlGetNodeCategory()
+//  are used to access the node category information.
+//  The categories should match 3delightCustomNodeClassificationString.mel
+
+global proc initialize3delightNodeTypeInfo ()
+{
+    global string $dlNodeTypeInfo[];
+    
+    if( size( $dlNodeTypeInfo ) == 0 ) 
+    {
+        int $index = 0;
+        $dlNodeTypeInfo[$index++] = "Materials";
+        $dlNodeTypeInfo[$index++] = "dlMaterial";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/material";
+        $dlNodeTypeInfo[$index++] = "-asShader";
+    
+        $dlNodeTypeInfo[$index++] = "Displacement";
+        $dlNodeTypeInfo[$index++] = "dlDisplacement";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/displace";
+        $dlNodeTypeInfo[$index++] = "-asUtility";
+    
+        $dlNodeTypeInfo[$index++] = "2D Textures";
+        $dlNodeTypeInfo[$index++] = "dlTexture2d";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/texture/2d";
+        $dlNodeTypeInfo[$index++] = "-asTexture";
+
+        $dlNodeTypeInfo[$index++] = "3D Textures";
+        $dlNodeTypeInfo[$index++] = "dlTexture3d";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/texture/3d";
+        $dlNodeTypeInfo[$index++] = "-asTexture";
+
+        $dlNodeTypeInfo[$index++] = "Utilities";
+        $dlNodeTypeInfo[$index++] = "dlUtility";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/utility";
+        $dlNodeTypeInfo[$index++] = "-asUtility";
+    
+        $dlNodeTypeInfo[$index++] = "Lights";
+        $dlNodeTypeInfo[$index++] = "dlLight";
+        $dlNodeTypeInfo[$index++] = "rendernode/3delight/light";
+        $dlNodeTypeInfo[$index++] = "-asLight";
+    }    
+}
+
+global proc int dlNumNodeCategories()
+//
+//  Function:   dlNumNodeCategories()
+//  Purpose:    Returns the number of 3delight node categories.
+//
+{
+    //
+    // Make sure all the 3delight node categories are filled in before we use them.
+    //
+    initialize3delightNodeTypeInfo();
+    global string $dlNodeTypeInfo[];
+
+    return( size($dlNodeTypeInfo)/4 );
+}
+
+global proc string[] dlGetNodeCategory( int $whichCat )
+//
+//  Function:   dlGetNodeCategory
+//  Purpose:    Retrieves information about the specified category.
+//  Arguments:  $whichCat - the numeric identifier for the category.
+//  Returns:    A 4-element string array containing the title string, 
+//              ui base name, static classification, and runtime classification
+//              for the category.
+//
+{
+    //
+    // Make sure all the 3delight node categories are filled in before we use them.
+    //
+    initialize3delightNodeTypeInfo();
+    global string $dlNodeTypeInfo[];
+
+    string $categoryName = $dlNodeTypeInfo[4*$whichCat];
+    string $categoryUiName = $dlNodeTypeInfo[4*$whichCat+1];
+    string $categoryStaticClassification = $dlNodeTypeInfo[4*$whichCat+2];
+    string $categoryRuntimeClassification = $dlNodeTypeInfo[4*$whichCat+3];
+
+    return  {   $categoryName, 
+                $categoryUiName, 
+                $categoryStaticClassification, 
+                $categoryRuntimeClassification 
+            };
+}
+
+//*****************************************************************************
+//
+//  2. Node creation callback function.  All create actions from the various
+//     parts of the UI (create bar, create menu, create render node window)
+//     call this function to actually create nodes.
+//
+//*****************************************************************************
+
+global proc string dlCreateCustomNode(  string $runtimeClassification, 
+                                        string $postCommand , string $nodeType)
+//
+//  Function:   dlCreateCustomNode
+//  Purpose:    Callback routine to create a 3delight custom node.
+//  Arguments:
+//              $runtimeClassification - the runtime classification to be
+//                                       assigned to the node
+//              $nodeType - the type of node to be created.
+//              $postCommand - command to be executed after node creation
+//
+//  Returns:    The name of the newly created node.
+//
+{
+    // Use the shadingNode command to create the node and assign its 
+    // runtime classification.
+    //
+    string $node = `shadingNode $runtimeClassification $nodeType`;
+//
+//    select $node;
+//
+//    if ($postCommand != "") {
+//        string $cmd = substitute("%node", $postCommand, $node);
+//        $cmd = substitute("%type", $cmd, ("\"" + $nodeType + "\""));
+//        evalEcho $cmd;
+//    }
+//
+//    // attach shading group if the it is material shader and surface shader.
+//    if( isClassified($node, "rendernode/3delight/material") && isClassified($node, "shader/surface"))
+//    {
+//        string $cmd = "sets -renderable true -noSurfaceShader true -empty -name "+$node+"SG";
+//        string $group = `evalEcho $cmd`;
+//
+//        string $outAttr = $node;
+//        if (attributeExists("outValue", $node)) {
+//            $outAttr += ".outValue ";
+//        } else {
+//            $outAttr += ".message ";
+//        }
+//        
+//        $cmd = "connectAttr " + $outAttr + $group + ".miMaterialShader";
+//        evalEcho $cmd;
+//
+//        // hook up extra shading group connections for appropriate materials
+//        if (isClassified($node, "connection/3delight/photon")) {
+//            $cmd = "connectAttr " + $outAttr + $group + ".miPhotonShader";
+//            evalEcho $cmd;
+//        }
+//        if (isClassified($node, "connection/3delight/shadow")) {
+//            $cmd = "connectAttr " + $outAttr + $group + ".miShadowShader";
+//            evalEcho $cmd;
+//        }
+//    }
+//
+//    if ($nodeType=="misss_fast_simple_maya" ||
+//        $nodeType=="misss_fast_skin_maya" ||
+//        $nodeType=="misss_fast_shader" ||
+//        $nodeType=="misss_fast_shader_x" ||
+//        $nodeType=="misss_fast_shader_x_passes")
+//    {
+//        createAndAssignLightMap($node +".lightmap");
+//        select $node;
+//    }
+
+    return $node;
+}
+
+
+//*****************************************************************************
+//
+//  3. Create Render Node window functions.  In this window, we inserted a
+//     new tab for 3delight nodes.  Each category has its own collapsable
+//     frame layout containing buttons to create the various node types within
+//     that category.
+//
+//     The UI for this window is created in two stages - first the tabs are
+//     built, which involves creating the layouts and buttons in the appropriate
+//     style, then they are set up, which involves assigning the callback commands
+//     for each button.  The setup routine can be invoked multiple times in order
+//     to update the button callbacks to respond to the different contexts in
+//     which the window may be invoked.
+//
+//     We have created our own tab build and setup routines here, and added calls
+//     to them to the createRenderNode.mel script.
+//
+//*****************************************************************************
+
+global proc dlCreateNodeWindow_BuildTab()
+//
+//  Function:   dlCreateNodeWindow_BuildTab()
+//  Purpose:    3delight equivalent of the various build*() functions in
+//              createRenderNode.mel.  This function builds the 3delight
+//              node tab and all of its category sublayouts containing node
+//              creation buttons.
+//
+//  Notes:  When the function is invoked, it is inside a new tab that has
+//          been created for 3delight nodes.
+{
+    // we are inside the new tab, so create a layout for the node categories 
+    //
+    columnLayout -adj true 3delightTab;
+
+        // iterate through the categories
+        //
+        int $numCategories = dlNumNodeCategories();
+        int $i;
+        for( $i = 0; $i < $numCategories; $i++ )
+        {
+            // get the info about this category
+            //
+            string $categoryInfo[] = dlGetNodeCategory( $i );
+            string $title = $categoryInfo[0];
+            string $uiBaseName = $categoryInfo[1];
+            string $staticClassification = $categoryInfo[2];
+            string $runtimeClassification = $categoryInfo[3];
+
+            // create a frame layout to hold the buttons for the nodes in
+            // this category.  Use the ui base name from the category info
+            // to name the layouts.
+            //
+            frameLayout -l $title -borderVisible true -collapsable true 
+                -borderStyle "etchedIn"
+                -marginWidth 5
+                -marginHeight 5
+                -collapse false ($uiBaseName + "F");    
+
+                columnLayout ($uiBaseName + "C");
+
+                    // build the buttons for this category.  This function is
+                    // in createRenderNode.mel.
+                    //
+                    refreshButtons($staticClassification,($uiBaseName+"RC"));
+
+                setParent ..;
+
+            setParent ..;
+        }
+
+        setParent ..;
+}
+
+
+global proc dlCreateNodeWindow_SetupTab( string $postCommand, string $flag )
+//
+//  Function:   dlCreateNodeWindow_SetupTab()
+//  Purpose:    3delight equivalent of the various setup*() functions in
+//              createRenderNode.mel.  This function assigns the callback
+//              commands to the node creation buttons that were created in
+//              dlCreateNodeWindow_BuildTab().
+//
+//  Arguments:  
+//              $postCommand - a command to be executed after the node is
+//                             created.  One use for this function is to
+//                             establish a connection from the new node to 
+//                             an existing node (this is used when the 
+//                             window is invoked in response to a click
+//                             on the "texture" button in another node's
+//                             attribute editor).  For the moment, we 
+//                             ignore this command for 3delight nodes.
+//
+//              $flag - a flag that has specific meaning for certain 
+//                      creation operations in Maya.  Some possible 
+//                      values of the flag are "asBump" and "asDisplacement",
+//                      which indicate that a bump or displacement node should
+//                      be created and connected to the node that the user
+//                      selects.  We also ignore this flag for 3delight
+//                      nodes for the moment.
+//
+//  Notes:  When the function is invoked, it is inside the layout for the
+//          create render node window.
+//
+{
+    // go to the 3delight node tab
+    //
+    setParent 3delightTab;
+
+    // set up the buttons for each 3delight node category
+    //
+    int $numCategories = dlNumNodeCategories();
+    int $i;
+    for( $i = 0; $i < $numCategories; $i++ )
+    {
+        string $categoryInfo[] = dlGetNodeCategory( $i );
+
+        string $staticClassification = $categoryInfo[2];
+        string $runtimeClassification = $categoryInfo[3];
+
+        // for each node type in this category, assign the callback
+        // command for its button to just call dlCreateCustomNode()
+        // with the appropriate node type and runtime classification.
+        //
+        string $nodes[] = `listNodeTypes $staticClassification`;
+        for( $name in $nodes ) 
+        {
+            if( `nodeIconButton -exists ($name+"Btn")` ) 
+            {
+                string $command =   ("dlCreateCustomNode " 
+                                    + $runtimeClassification 
+                                    + " \"" + $postCommand + "\""
+                                    + " " + $name);
+
+                nodeIconButton -e -command $command ($name+"Btn");
+            }
+        }
+    }
+}
+
+//*****************************************************************************
+//
+//  4. HyperShade Create Bar functions.  This UI looks much like the UI
+//     in the Create Render Node window - a tab layout for 3delight with 
+//     collapsable frame layouts for each of the node categories.  The 
+//     dlRenderCreateBar_CreateTab() method mimics the create*Tab() routines
+//     found in renderCreateBarUI.mel.
+//
+//*****************************************************************************
+
+global proc dlRenderNode_CreateTreeLister_Content(string $renderNodeTreeLister, string $postCommand, string $filterClasses[])
+//
+//  Function:   dlRenderNode_CreateTreeLister_Content()
+//  Purpose:    Does the actual job for dlRenderCreateBar_CreateTab.
+//              Refactored into a separate procedure
+//              so othat "Create All Nodes" tab shows
+//              both maya and 3delight nodes
+//
+
+{
+    if(size($filterClasses) == 0) {
+        // Create all categories
+        //
+        int $numCategories = dlNumNodeCategories();
+        int $i;
+        for( $i = 0; $i < $numCategories; $i++ )
+        {
+            string $categoryInfo[] = dlGetNodeCategory( $i );
+            string $title = $categoryInfo[0];
+            string $uiBaseName = $categoryInfo[1];
+            string $staticClassification = $categoryInfo[2];
+            string $runtimeClassification = $categoryInfo[3];
+
+            // add to the treeLister
+            //
+            addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, "3delight/" + $title,
+                $staticClassification, $runtimeClassification, "" );
+
+        }
+    } else {
+        // Create only the categories in the filter array
+        //
+        for($filterClass in $filterClasses) {
+            int $numCategories = dlNumNodeCategories();
+            int $i;
+            for( $i = 0; $i < $numCategories; $i++ )
+            {
+                string $categoryInfo[] = dlGetNodeCategory( $i );
+                string $title = $categoryInfo[0];
+                string $uiBaseName = $categoryInfo[1];
+                string $staticClassification = $categoryInfo[2];
+                string $runtimeClassification = $categoryInfo[3];
+
+                if(startsWith($filterClass, $staticClassification)) {
+                    // If the filter classification is a subclass of
+                    // a default, only add the subclass nodes to the
+                    // treeLister.
+                    //
+                    addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, "3delight/" + $title,
+                        $filterClass, $runtimeClassification, "" );
+                    break;
+                } else if(startsWith($staticClassification, $filterClass)) {
+                    // If the filter classification is a superclass of
+                    // a default, we can add all the default nodes to the
+                    // treeLister.
+                    //
+                    addToRenderNodeTreeLister($renderNodeTreeLister, $postCommand, "3delight/" + $title,
+                        $staticClassification, $runtimeClassification, "" );
+                    break;
+                }
+            }
+        }
+    }
+}
+
+//*****************************************************************************
+//
+//  5. HyperShade Create menu functions.  To the Create menu, we add a set of
+//     submenus, one for each category of 3delight node.  The 
+//     dlHyperShadeCreateMenu_BuildMenu() function mimics the buildCreateSubmenu()
+//     function that lives in hyperShadePanel.mel.
+//
+//*****************************************************************************
+
+global proc dlHyperShadeCreateMenu_BuildMenu()
+//
+//  Function:   dlHyperShadeCreateMenu_BuildMenu()
+//  Purpose:    Builds menu items for creating 3delight nodes, organized
+//              into submenus by category.
+//
+//  Notes:  When this function is invoked, it is inside of the Create menu.
+//          This function mimics the buildCreateSubmenu() function in 
+//          hyperShadePanel.mel, and in fact calls that function with a slightly
+//          different set of arguments than the other Maya node types.  For 
+//          3delight nodes, the menu items are set up to call back to the
+//          dlCreateCustomNode() function for node creation.
+//
+{
+    // build a submenu for each node category
+    //
+    int $numCategories = dlNumNodeCategories();
+    int $i;
+    for( $i = 0; $i < $numCategories; $i++ )
+    {
+        string $categoryInfo[] = dlGetNodeCategory( $i );
+        string $title = $categoryInfo[0];
+        string $uiBaseName = $categoryInfo[1];
+        string $staticClassification = $categoryInfo[2];
+        string $runtimeClassification = $categoryInfo[3];
+        
+        string $delightMenu = "3Delight ^1s";
+        menuItem -label `format -s $title $delightMenu` -tearOff true -subMenu true;
+        
+        // call buildCreateSubMenu() to create the menu entries.  The specified 
+        // creation command is dlCreateCustomNode $runtimeClassification.  The
+        // buildCreateSubMenu will append to that argument list the name of the
+        // node type, thereby completing the correct argument list for the 
+        // creation routine.
+        //
+        buildCreateSubMenu( $staticClassification, 
+                            ("dlCreateCustomNode " + $runtimeClassification + " \"\" ") );
+        
+        setParent -menu ..;
+    }
+}
