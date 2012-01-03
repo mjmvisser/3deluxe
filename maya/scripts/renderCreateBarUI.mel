@@ -149,7 +149,8 @@ global proc addToRenderNodeTreeLister(
                     + encodeString($postCommand)
                     + "\" "
                     + $type);
-            $labelName = $type;
+            $labelName = `substitute "dl_" $type ""`;
+            $labelName = `nodeTypeNiceName $labelName`;
         }
         else
         {
