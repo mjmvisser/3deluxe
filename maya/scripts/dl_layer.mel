@@ -155,7 +155,7 @@ global proc dl_layerCustomUniquefyName(string $textField, string $plug)
 global proc string[] dl_layerGetComponentTypes() 
 {
 	// All registered node types 
-	string $nodeTypes[] = listNodeTypes("shader/shadingcomponent:swatch/3delight");
+	string $nodeTypes[] = listNodeTypes("rendernode/3delight/shadingcomponent");
 	
 	// Add dl_layer which can also be used as a component
 	$nodeTypes[size($nodeTypes)] = "dl_layer";
