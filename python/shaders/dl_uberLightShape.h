@@ -398,7 +398,7 @@ maya_dl_uberLightShape(
             if (tex != "" && textureinfo(tex, "exists", 0) == 1) {
                 textureinfo( tex, "channels", num_channels );
                 // Treat as if channel == 1 (red) if there only is one channel.
-                float channelToUse = num_channels == 1 ? 1 : channel;
+                uniform float channelToUse = num_channels == 1 ? 1 : channel;
                 if (channelToUse == 0 || channelToUse == 5) {
                     clr = texture(tex, ss, tt, "blur", blur);
                     if (channelToUse == 5) {
