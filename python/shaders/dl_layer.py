@@ -4,10 +4,9 @@ from maya.OpenMaya import *
 
 import delight
  
-
 class dl_layer(delight.ShadingCodeComponent):
-    
     typeid = 0x00310010
+    classification = "rendernode/3delight/material:shader/surface"
     description = "Generic layered shader."
     
     # 
