@@ -121,23 +121,23 @@ channels = [
                 Channel(longname='puzzle_2',            auxiliary=True,     group='MASK',     code='i_puzzle2; attribute("user:puzzle_2", puzzle_2);puzzle_2 *= premult'),                
                 Channel(longname='puzzle_3',            auxiliary=True,     group='MASK',     code='i_puzzle3; attribute("user:puzzle_3", puzzle_3);puzzle_3 *= premult'),                
                 Channel(longname='puzzle_id',           auxiliary=True,     group='MASK',     code="""color(0);
-    string hashString = "";
-    attribute("user:delight_shortest_unique_name", hashString);
-    attribute("user:puzzle_id_set", hashString);
-    float hash = lm_hash(hashString);
-    puzzle_id = cellnoise(hash) * premult;"""),
+    //string hashString = "";
+    //attribute("user:delight_shortest_unique_name", hashString);
+    //attribute("user:puzzle_id_set", hashString);
+    //float hash = dl_hash(hashString);
+    //puzzle_id = cellnoise(hash) * premult;"""),
                     
                 Channel(longname='layer_id',            auxiliary=True,     group='MASK',     code="""0;
-    float i;
-    for (i=0; i<arraylength(i_layerNames); i += 1) {
-        color op = i_layerOpacities[i];
-        float tolerance = .0001;
-        if (op[0] > tolerance || op[1] > tolerance || op[2] > tolerance) {
-            string layerName = i_layerNames[i];
-            float hash = lm_hash(layerName);
-            layer_id = cellnoise(hash);;
-        }
-    }"""),
+    //float i;
+    //for (i=0; i<arraylength(i_layerNames); i += 1) {
+    //    color op = i_layerOpacities[i];
+    //    float tolerance = .0001;
+    //    if (op[0] > tolerance || op[1] > tolerance || op[2] > tolerance) {
+    //        string layerName = i_layerNames[i];
+    //        float hash = dl_hash(layerName);
+    //        layer_id = cellnoise(hash);;
+    //    }
+    //}"""),
             ]
 
     
