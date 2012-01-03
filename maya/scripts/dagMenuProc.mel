@@ -2409,7 +2409,7 @@ global proc dagMenuProc(string $parent, string $object)
 			    }
 		    }
 
-			# map: add "View Last Rendered Shadow Map" menu item
+			// map: add "View Last Rendered Shadow Map" menu item
 			setParent -m $parent;
 			for ($i = 0; $i < size($shapes); ++$i)
 			{
