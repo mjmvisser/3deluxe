@@ -101,7 +101,7 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
         lmBlockersStr += "blocker" + num
         if (i == nBlockers):
             lmBlockersStr += """
-], label = 'Blockers (lumiere)')
+], label = 'Blockers (integrated)')
 """
         else:
             lmBlockersStr += ", "
