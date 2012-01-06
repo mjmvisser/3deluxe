@@ -42,12 +42,12 @@ global proc initialize3delightNodeTypeInfo ()
         $dlNodeTypeInfo[$index++] = "2D Textures";
         $dlNodeTypeInfo[$index++] = "dlTexture2d";
         $dlNodeTypeInfo[$index++] = "rendernode/3delight/texture/2d";
-        $dlNodeTypeInfo[$index++] = "-asTexture";
+        $dlNodeTypeInfo[$index++] = "-as2DTexture";
 
         $dlNodeTypeInfo[$index++] = "3D Textures";
         $dlNodeTypeInfo[$index++] = "dlTexture3d";
         $dlNodeTypeInfo[$index++] = "rendernode/3delight/texture/3d";
-        $dlNodeTypeInfo[$index++] = "-asTexture";
+        $dlNodeTypeInfo[$index++] = "-as3DTexture";
 
         $dlNodeTypeInfo[$index++] = "Utilities";
         $dlNodeTypeInfo[$index++] = "dlUtility";
@@ -126,10 +126,12 @@ global proc string dlCreateCustomNode(  string $runtimeClassification,
 //  Returns:    The name of the newly created node.
 //
 {
+    string $node = createRenderNodeCB($runtimeClassification, "", $nodeType, $postCommand);
+
     // Use the shadingNode command to create the node and assign its 
     // runtime classification.
     //
-    string $node = `shadingNode $runtimeClassification $nodeType`;
+//    string $node = `shadingNode $runtimeClassification $nodeType`;
 //
 //    select $node;
 //
