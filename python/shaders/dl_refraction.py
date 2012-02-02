@@ -1,6 +1,6 @@
-import delight
+import deluxe
 
-class dl_refraction(delight.ReflectionRefractionComponent):
+class dl_refraction(deluxe.ReflectionRefractionComponent):
     typeid = 0x00300006
     description = "Calculates refraction."
 

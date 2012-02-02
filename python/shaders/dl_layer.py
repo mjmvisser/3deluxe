@@ -2,9 +2,9 @@ import string
 
 from maya.OpenMaya import *
 
-import delight
+import deluxe
  
-class dl_layer(delight.ShadingCodeComponent):
+class dl_layer(deluxe.ShadingCodeComponent):
     typeid = 0x00310010
     classification = "rendernode/3delight/material:shader/surface"
     description = "Generic layered shader."
@@ -16,22 +16,22 @@ class dl_layer(delight.ShadingCodeComponent):
     _codetokens = {}
    
     # Utility functions parameters (in dl_layer.h)
-    blendLightsetsFgInputs = [delight.Color(longname='fg_opacity')]
-    blendLightsetsBgInputs = [delight.Color(longname='bg_opacity')]
+    blendLightsetsFgInputs = [deluxe.Color(longname='fg_opacity')]
+    blendLightsetsBgInputs = [deluxe.Color(longname='bg_opacity')]
     blendLightsetsOutputs = []
     
     # Input and output component compound attributes children
     layerComponentChildren = []
     
     # Shading component channels, build compound attributes children and utility functions parameters
-    channels = delight.ComponentData.channels
+    channels = deluxe.ComponentData.channels
     for channel in channels:
         inmsg='component_%s'%channel.longname
         if channel.array:
-            exec 'blendLightsetsFgInputs.append(delight.%s(longname="fg_%s", utility=True))'%(channel.apitype, channel.longname)
-            exec 'blendLightsetsBgInputs.append(delight.%s(longname="bg_%s", utility=True))'%(channel.apitype, channel.longname)
-            exec 'blendLightsetsOutputs.append(delight.%s(longname="%s", output=True, utility=True))'%(channel.apitype, channel.longname)
-        exec '%s = delight.%s(shortname="l%s", norsl=True)'%(inmsg, channel.type, channel.shortname)
+            exec 'blendLightsetsFgInputs.append(deluxe.%s(longname="fg_%s", utility=True))'%(channel.apitype, channel.longname)
+            exec 'blendLightsetsBgInputs.append(deluxe.%s(longname="bg_%s", utility=True))'%(channel.apitype, channel.longname)
+            exec 'blendLightsetsOutputs.append(deluxe.%s(longname="%s", output=True, utility=True))'%(channel.apitype, channel.longname)
+        exec '%s = deluxe.%s(shortname="l%s", norsl=True)'%(inmsg, channel.type, channel.shortname)
         exec 'layerComponentChildren.append(%s)'%inmsg
 
     
@@ -51,7 +51,7 @@ class dl_layer(delight.ShadingCodeComponent):
             blendCode += '\tblend(i_mode, i_fg * premult, i_fga, i_bg, i_bga, resultColor, resultOpacity);\n'
             blendCode += '\treturn resultColor;'
 
-        exec "%s = delight.Function(name='%s', type='%s', inputs=[delight.Float(longname='mode', storage='uniform'), delight.Float(longname='premult'), delight.%s(longname='fg'), delight.Color(longname='fga'), delight.%s(longname='bg'), delight.Color(longname='bga')])"%(blendFunc, blendBase, type.lower(), type, type)
+        exec "%s = deluxe.Function(name='%s', type='%s', inputs=[deluxe.Float(longname='mode', storage='uniform'), deluxe.Float(longname='premult'), deluxe.%s(longname='fg'), deluxe.Color(longname='fga'), deluxe.%s(longname='bg'), deluxe.Color(longname='bga')])"%(blendFunc, blendBase, type.lower(), type, type)
         exec "%s.rsl = blendCode"%blendFunc
         exec "utilfuncs.append(%s)"%blendFunc
         
@@ -69,7 +69,7 @@ class dl_layer(delight.ShadingCodeComponent):
     return total;
     """%type.lower()
     
-        exec "%s = delight.Function(name='%s', type='%s', inputs=[delight.%s(longname='inputs', array=True)])"%(accumFunc, accumBase, type.lower(), type)
+        exec "%s = deluxe.Function(name='%s', type='%s', inputs=[deluxe.%s(longname='inputs', array=True)])"%(accumFunc, accumBase, type.lower(), type)
         exec "%s.rsl = accumCode"%accumFunc
         exec "utilfuncs.append(%s)"%accumFunc
         
@@ -85,15 +85,15 @@ class dl_layer(delight.ShadingCodeComponent):
         o_outputs[i] = i_inputs[i];
     }
     """
-        exec "%s = delight.Function(name='%s', inputs=[delight.%s(longname='inputs', array=True)], outputs=[delight.%s(longname='outputs', array=True, output=True)])"%(copyFunc, copyBase, type, type )
+        exec "%s = deluxe.Function(name='%s', inputs=[deluxe.%s(longname='inputs', array=True)], outputs=[deluxe.%s(longname='outputs', array=True, output=True)])"%(copyFunc, copyBase, type, type )
         exec "%s.rsl = copyCode"%copyFunc
         exec "utilfuncs.append(%s)"%copyFunc
 
     #
-    blendLightsetsInputs = [delight.Float(longname='mode', storage='uniform'), delight.Float(longname='premult')]
+    blendLightsetsInputs = [deluxe.Float(longname='mode', storage='uniform'), deluxe.Float(longname='premult')]
     blendLightsetsInputs.extend(blendLightsetsFgInputs)
     blendLightsetsInputs.extend(blendLightsetsBgInputs)
-    blendLightsetsFunc = delight.Function(name='blendLightsets', inputs=blendLightsetsInputs, outputs=blendLightsetsOutputs)
+    blendLightsetsFunc = deluxe.Function(name='blendLightsets', inputs=blendLightsetsInputs, outputs=blendLightsetsOutputs)
     for channel in filter(lambda msg: msg.array, channels):
         blendLightsetsFunc.rsl += '\to_%s = blend%ss(i_mode, i_premult, i_fg_%s, i_fg_opacity, i_bg_%s, i_bg_opacity);\n'%(channel.longname, channel.apitype, channel.longname, channel.longname)
                         
@@ -105,12 +105,12 @@ class dl_layer(delight.ShadingCodeComponent):
     for i in range(0, len(puzzleDefaults)):
         id = i + 1
         baseName = 'puzzle%d'%id
-        exec '%s = delight.Color(shortname="pz%d", default=%s)'%(baseName, id, str(puzzleDefaults[i]))
+        exec '%s = deluxe.Color(shortname="pz%d", default=%s)'%(baseName, id, str(puzzleDefaults[i]))
         exec 'puzzleAuxInputs.append(%s)'%baseName
         
-    calculateAuxiliariesInputs = [delight.Color(longname='opacity'), delight.Float(longname='premult'), delight.Color(longname='layerOpacities', array=True), delight.String(longname='layerNames',array=True)]
+    calculateAuxiliariesInputs = [deluxe.Color(longname='opacity'), deluxe.Float(longname='premult'), deluxe.Color(longname='layerOpacities', array=True), deluxe.String(longname='layerNames',array=True)]
     calculateAuxiliariesInputs.extend(puzzleAuxInputs)
-    calculateAuxiliariesFunc = delight.Function(name='calculateAuxiliaries', inputs=calculateAuxiliariesInputs)
+    calculateAuxiliariesFunc = deluxe.Function(name='calculateAuxiliaries', inputs=calculateAuxiliariesInputs)
     calculateAuxiliariesFunc.rsl = """
     extern point P;
     extern normal N;
@@ -124,7 +124,7 @@ class dl_layer(delight.ShadingCodeComponent):
      color premult = mix(color 1, i_opacity, i_premult);
 """
 
-    auxAOVs = filter(lambda channel: channel.auxiliary, delight.components.channels)
+    auxAOVs = filter(lambda channel: channel.auxiliary, deluxe.components.channels)
     
     for aov in auxAOVs:
         calculateAuxiliariesFunc.rsl += '\n\textern %s %s;\n'%(aov.rsltype, aov.longname)
@@ -137,76 +137,76 @@ class dl_layer(delight.ShadingCodeComponent):
     # ATTRIBUTES
 
     #
-    displayOpacity = delight.Color(shortname='do', norsl=True)
-    displayColor = delight.Color(shortname='dc', norsl=True)
+    displayOpacity = deluxe.Color(shortname='do', norsl=True)
+    displayColor = deluxe.Color(shortname='dc', norsl=True)
     
     
      # A global opacity multiplier
-    globalOpacity = delight.Color(shortname='go', default=1.0, affect=False)
+    globalOpacity = deluxe.Color(shortname='go', default=1.0, affect=False)
     
     # Global displacement scale 
-    displacementGlobalScale = delight.Float(shortname='dsc', default=1.0, affect=False)
+    displacementGlobalScale = deluxe.Float(shortname='dsc', default=1.0, affect=False)
     
     # Global displacement offset 
-    displacementGlobalOffset = delight.Float(shortname='dof', default=0.0, affect=False)
+    displacementGlobalOffset = deluxe.Float(shortname='dof', default=0.0, affect=False)
     
     #  
-    displacementCompensateScale = delight.Boolean(shortname='dcs', default=False, affect=False)
+    displacementCompensateScale = deluxe.Boolean(shortname='dcs', default=False, affect=False)
     #   
-#    displacementUseNormalMap = delight.Boolean(default=False, storage='uniform',
+#    displacementUseNormalMap = deluxe.Boolean(default=False, storage='uniform',
 #        help="If on, the normal is set by an input to the normalMap parameter, typically a texture.")
     
     #
-#    displacementNormalMap = delight.Color(default=0, storage='varying',
+#    displacementNormalMap = deluxe.Color(default=0, storage='varying',
 #        help="""If the useNormalMap parameter is on, this sets the normal.
 #        Typically you would input a colour texture of a worldspace normal map.
 #        """)
     
     # Arbitrary max lightset count
-    lightSetsCount = delight.Integer(shortname='lsc', norsl=True, default=1, min=1, max=16, affect=False)
+    lightSetsCount = deluxe.Integer(shortname='lsc', norsl=True, default=1, min=1, max=16, affect=False)
     
     # Layers blend order
-    order = delight.IntArray(shortname='ord', affect=False, norsl=True)
-    actualOrder = delight.IntArray(shortname='aord', output=True, internal=True, norsl=True)
+    order = deluxe.IntArray(shortname='ord', affect=False, norsl=True)
+    actualOrder = deluxe.IntArray(shortname='aord', output=True, internal=True, norsl=True)
     
     # Layer compound attribute children
     # Layer name, mostly used as a label but could be used to name per layer AOVs if we decide to output them
-    layer_name = delight.String(shortname='lnm', utility=True, affect=False)
+    layer_name = deluxe.String(shortname='lnm', utility=True, affect=False)
     
     #
     blendModes=['Over', 'Under', 'In', 'Out', 'Atop', 'Xor', 'Cover', 'Add', 'Subtract', 'Multiply', 'Difference', 'Lighten', 'Darken', 'Saturate', 'Desaturate', 'Illuminate', 'None']
     # From blend function in blend_utils.h, Over=0, ...Illuminate=15
-    layer_mode = delight.Enum(shortname='lmde', choices=blendModes, default=blendModes[0], utility=True, affect=False)
+    layer_mode = deluxe.Enum(shortname='lmde', choices=blendModes, default=blendModes[0], utility=True, affect=False)
     
     # Blend opacity
-    layer_opacity = delight.Color(shortname='lo', default=1.0, utility=True, affect=False)
+    layer_opacity = deluxe.Color(shortname='lo', default=1.0, utility=True, affect=False)
     
     #
-    layer_premult = delight.Float(shortname='lpm', default=1.0, utility=True, affect=False, hidden=True)
+    layer_premult = deluxe.Float(shortname='lpm', default=1.0, utility=True, affect=False, hidden=True)
     
     #
-    layer_blendOpacity = delight.Boolean(shortname='lbo', default=True, utility=True, affect=False)
+    layer_blendOpacity = deluxe.Boolean(shortname='lbo', default=True, utility=True, affect=False)
     
     # When turned off, no code is generated for this layer, don't use this to dynamically turn layer on and off, use layer_opacity
-    layer_enable = delight.Boolean(shortname='len', default=True, norsl=True, affect=False)
+    layer_enable = deluxe.Boolean(shortname='len', default=True, norsl=True, affect=False)
     
     # Layer input components   
-    layer_components = delight.ComponentData(shortname='lcmp', children=layerComponentChildren, array=True, norsl=True, affect=False)    
+    layer_components = deluxe.ComponentData(shortname='lcmp', children=layerComponentChildren, array=True, norsl=True, affect=False)    
     
     #
-    layer_displacement_name = delight.String(shortname='ldn', norsl=True, affect=False)
-    layer_displacement_enable = delight.Boolean(shortname='lde', default=True, norsl=True, affect=False)
-    layer_displacement_amount = delight.Float(shortname='lda', default=0.0, norsl=True, utility=True, affect=False)
-    layer_displacement_scale = delight.Float(shortname='ldsc', default=1.0, softmin=-1, softmax=1, norsl=True, utility=True, affect=False)
-    layer_displacement_alpha = delight.Float(shortname='ldal', default=1.0, min=0, max=1, norsl=True, utility=True, affect=False)
-    layer_displacement_offset = delight.Float(shortname='ldo', default=0.0, softmin=-1, softmax=1, norsl=True, utility=True, affect=False)
-    layer_displacement_type = delight.Enum(shortname='ldty', choices=['Bump', 'Displace'], default='Displace', utility=True, affect=False)
-    layer_displacement_recalcNorm = delight.Boolean(shortname='ldrn', default=True, norsl=True, utility=True, affect=False)
-    layer_displacement_useShadNorm = delight.Boolean(shortname='ldun', default=False, norsl=True, utility=True, affect=False)
-    layer_displacement_useNormMap = delight.Boolean(shortname='ldum', default=False, norsl=True, utility=True, affect=False)
-    layer_displacement_normMap = delight.Color(shortname='ldnm', default=False, norsl=True, utility=True, affect=False)
-    layer_displacement_lip = delight.Float(shortname='ldl', min=0, max=1, default=0.0, norsl=True, utility=True, affect=False)
-    layer_displacement_lipRim = delight.Float(shortname='ldls', min=0, max=1, norsl=True, utility=True, affect=False)
+    layer_displacement_name = deluxe.String(shortname='ldn', norsl=True, affect=False)
+    layer_displacement_enable = deluxe.Boolean(shortname='lde', default=True, norsl=True, affect=False)
+    layer_displacement_amount = deluxe.Float(shortname='lda', default=0.0, norsl=True, utility=True, affect=False)
+    layer_displacement_scale = deluxe.Float(shortname='ldsc', default=1.0, softmin=-1, softmax=1, norsl=True, utility=True, affect=False)
+    layer_displacement_alpha = deluxe.Float(shortname='ldal', default=1.0, min=0, max=1, norsl=True, utility=True, affect=False)
+    layer_displacement_offset = deluxe.Float(shortname='ldo', default=0.0, softmin=-1, softmax=1, norsl=True, utility=True, affect=False)
+    layer_displacement_type = deluxe.Enum(shortname='ldty', choices=['Bump', 'Displace'], default='Displace', utility=True, affect=False)
+    layer_displacement_recalcNorm = deluxe.Boolean(shortname='ldrn', default=True, norsl=True, utility=True, affect=False)
+    layer_displacement_useShadNorm = deluxe.Boolean(shortname='ldun', default=False, norsl=True, utility=True, affect=False)
+    layer_displacement_useNormMap = deluxe.Boolean(shortname='ldum', default=False, norsl=True, utility=True, affect=False)
+    layer_displacement_normMap = deluxe.Color(shortname='ldnm', default=False, norsl=True, utility=True, affect=False)
+    layer_displacement_lip = deluxe.Float(shortname='ldl', min=0, max=1, default=0.0, norsl=True, utility=True, affect=False)
+    layer_displacement_lipRim = deluxe.Float(shortname='ldls', min=0, max=1, norsl=True, utility=True, affect=False)
     
     
     layer_displacement_children = [ layer_displacement_name, 
@@ -224,50 +224,50 @@ class dl_layer(delight.ShadingCodeComponent):
                                     layer_displacement_lipRim,
                                     ]
     #    
-    layer_displacements = delight.Compound(layer_displacement_children, shortname='lds', array=True, utility=True, affect=False)
-    layer_displacement_mode = delight.Enum(shortname='ldmo', choices=['Add', 'Over'], default='Add', utility=True, affect=False)
-    layer_displacement_layerScale = delight.Float(shortname='ldlc', default=1.0, utility=True, affect=False)
-    layer_displacement_layerOffset = delight.Float(shortname='ldlo', default=0.0, utility=True, affect=False)
+    layer_displacements = deluxe.Compound(layer_displacement_children, shortname='lds', array=True, utility=True, affect=False)
+    layer_displacement_mode = deluxe.Enum(shortname='ldmo', choices=['Add', 'Over'], default='Add', utility=True, affect=False)
+    layer_displacement_layerScale = deluxe.Float(shortname='ldlc', default=1.0, utility=True, affect=False)
+    layer_displacement_layerOffset = deluxe.Float(shortname='ldlo', default=0.0, utility=True, affect=False)
     
-    layer_displacements_order = delight.IntArray(shortname='ldor', affect=False, norsl=True)
-    layer_displacements_actualOrder = delight.IntArray(shortname='ldao', output=True, internal=True, affect=False, norsl=True)
+    layer_displacements_order = deluxe.IntArray(shortname='ldor', affect=False, norsl=True)
+    layer_displacements_actualOrder = deluxe.IntArray(shortname='ldao', output=True, internal=True, affect=False, norsl=True)
     
     # Layers
-    layers = delight.Compound([layer_name, layer_enable, layer_mode, layer_opacity, layer_premult, layer_blendOpacity, layer_components, layer_displacement_mode, layer_displacement_layerScale, layer_displacement_layerOffset, layer_displacements, layer_displacements_order, layer_displacements_actualOrder], array=True, utility=True, affect=False)
+    layers = deluxe.Compound([layer_name, layer_enable, layer_mode, layer_opacity, layer_premult, layer_blendOpacity, layer_components, layer_displacement_mode, layer_displacement_layerScale, layer_displacement_layerOffset, layer_displacements, layer_displacements_order, layer_displacements_actualOrder], array=True, utility=True, affect=False)
     
     #
     primaryModes = [msg.longname for msg in channels] +  [aov.longname for aov in auxAOVs]
     
     # The primary display output, should always be color unless for debugging or when someone know what he's doing... 
-    primaryMode = delight.Enum(shortname='pmo', choices=primaryModes, default='beauty', affect=False, norsl=True)
+    primaryMode = deluxe.Enum(shortname='pmo', choices=primaryModes, default='beauty', affect=False, norsl=True)
     
     # The primary display lightset index is used for debugging, it should stay to -1 (disabled) otherwise
-    primaryLightSetIndex = delight.Integer(shortname='pls', default=-1, min=-1, max=16, affect=False, norsl=True)
+    primaryLightSetIndex = deluxe.Integer(shortname='pls', default=-1, min=-1, max=16, affect=False, norsl=True)
     
     #
-    premultAux = delight.Boolean(shortname='pma', default=True)
+    premultAux = deluxe.Boolean(shortname='pma', default=True)
     
     # Values of custom float AOVs  
-    customFloat = delight.Float(array=True, utility=True, affect=False)
+    customFloat = deluxe.Float(array=True, utility=True, affect=False)
     
     # Names of custom float AOVs  
-    customFloatName = delight.String(array=True, utility=True, affect=False)
+    customFloatName = deluxe.String(array=True, utility=True, affect=False)
     
     # Values of custom color AOVs  
-    customColor = delight.Color(default=0, array=True, utility=True, affect=False)
+    customColor = deluxe.Color(default=0, array=True, utility=True, affect=False)
     
     # Names of custom color AOVs  
-    customColorName = delight.String(array=True, utility=True, affect=False)
+    customColorName = deluxe.String(array=True, utility=True, affect=False)
 
     #
-    collapseComponents = delight.Boolean(shortname='clc', hidden=True, default=False, affect=False)
-    collapseDisplacements = delight.Boolean(shortname='cld', hidden=True, default=False, affect=False)
+    collapseComponents = deluxe.Boolean(shortname='clc', hidden=True, default=False, affect=False)
+    collapseDisplacements = deluxe.Boolean(shortname='cld', hidden=True, default=False, affect=False)
 
     #
-    displacement=delight.Float(output=True, shortname='od')
+    displacement=deluxe.Float(output=True, shortname='od')
     
     # Used to initialise stupid attrFieldSliderGrp to get map button!
-    phonyFloat = delight.Float(hidden=True, utility=True, affect=False)
+    phonyFloat = deluxe.Float(hidden=True, utility=True, affect=False)
     
     
     @classmethod

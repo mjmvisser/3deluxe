@@ -1,9 +1,9 @@
-import delight
+import deluxe
 
-class dl_externColor(delight.Extern):
+class dl_externColor(deluxe.Extern):
     typeid = 0x00300031
-    inputValue = delight.Color()
-    outputValue = delight.Color(output=True)
+    inputValue = deluxe.Color()
+    outputValue = deluxe.Color(output=True)
     
 def initializePlugin(obj):
     dl_externColor.register(obj)

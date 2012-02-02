@@ -1,78 +1,78 @@
-import delight
+import deluxe
 
-class dl_blendByNormal(delight.Utility):
+class dl_blendByNormal(deluxe.Utility):
     typeid = 0x00300337
     description = "Blend by normal."
 
-    globalCoordsys = delight.CoordinateSystem(shortname='gcs', label='Global Coordsys', default='world',
+    globalCoordsys = deluxe.CoordinateSystem(shortname='gcs', label='Global Coordsys', default='world',
         description="Coordsys to use if an axis' Coordsys To Use is set to Global Coordsys (default).")
-    globalWarpMode = delight.Enum(shortname='gm', default='Off', choices=['Off', 'Noise','Input'])
-    globalWarpNoiseAmount = delight.Float(shortname='gwna', default=1)
-    globalWarpNoiseFreq = delight.Float(shortname='gwnf', default=1)
-    globalWarpNoiseOffset = delight.Vector(shortname='gwno', default=0)
-    globalWarpInput = delight.Vector(shortname='gwi', default=0)
-    globalWarp = delight.Group([globalWarpMode, globalWarpNoiseAmount, globalWarpNoiseFreq, globalWarpNoiseOffset, globalWarpInput])
-    blendWidth = delight.Float(default=1)
+    globalWarpMode = deluxe.Enum(shortname='gm', default='Off', choices=['Off', 'Noise','Input'])
+    globalWarpNoiseAmount = deluxe.Float(shortname='gwna', default=1)
+    globalWarpNoiseFreq = deluxe.Float(shortname='gwnf', default=1)
+    globalWarpNoiseOffset = deluxe.Vector(shortname='gwno', default=0)
+    globalWarpInput = deluxe.Vector(shortname='gwi', default=0)
+    globalWarp = deluxe.Group([globalWarpMode, globalWarpNoiseAmount, globalWarpNoiseFreq, globalWarpNoiseOffset, globalWarpInput])
+    blendWidth = deluxe.Float(default=1)
 
-    label = delight.String(shortname='lbl', description="""
+    label = deluxe.String(shortname='lbl', description="""
         label of this axis. """)
-    colour = delight.Color(shortname='clr', description="""
+    colour = deluxe.Color(shortname='clr', description="""
         See help for "direction" parm. """)
-    coordsysToUse = delight.Enum(shortname='cstu', default='Global Coordsys',
+    coordsysToUse = deluxe.Enum(shortname='cstu', default='Global Coordsys',
         choices=['Global Coordsys', 'Coordsys For This Axis'], description="""
         Which coordinate system to use, Global Coordsys parm or Coordsys For This Axis
         """)
-    coordsysForThisAxis = delight.String(shortname='cs',
+    coordsysForThisAxis = deluxe.String(shortname='cs',
         default='world', description=""" Coordinate system of the "direction" parm.  """)
-    direction = delight.Vector(shortname='dir', default=(0,1,0), description="""
+    direction = deluxe.Vector(shortname='dir', default=(0,1,0), description="""
         Where the normal is closest to this direction (or its reverse,
         see help for "orientation" parm), the corresponding "colour"
         parameter will have the greatest influence.
     """)
-    orientation = delight.Enum(default='positive and negative',
+    orientation = deluxe.Enum(default='positive and negative',
         choices=['positive', 'positive and negative', 'negative'],
         description = """
         Choose whether this axis affects the surface where N is
         aligned with the axis direction ("positive"), opposite
         to it ("negative"), or both ("positive and negative").
         """)
-    hemispheres = delight.Float(default=1, min=0, max=2,
+    hemispheres = deluxe.Float(default=1, min=0, max=2,
         description="How many hemispheres this axis affects, 1=half the sphere, 2=the whole sphere")
-    weight = delight.Float(shortname='wt', default=1,
+    weight = deluxe.Float(shortname='wt', default=1,
         description="The relative influence of this axis.")
 
-    warpToUse = delight.Enum(shortname='wtu', default='Global', choices=['Global','Local'])
-    warpMode = delight.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
-    warpNoiseAmount = delight.Float(shortname='wna', default=1)
-    warpNoiseFreq = delight.Float(shortname='wnf', default=1)
-    warpNoiseOffset = delight.Vector(shortname='wno', default=0)
-    warpInput = delight.Vector(shortname='wi', default=0)
+    warpToUse = deluxe.Enum(shortname='wtu', default='Global', choices=['Global','Local'])
+    warpMode = deluxe.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
+    warpNoiseAmount = deluxe.Float(shortname='wna', default=1)
+    warpNoiseFreq = deluxe.Float(shortname='wnf', default=1)
+    warpNoiseOffset = deluxe.Vector(shortname='wno', default=0)
+    warpInput = deluxe.Vector(shortname='wi', default=0)
 
-    axes = delight.Compound([label, colour, coordsysToUse, coordsysForThisAxis, direction,
+    axes = deluxe.Compound([label, colour, coordsysToUse, coordsysForThisAxis, direction,
         orientation, hemispheres, weight, warpToUse, warpMode, warpNoiseAmount,
         warpNoiseFreq, warpNoiseOffset, warpInput], shortname='xs', array=True)
 
 
 
-    outColor = delight.Color(output=True)
+    outColor = deluxe.Color(output=True)
 
-    element0outColor = delight.Color(output=True)
-    element1outColor = delight.Color(output=True)
-    element2outColor = delight.Color(output=True)
-    element3outColor = delight.Color(output=True)
-    element4outColor = delight.Color(output=True)
-    element5outColor = delight.Color(output=True)
-    element6outColor = delight.Color(output=True)
-    element7outColor = delight.Color(output=True)
+    element0outColor = deluxe.Color(output=True)
+    element1outColor = deluxe.Color(output=True)
+    element2outColor = deluxe.Color(output=True)
+    element3outColor = deluxe.Color(output=True)
+    element4outColor = deluxe.Color(output=True)
+    element5outColor = deluxe.Color(output=True)
+    element6outColor = deluxe.Color(output=True)
+    element7outColor = deluxe.Color(output=True)
 
-    element0outAlpha = delight.Float(output=True)
-    element1outAlpha = delight.Float(output=True)
-    element2outAlpha = delight.Float(output=True)
-    element3outAlpha = delight.Float(output=True)
-    element4outAlpha = delight.Float(output=True)
-    element5outAlpha = delight.Float(output=True)
-    element6outAlpha = delight.Float(output=True)
-    element7outAlpha = delight.Float(output=True)
+    element0outAlpha = deluxe.Float(output=True)
+    element1outAlpha = deluxe.Float(output=True)
+    element2outAlpha = deluxe.Float(output=True)
+    element3outAlpha = deluxe.Float(output=True)
+    element4outAlpha = deluxe.Float(output=True)
+    element5outAlpha = deluxe.Float(output=True)
+    element6outAlpha = deluxe.Float(output=True)
+    element7outAlpha = deluxe.Float(output=True)
 
     # TODO: Uncomment and fix this so that when it's first 
     # instantiated, the node has 3 elements in the axes[] array, each

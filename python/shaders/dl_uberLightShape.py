@@ -1,4 +1,4 @@
-import delight
+import deluxe
 
 import maya.OpenMayaRender as OpenMayaRender
 import maya.OpenMayaUI as OpenMayaUI
@@ -12,176 +12,176 @@ import pymel.core as pm
 glRenderer = OpenMayaRender.MHardwareRenderer.theRenderer()
 glFT = glRenderer.glFunctionTable()
 
-class dl_uberLightShape(delight.Light):
+class dl_uberLightShape(deluxe.Light):
     typeid = 0x00310000
     includes = ["uberlight_utils.h", "shadow_utils.h", "utils.h"]
 
-    lightType = delight.Enum(default='Spot', choices=['Spot', 'Point', 'Distant'])
+    lightType = deluxe.Enum(default='Spot', choices=['Spot', 'Point', 'Distant'])
 
     # falloff
-    falloff = delight.Enum(default='None',
+    falloff = deluxe.Enum(default='None',
                            choices=['None', 'Linear', 'Quadratic'])
-    falloffDistance = delight.Float(default=1, storage='uniform',
+    falloffDistance = deluxe.Float(default=1, storage='uniform',
                                     help="""The distance at which the incident energy is actually
                                             equal to intensity*reflcolor.  In other words, the intensity
                                             is actually given by:   I = (falloffdist / distance) ^ falloff""")
-    maxIntensity = delight.Float(default=1, storage='uniform',
+    maxIntensity = deluxe.Float(default=1, storage='uniform',
                                  help="""To prevent the light from becoming unboundedly
                                          large when the distance < falloffdist, the intensity is
                                          smoothly clamped to this maximum value.""");
 
     # cone shaping
-    coneAngle = delight.Float(min=0, max=180, default=40, storage='uniform')
-    penumbraAngle = delight.Float(min=0, max=90, default=10, storage='uniform')
+    coneAngle = deluxe.Float(min=0, max=180, default=40, storage='uniform')
+    penumbraAngle = deluxe.Float(min=0, max=90, default=10, storage='uniform')
 
-    beamDistribution = delight.Float(default=0, min=0, softmax=2, storage='uniform',
+    beamDistribution = deluxe.Float(default=0, min=0, softmax=2, storage='uniform',
                                      help="""Controls intensity falloff due to angle.
                                              A value of 0 (the default) means no angle falloff.  A value
                                              of 1 is roughly physically correct for a spotlight, and
                                              corresponds to a cosine falloff.
                                              This parameter has no effect on point lights.""")
-    SpotPoint = delight.Group([falloff, falloffDistance, maxIntensity],
+    SpotPoint = deluxe.Group([falloff, falloffDistance, maxIntensity],
         label='Spot/Point Light', collapse=False)
 
-    Spot = delight.Group([coneAngle, penumbraAngle, beamDistribution],
+    Spot = deluxe.Group([coneAngle, penumbraAngle, beamDistribution],
         label='Spot Light', collapse=False)
 
     # component contributions
-    contributeDiffuse = delight.Float(shortname='cnd',
+    contributeDiffuse = deluxe.Float(shortname='cnd',
                                       min=0, max=1,
                                       default=1,
                                       storage='uniform',
                                       help='Controls whether or not this light contributes to the diffuse component.')
-    contributeSpecular = delight.Float(shortname='cnsp',
+    contributeSpecular = deluxe.Float(shortname='cnsp',
                                        min=0, max=1,
                                        default=1,
                                        storage='uniform',
                                        help='Controls whether or not this light contributes to the specular component.')
-    contributeTranslucence = delight.Float(shortname='cnt',
+    contributeTranslucence = deluxe.Float(shortname='cnt',
                                            min=0, max=1,
                                            default=1,
                                            storage='uniform',
                                            help='Controls whether or not this light contributes to the translucence component.')
 
 
-    contributions = delight.Group([contributeDiffuse, contributeSpecular, contributeTranslucence], label='Component Contributions')
+    contributions = deluxe.Group([contributeDiffuse, contributeSpecular, contributeTranslucence], label='Component Contributions')
 
     # gobo
-    goboColor = delight.Color(shortname='gbc', label="Gobo Color", default=(1,1,1), prepare=True)
-    goboAlpha = delight.Float(shortname='gba', label="Gobo Alpha", default=1, prepare=True)
-    gobo = delight.Group([goboColor, goboAlpha])
+    goboColor = deluxe.Color(shortname='gbc', label="Gobo Color", default=(1,1,1), prepare=True)
+    goboAlpha = deluxe.Float(shortname='gba', label="Gobo Alpha", default=1, prepare=True)
+    gobo = deluxe.Group([goboColor, goboAlpha])
 
     # cut on/off
-    cutOn = delight.Float(shortname='cn', min=0, softmax=10, default=0.01, storage='uniform')
-    cutOnEdge = delight.Float(shortname='cne', min=0, softmax=10, default=0, storage='uniform')
-    cutOnShape = delight.Float(shortname='cns', min=0, softmax=5, default=1, storage='uniform')
-    cutOff = delight.Float(shortname='coff', min=0, softmax=10, default=1.0e6, storage='uniform')
-    cutOffEdge = delight.Float(min=0, softmax=10, default=0, storage='uniform')
-    cutOffShape = delight.Float(min=0, softmax=5, default=1, storage='uniform')
+    cutOn = deluxe.Float(shortname='cn', min=0, softmax=10, default=0.01, storage='uniform')
+    cutOnEdge = deluxe.Float(shortname='cne', min=0, softmax=10, default=0, storage='uniform')
+    cutOnShape = deluxe.Float(shortname='cns', min=0, softmax=5, default=1, storage='uniform')
+    cutOff = deluxe.Float(shortname='coff', min=0, softmax=10, default=1.0e6, storage='uniform')
+    cutOffEdge = deluxe.Float(min=0, softmax=10, default=0, storage='uniform')
+    cutOffShape = deluxe.Float(min=0, softmax=5, default=1, storage='uniform')
 
-    zShaping = delight.Group([cutOn, cutOnEdge, cutOnShape, cutOff, cutOffEdge, cutOffShape],
+    zShaping = deluxe.Group([cutOn, cutOnEdge, cutOnShape, cutOff, cutOffEdge, cutOffShape],
                              label='Cut On/Off')
 
     # barn doors
-    barnDoorLeftAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
-    barnDoorLeftEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorLeftLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
-    barnDoorLeftRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
+    barnDoorLeftAngle = deluxe.Float(default=90, min=0, max=90, storage='uniform')
+    barnDoorLeftEdge = deluxe.Float(default=5, min=0, softmax=20, storage='uniform')
+    barnDoorLeftLength = deluxe.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorLeftRoll = deluxe.Float(default=0, min=-90, max=90, storage='uniform')
 
-    barnDoorRightAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
-    barnDoorRightEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorRightLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
-    barnDoorRightRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
+    barnDoorRightAngle = deluxe.Float(default=90, min=0, max=90, storage='uniform')
+    barnDoorRightEdge = deluxe.Float(default=5, min=0, softmax=20, storage='uniform')
+    barnDoorRightLength = deluxe.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorRightRoll = deluxe.Float(default=0, min=-90, max=90, storage='uniform')
 
-    barnDoorTopAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
-    barnDoorTopEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorTopLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
-    barnDoorTopRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
+    barnDoorTopAngle = deluxe.Float(default=90, min=0, max=90, storage='uniform')
+    barnDoorTopEdge = deluxe.Float(default=5, min=0, softmax=20, storage='uniform')
+    barnDoorTopLength = deluxe.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorTopRoll = deluxe.Float(default=0, min=-90, max=90, storage='uniform')
 
-    barnDoorBottomAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
-    barnDoorBottomEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorBottomLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
-    barnDoorBottomRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
+    barnDoorBottomAngle = deluxe.Float(default=90, min=0, max=90, storage='uniform')
+    barnDoorBottomEdge = deluxe.Float(default=5, min=0, softmax=20, storage='uniform')
+    barnDoorBottomLength = deluxe.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorBottomRoll = deluxe.Float(default=0, min=-90, max=90, storage='uniform')
 
-    barnDoors = delight.Group([barnDoorLeftAngle, barnDoorLeftEdge, barnDoorLeftLength, barnDoorLeftRoll,
+    barnDoors = deluxe.Group([barnDoorLeftAngle, barnDoorLeftEdge, barnDoorLeftLength, barnDoorLeftRoll,
                                barnDoorRightAngle, barnDoorRightEdge, barnDoorRightLength, barnDoorRightRoll,
                                barnDoorTopAngle, barnDoorTopEdge, barnDoorTopLength, barnDoorTopRoll,
                                barnDoorBottomAngle, barnDoorBottomEdge, barnDoorBottomLength, barnDoorBottomRoll])
 
     # Noisy light
-    noiseAmplitude = delight.Float()
-    noiseFrequency = delight.Float(default=4)
-    noiseOffset = delight.Float3(default=(0,0,0))
-    noise = delight.Group([noiseAmplitude, noiseFrequency, noiseOffset])
+    noiseAmplitude = deluxe.Float()
+    noiseFrequency = deluxe.Float(default=4)
+    noiseOffset = deluxe.Float3(default=(0,0,0))
+    noise = deluxe.Group([noiseAmplitude, noiseFrequency, noiseOffset])
 
-    shadowColor = delight.Color(default=0, help="Color to tint the shadow.")
-    shadowIntensity = delight.Float(default=1, help="Intensity of shadow.")
-    useAmbientOcclusion = delight.Float(default=0, help="Mix ambient occlusion with cast shadows.",
+    shadowColor = deluxe.Color(default=0, help="Color to tint the shadow.")
+    shadowIntensity = deluxe.Float(default=1, help="Intensity of shadow.")
+    useAmbientOcclusion = deluxe.Float(default=0, help="Mix ambient occlusion with cast shadows.",
                                 storage="uniform", softmax=1)
 
-    orthoShadow = delight.Boolean(default=False)
-    shadowType = delight.Enum(default='None', 
+    orthoShadow = deluxe.Boolean(default=False)
+    shadowType = deluxe.Enum(default='None', 
                               choices=['None', 'Mapped', 'Ray-Traced'],
                               help="""If you are using "Mapped", you MUST assign a 3delight light attribute to this light.""")
     # mapped shadows
     
-    shadowBlur = delight.Float(label='Blur',
+    shadowBlur = deluxe.Float(label='Blur',
                                shortname='bl', default=0.01, min=0, softmax=0.2, storage='uniform',
                                help="""Amount to blur the shadow. A value of 1.0 would
                                        request that the entire texture be blurred in the result.""")
-    shadowFilterType = delight.Enum(label='Filter Type',
+    shadowFilterType = deluxe.Enum(label='Filter Type',
                                     default='Gaussian',
                                     choices=['Box','Triangle','Gaussian']);
-    shadowBias = delight.Float(label='Bias',
+    shadowBias = deluxe.Float(label='Bias',
                                shortname='bi', default=0.225, min=0, softmax=5, storage='uniform',
                                help="Used to prevent self-shadowing. If set to 0, the global bias is used.")
-    shadowSamples = delight.Integer(label='Samples',
+    shadowSamples = deluxe.Integer(label='Samples',
                                     default=16, min=0, softmax=16)
     
-    useSoftShadowDecay = delight.Boolean(default=False,
+    useSoftShadowDecay = deluxe.Boolean(default=False,
                                          help="Turns on soft shadows that decay with distance.")
-    shadowMinimumRadius = delight.Float(label='Minimum Radius',
+    shadowMinimumRadius = deluxe.Float(label='Minimum Radius',
                                         shortname='mnr', default=0.001, min=0, softmax=0.2, storage='uniform')
-    shadowMaximumRadius = delight.Float(label='Maximum Radius',
+    shadowMaximumRadius = deluxe.Float(label='Maximum Radius',
                                         shortname='mxr', default=0.1, min=0, softmax=0.2, storage='uniform')
-    selfShadowReduce = delight.Float(default=2, min=0, softmax=5, storage='uniform')
-    shadowDecay = delight.Float(label='Decay',
+    selfShadowReduce = deluxe.Float(default=2, min=0, softmax=5, storage='uniform')
+    shadowDecay = deluxe.Float(label='Decay',
                                 default=0, min=0, softmax=5, storage='uniform')
-    shadowDecayCutOn = delight.Float(label='Decay Cut-On',
+    shadowDecayCutOn = deluxe.Float(label='Decay Cut-On',
                                      shortname='sdcon', default=10, min=0, max=1000, storage='uniform')
-    shadowDecayCutOff = delight.Float(label='Decay Cut-Off',
+    shadowDecayCutOff = deluxe.Float(label='Decay Cut-Off',
                                       shortname='sdcoff', default=10, min=0, max=1000, storage='uniform')
     
-    softShadowDecay = delight.Group([useSoftShadowDecay,
+    softShadowDecay = deluxe.Group([useSoftShadowDecay,
                                      shadowMinimumRadius, shadowMaximumRadius,
                                      selfShadowReduce, shadowDecay,
                                      shadowDecayCutOn, shadowDecayCutOff])
 
-    useShadowMapsSets = delight.Boolean(default=True)
-    shadowMapsSetIndex = delight.Integer(default=-1)
+    useShadowMapsSets = deluxe.Boolean(default=True)
+    shadowMapsSetIndex = deluxe.Integer(default=-1)
     
-    mappedShadows = delight.Group([useShadowMapsSets, shadowMapsSetIndex, shadowBlur, shadowFilterType, 
+    mappedShadows = deluxe.Group([useShadowMapsSets, shadowMapsSetIndex, shadowBlur, shadowFilterType, 
                                    shadowBias, shadowSamples,
                                    softShadowDecay])
 
     # raytraced shadows
-    traceSampleCone = delight.Float(min=0, max=90, default=0, storage='uniform',
+    traceSampleCone = deluxe.Float(min=0, max=90, default=0, storage='uniform',
                                     help="""Specifies an angle that describes a cone in which rays will
                                             be sampled. Larger cones means softer results.""")
-    traceSamples = delight.Integer(shortname='tsam',
+    traceSamples = deluxe.Integer(shortname='tsam',
                                    min=0, default=4, storage='uniform',
                                    help="""Specifies the number of samples to use to. Higher sample counts are needed
                                            if anti-aliasing is to be performed or the sample cone is greater than 0.""")
-    traceSubset = delight.String(shortname='tsub', storage='uniform',
+    traceSubset = deluxe.String(shortname='tsub', storage='uniform',
                                  help="""Specifies a subset of objects which are included in ray tracing computations.""")
-    traceBias = delight.Float(default=-1, softmin=0, softmax=10, storage='uniform',
+    traceBias = deluxe.Float(default=-1, softmin=0, softmax=10, storage='uniform',
                               help="""Specifies a bias for ray's starting point to avoid potentially erroneous intersections
                                       with the emitting surface. A value of `-1' forces 3DELIGHT to take the default value
                                       as specified by Attribute "trace" "bias".""")
-    tracedShadows = delight.Group([traceSampleCone, traceSamples, traceSubset, traceBias],
+    tracedShadows = deluxe.Group([traceSampleCone, traceSamples, traceSubset, traceBias],
                                   label='Ray-Traced Shadows')
 
-    digidoubleShadowType = delight.Enum(default='Ray-Traced', 
+    digidoubleShadowType = deluxe.Enum(default='Ray-Traced', 
                               choices=['None', 'Mapped', 'Ray-Traced'], help="""
                                 Select shadow type for digidouble shadow.  The digidouble MUST be part of the
                                 set specified in digidoubleSubset for either Mapped OR Ray-Traced shadows.
@@ -189,18 +189,18 @@ class dl_uberLightShape(delight.Light):
                                 and will receive shadows from other surfaces EXCEPT where they are \"blocked\"
                                 by digidouble surfaces.""")
 
-    digidoubleSubset = delight.String(default='digidouble', help="""Subset containing digidoubles.  This MUST
+    digidoubleSubset = deluxe.String(default='digidouble', help="""Subset containing digidoubles.  This MUST
                                 be specified whether digidoubleShadowType = Mapped OR Ray-Traced.""")
 
-    digidoubleShadowMap = delight.String(default='', help="""Shadowmap containing digidouble, only used if digidoubleShadowMap = Mapped.""")
+    digidoubleShadowMap = deluxe.String(default='', help="""Shadowmap containing digidouble, only used if digidoubleShadowMap = Mapped.""")
 
-    digidoubleShadows = delight.Group([digidoubleShadowType, digidoubleSubset, digidoubleShadowMap])
+    digidoubleShadows = deluxe.Group([digidoubleShadowType, digidoubleSubset, digidoubleShadowMap])
 
     # blockers
-    blockerColor = delight.Color(shortname='bkc', label='Color', default=(0,0,0))
-    blockerValue = delight.Float(shortname='bka', label='Alpha', min=0, max=1, default=1)
+    blockerColor = deluxe.Color(shortname='bkc', label='Color', default=(0,0,0))
+    blockerValue = deluxe.Float(shortname='bka', label='Alpha', min=0, max=1, default=1)
     
-    class BlockersCallCustom(delight.CallCustom):
+    class BlockersCallCustom(deluxe.CallCustom):
         def new(self, plug):
             plug = pm.Attribute(plug)
             with pm.ui.UITemplate("attributeEditorTemplate"):
@@ -259,27 +259,27 @@ class dl_uberLightShape(delight.Light):
             self.replace(plug)
             
 
-    blockers = delight.Compound([blockerColor, blockerValue], array=True, readable=False, indexmatters=False,
+    blockers = deluxe.Compound([blockerColor, blockerValue], array=True, readable=False, indexmatters=False,
                                 callcustom=BlockersCallCustom)
 
-    shadows = delight.Group([shadowColor, shadowIntensity, useAmbientOcclusion, orthoShadow, shadowType, mappedShadows, tracedShadows, blockers, digidoubleShadows])
+    shadows = deluxe.Group([shadowColor, shadowIntensity, useAmbientOcclusion, orthoShadow, shadowType, mappedShadows, tracedShadows, blockers, digidoubleShadows])
 
     # display stuff...
-    displayPenumbraAngle = delight.Boolean(default=False)
-    displayLightLimits = delight.Boolean(default=False)
-    displayBarnDoors = delight.Boolean(default=False)
-    displayFalloff = delight.Boolean(default=False)
-    iconSize = delight.Float(default=1, min=0.01, storage='uniform')
-    display = delight.Group([displayPenumbraAngle, displayLightLimits, displayBarnDoors, displayFalloff, iconSize])
+    displayPenumbraAngle = deluxe.Boolean(default=False)
+    displayLightLimits = deluxe.Boolean(default=False)
+    displayBarnDoors = deluxe.Boolean(default=False)
+    displayFalloff = deluxe.Boolean(default=False)
+    iconSize = deluxe.Float(default=1, min=0.01, storage='uniform')
+    display = deluxe.Group([displayPenumbraAngle, displayLightLimits, displayBarnDoors, displayFalloff, iconSize])
 
-    __occluded = delight.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
-    __occlusionColor = delight.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
-    __unoccludedCl = delight.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
-    __contribTranslucence = delight.Float(default=False, output=True, message=True, messagetype='lightsource')
-    __useAmbientOcclusion = delight.Float(default=0, output=True, message=True, messagetype='lightsource')
+    __occluded = deluxe.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
+    __occlusionColor = deluxe.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
+    __unoccludedCl = deluxe.Color(default=0, output=True, message=True, storage='varying', messagetype='lightsource')
+    __contribTranslucence = deluxe.Float(default=False, output=True, message=True, messagetype='lightsource')
+    __useAmbientOcclusion = deluxe.Float(default=0, output=True, message=True, messagetype='lightsource')
 
     # category
-    __category = delight.String(default='', message=True, messagetype='lightsource')
+    __category = deluxe.String(default='', message=True, messagetype='lightsource')
 
     rslprepare = \
     """

@@ -4,81 +4,81 @@ import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 import math, sys
 
-import delight
+import deluxe
 
 glRenderer = OpenMayaRender.MHardwareRenderer.theRenderer()
 glFT = glRenderer.glFunctionTable()
 
-class dl_projectionLightShape(delight.Light):
+class dl_projectionLightShape(deluxe.Light):
     typeid = 0x00310005
     includes = ["shadow_utils.h", "utils.h"]
 
-    color = delight.Color(shortname='clr', prepare=True, storage='varying', help="""
+    color = deluxe.Color(shortname='clr', prepare=True, storage='varying', help="""
 Colour to project.  Plug this into a maya File node's outColor to project a texture.
 """)
 
-    transparency = delight.Color(default=0, shortname='trn', storage='varying', help="""
+    transparency = deluxe.Color(default=0, shortname='trn', storage='varying', help="""
 Transparency (1-alpha) of projected colour.  Plug this into a maya File
 node's outTransparency to use the texture's (inverted) alpha channel.
 """)
 
-    compositeMode = delight.Enum(shortname='cpmd', default='Over', choices=['Over', 'Add'], help="""
+    compositeMode = deluxe.Enum(shortname='cpmd', default='Over', choices=['Over', 'Add'], help="""
 Compositing mode over previous projections.
 projectionLights are evaluated in alphabetical order.
 """)
-    #repeatMode = delight.Enum(default='Blank', choices=['Blank', 'Repeat', 'Hold'], help="")
+    #repeatMode = deluxe.Enum(default='Blank', choices=['Blank', 'Repeat', 'Hold'], help="")
 
-    projLightSubset = delight.String(default="", help="""
+    projLightSubset = deluxe.String(default="", help="""
 Only dl_projectionCollector nodes with matching projLightSubset
 values will receive projections from this light.
 """)
 
     # mapped shadows
-    shadowBlur = delight.Float(label='Blur',
+    shadowBlur = deluxe.Float(label='Blur',
                                shortname='bl', default=0.01, min=0, softmax=0.2, storage='uniform',
                                help="""Amount to blur the shadow. A value of 1.0 would
                                        request that the entire texture be blurred in the result.""")
-    shadowFilterType = delight.Enum(label='Filter Type',
+    shadowFilterType = deluxe.Enum(label='Filter Type',
                                     default='Gaussian',
                                     choices=['Box','Triangle','Gaussian']);
-    shadowBias = delight.Float(label='Bias',
+    shadowBias = deluxe.Float(label='Bias',
                                shortname='bi', default=0.225, min=0, softmax=5, storage='uniform',
                                help="Used to prevent self-shadowing. If set to 0, the global bias is used.")
-    shadowSamples = delight.Integer(label='Samples',
+    shadowSamples = deluxe.Integer(label='Samples',
                                     default=16, min=0, softmax=16)
     
-    useSoftShadowDecay = delight.Boolean(default=False,
+    useSoftShadowDecay = deluxe.Boolean(default=False,
                                          help="Turns on soft shadows that decay with distance.")
-    shadowMinimumRadius = delight.Float(label='Minimum Radius',
+    shadowMinimumRadius = deluxe.Float(label='Minimum Radius',
                                         shortname='mnr', default=0.001, min=0, softmax=0.2, storage='uniform')
-    shadowMaximumRadius = delight.Float(label='Maximum Radius',
+    shadowMaximumRadius = deluxe.Float(label='Maximum Radius',
                                         shortname='mxr', default=0.1, min=0, softmax=0.2, storage='uniform')
-    selfShadowReduce = delight.Float(default=2, min=0, softmax=5, storage='uniform')
-    shadowDecay = delight.Float(label='Decay',
+    selfShadowReduce = deluxe.Float(default=2, min=0, softmax=5, storage='uniform')
+    shadowDecay = deluxe.Float(label='Decay',
                                 default=0, min=0, softmax=5, storage='uniform')
-    shadowDecayCutOn = delight.Float(label='Decay Cut-On',
+    shadowDecayCutOn = deluxe.Float(label='Decay Cut-On',
                                      shortname='sdcon', default=10, min=0, max=1000, storage='uniform')
-    shadowDecayCutOff = delight.Float(label='Decay Cut-Off',
+    shadowDecayCutOff = deluxe.Float(label='Decay Cut-Off',
                                       shortname='sdcoff', default=10, min=0, max=1000, storage='uniform')
     
-    softShadowDecay = delight.Group([useSoftShadowDecay,
+    softShadowDecay = deluxe.Group([useSoftShadowDecay,
                                      shadowMinimumRadius, shadowMaximumRadius,
                                      selfShadowReduce, shadowDecay,
                                      shadowDecayCutOn, shadowDecayCutOff])
 
-    mappedShadows = delight.Group([shadowBlur, shadowFilterType, 
+    mappedShadows = deluxe.Group([shadowBlur, shadowFilterType, 
                                    shadowBias, shadowSamples,
                                    softShadowDecay])
 
     # output messages
-    __compositeMode = delight.Float(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
-    __alpha = delight.Float(default=1, storage='varying', output=True, message=True, messagetype='lightsource')
-    __projLightSubset = delight.String(default="", output=True, message=True, messagetype='lightsource')
+    __compositeMode = deluxe.Float(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
+    __alpha = deluxe.Float(default=1, storage='varying', output=True, message=True, messagetype='lightsource')
+    __projLightSubset = deluxe.String(default="", output=True, message=True, messagetype='lightsource')
 
 
     # category
-    __category = delight.String(default='texture', message=True, messagetype='lightsource')
-    _3delight_light_category = delight.String(shortname='cat', default='texture', notemplate=True, norsl=True)
+    __category = deluxe.String(default='texture', message=True, messagetype='lightsource')
+    _3delight_light_category = deluxe.String(shortname='cat', default='texture', notemplate=True, norsl=True)
 
     rslprepare = \
     """

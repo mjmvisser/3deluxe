@@ -1,25 +1,25 @@
-import delight
+import deluxe
 
-class dl_curvature(delight.Utility):
+class dl_curvature(deluxe.Utility):
     typeid = 0x0030000c
     description = "Simple incandescence to simulate internal illumination. "
 
-    CurvatureType = delight.Enum(default='mean', description="""
+    CurvatureType = deluxe.Enum(default='mean', description="""
         I'm honestly not sure how these calculations are done,
         but 'mean' seems work best.""",
         choices=['gaussian', 'mean', 'ku', 'kv', 'min', 'max'])
 
-    remapInMin = delight.Float(default=-1, shortname='inmin',
+    remapInMin = deluxe.Float(default=-1, shortname='inmin',
         description='(unclamped) minimum input value to remap curvature')
-    remapInMax = delight.Float(default=1, shortname='inmax',
+    remapInMax = deluxe.Float(default=1, shortname='inmax',
         description='(unclamped) maximum input value to remap curvature')
-    remapOutMin = delight.Float(default=0, shortname='outmin',
+    remapOutMin = deluxe.Float(default=0, shortname='outmin',
         description='(unclamped) minimum output value to remap curvature')
-    remapOutMax = delight.Float(default=1, shortname='outmax',
+    remapOutMax = deluxe.Float(default=1, shortname='outmax',
         description='(unclamped) maximum output value to remap curvature')
 
-    outColor = delight.Color(output=True)
-    outAlpha = delight.Float(output=True)
+    outColor = deluxe.Color(output=True)
+    outAlpha = deluxe.Float(output=True)
 
     
     rsl = \

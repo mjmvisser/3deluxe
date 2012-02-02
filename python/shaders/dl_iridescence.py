@@ -1,35 +1,35 @@
-import delight
+import deluxe
 
-class dl_iridescence(delight.Utility):
+class dl_iridescence(deluxe.Utility):
     typeid = 0x00370010
     includes = ["noise_utils.h", "env_utils.h", "component_utils.h"]
     description = "iridescence function"
     
-    facingColour = delight.Color(shortname="fc", default=[0, 0, 1], help="""
+    facingColour = deluxe.Color(shortname="fc", default=[0, 0, 1], help="""
         The color where the surface is facing the camera.  As the normal turns away from the camera,
         the hue changes, but the value and saturation remain the same.""")
-    hueShift = delight.Float(shortname="sh", storage='uniform', default=2, help="""
+    hueShift = deluxe.Float(shortname="sh", storage='uniform', default=2, help="""
         How much the hue shifts as the normal goes from facing the camera to perpendicular, eg. if
         hueShift = 2, the hue will do two complete rainbows from the center to edge of a sphere.""")
-    noise = delight.Float(shortname="nsy", storage='uniform', default=1, help="""
+    noise = deluxe.Float(shortname="nsy", storage='uniform', default=1, help="""
         How much swirly (domain-distorted) noise is added to hue shift.  """)
-    noiseFrequency = delight.Float(shortname="nf", storage='uniform', default=1, help="""
+    noiseFrequency = deluxe.Float(shortname="nf", storage='uniform', default=1, help="""
         Frequency of the hue shift noise.""")
-    noiseOctaves = delight.Float(shortname="no", storage='uniform', default=3, help="""
+    noiseOctaves = deluxe.Float(shortname="no", storage='uniform', default=3, help="""
         How many octaves of noise to do.""")
-    noiseWarp = delight.Float(shortname="nw", storage='uniform', default=.5, help="""
+    noiseWarp = deluxe.Float(shortname="nw", storage='uniform', default=.5, help="""
         How how swirly (domain-distorted) the noise should be.""")
-    noiseSpeed = delight.Float(shortname="ns", storage='uniform', default=.1, help="""
+    noiseSpeed = deluxe.Float(shortname="ns", storage='uniform', default=.1, help="""
         Speed at which the noise morphs and moves downward relative to the frame number.
         """)
-    ior = delight.Float(shortname="ior", storage='uniform', default=1.3, help="""
+    ior = deluxe.Float(shortname="ior", storage='uniform', default=1.3, help="""
         THIS ONLY AFFACTS outAlpha, NOT outColor.  To create semi-transparent surfaces
         eg.  bubbles, plug outAlpha into dl_ultra's opacity parameter.  ior sets the
         index of refraction, which determines how much the opacity is reduced where the
         normal faces the camera (higher value = more opaque).
         """)
-    outColor = delight.Color(shortname="oc", output=True)
-    outAlpha = delight.Float(shortname="oa", output=True)
+    outColor = deluxe.Color(shortname="oc", output=True)
+    outAlpha = deluxe.Float(shortname="oa", output=True)
 
 
               

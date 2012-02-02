@@ -1,31 +1,31 @@
-import delight
+import deluxe
 
-class dl_blocker(delight.Utility):
+class dl_blocker(deluxe.Utility):
     typeid = 0x00300201
     includes = ["shadow_utils.h"]
     
-    color = delight.Color(default=1, storage="varying",help="Color to tint the fake shadow.", prepare=True)
-    intensity = delight.Float(default=1, storage="varying",help="Intensity of the fake shadow.", prepare=True)
-    coordsys = delight.CoordinateSystem(default="", shortname="cs", label="coordinateSystem")
+    color = deluxe.Color(default=1, storage="varying",help="Color to tint the fake shadow.", prepare=True)
+    intensity = deluxe.Float(default=1, storage="varying",help="Intensity of the fake shadow.", prepare=True)
+    coordsys = deluxe.CoordinateSystem(default="", shortname="cs", label="coordinateSystem")
       
-    width = delight.Float(storage="uniform", default=1, help="Width of the blocker's superellipse.")
-    height = delight.Float(storage="uniform", default=1, help="Height of the blocker's superellipse.")
-    wedge = delight.Float(storage="uniform", shortname="wg", default=0.1, help="Defines horizontal edge fuzziness.")
-    hedge = delight.Float(storage="uniform", shortname="hg", default=0.1, help="Defines vertical edge fuzziness.")
-    roundness = delight.Float(default=1,storage="uniform", 
+    width = deluxe.Float(storage="uniform", default=1, help="Width of the blocker's superellipse.")
+    height = deluxe.Float(storage="uniform", default=1, help="Height of the blocker's superellipse.")
+    wedge = deluxe.Float(storage="uniform", shortname="wg", default=0.1, help="Defines horizontal edge fuzziness.")
+    hedge = deluxe.Float(storage="uniform", shortname="hg", default=0.1, help="Defines vertical edge fuzziness.")
+    roundness = deluxe.Float(default=1,storage="uniform", 
                               help="""Controls how rounded the corners of the superellipse are.  
                                       If this value is 0, the cross-section will be a perfect rectangle.
                                       If the value is 1, the cross-section will be a perfect circle.""")
 
-    cutOn = delight.Float(shortname="con", storage="uniform", default=0.01, help="Cut-on setting from light.",
+    cutOn = deluxe.Float(shortname="con", storage="uniform", default=0.01, help="Cut-on setting from light.",
                           notemplate=True, connectable=True)
-    lightType = delight.Enum(default='Spot', choices=['Spot', 'Point', 'Distant'], help="Light type setting from light.",
+    lightType = deluxe.Enum(default='Spot', choices=['Spot', 'Point', 'Distant'], help="Light type setting from light.",
                              notemplate=True, connectable=True)
 
-    blockerColor = delight.Color(output=True, notemplate=True, hidden=True)
-    blockerValue = delight.Float(output=True, notemplate=True, hidden=True)
+    blockerColor = deluxe.Color(output=True, notemplate=True, hidden=True)
+    blockerValue = deluxe.Float(output=True, notemplate=True, hidden=True)
     
-    blocker = delight.Compound([blockerColor, blockerValue], notemplate=True)
+    blocker = deluxe.Compound([blockerColor, blockerValue], notemplate=True)
     
     rslprepare = \
     """

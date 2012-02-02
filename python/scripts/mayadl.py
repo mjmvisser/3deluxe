@@ -4,11 +4,13 @@ import sys, imp, inspect, os
 from optparse import OptionParser
 
 import maya.standalone
+maya.standalone.initialize()
+
 import maya.cmds as cmds
 
-# Very important to make sure that the delight module is relative
+# Very important to make sure that the deluxe module is relative
 sys.path.insert(0, '../')
-import delight
+import deluxe
 
 usage = 'usage: %prog [options] shader'
 
@@ -41,7 +43,7 @@ else:
 
 module = imp.load_module('shader', fin, filename, ('', 'r', imp.PY_SOURCE))
 fin.close()
-classes = filter(lambda o: isinstance(o[1], type) and issubclass(o[1], delight.Shader),
+classes = filter(lambda o: isinstance(o[1], type) and issubclass(o[1], deluxe.Shader),
                  inspect.getmembers(module))
 
 for name, cls in classes:
@@ -57,8 +59,6 @@ for name, cls in classes:
         dirname, filename = os.path.split(filename)
         nodename=os.path.splitext(filename)[0]
         os.environ['MAYA_PLUG_IN_PATH'] = '%s:%s'%(dirname, os.environ['MAYA_PLUG_IN_PATH'])
-        
-        maya.standalone.initialize()
         
         if not cmds.pluginInfo(filename, query=True, loaded=True):        
             cmds.loadPlugin(filename)

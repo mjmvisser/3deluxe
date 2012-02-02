@@ -1,9 +1,9 @@
-import delight
+import deluxe
 
-class dl_externFloat(delight.Extern):
+class dl_externFloat(deluxe.Extern):
     typeid = 0x00300030
-    inputValue = delight.Float(default=1.0)
-    outputValue = delight.Float(output=True)
+    inputValue = deluxe.Float(default=1.0)
+    outputValue = deluxe.Float(output=True)
     
 def initializePlugin(obj):
     dl_externFloat.register(obj)

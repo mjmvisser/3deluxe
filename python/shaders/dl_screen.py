@@ -1,10 +1,10 @@
-import delight
+import deluxe
 
-class dl_screen(delight.Texture2D):
+class dl_screen(deluxe.Texture2D):
     typeid = 0x00366668
     description = " Makes a surface that looks like a metal screen."   
-    density = delight.Float(default=0.25,max=1)    
-    frequency = delight.Float(default=20,softmax=100);
+    density = deluxe.Float(default=0.25,max=1)    
+    frequency = deluxe.Float(default=20,softmax=100);
   
     rslpost = ""
     rsl = """

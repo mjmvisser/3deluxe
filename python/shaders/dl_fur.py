@@ -1,70 +1,70 @@
-import delight
+import deluxe
 
-class dl_fur(delight.DiffuseBase, delight.ShadingComponent):
+class dl_fur(deluxe.DiffuseBase, deluxe.ShadingComponent):
     typeid = 0x00300014
     description = "Fur shader."
     includes = ["ray_utils.h", "env_utils.h"]
      
-    basecolorTint = delight.Color(default=1, help="""
+    basecolorTint = deluxe.Color(default=1, help="""
         Tint the color near the hair base (root).  Multiplies the incoming primvar 'basecolor'.  """)
-    tipcolorTint = delight.Color(default=1, help="""
+    tipcolorTint = deluxe.Color(default=1, help="""
         Tint the color near the hair tip.  Multiplies the incoming primvar 'tipcolor'.  """)
-    tipBias = delight.Float(default=0, min=-1, max=1, help=
+    tipBias = deluxe.Float(default=0, min=-1, max=1, help=
         """<0 uses more basecolor, >0 use more tipcolor.  Use values between -1 and 1.""")
-    specRoughness = delight.Float(default=.1, min=0, max=1, help="Same roughness used for spec1 and spec2.")
-    spec1tint = delight.Color(default=.02, help="Tint first, simple spec hilight.")
-    spec1shiftToRoot = delight.Float(default=1, help="How much to shift first spec hilight towards root")
-    spec2tint = delight.Color(default=1, help="""
+    specRoughness = deluxe.Float(default=.1, min=0, max=1, help="Same roughness used for spec1 and spec2.")
+    spec1tint = deluxe.Color(default=.02, help="Tint first, simple spec hilight.")
+    spec1shiftToRoot = deluxe.Float(default=1, help="How much to shift first spec hilight towards root")
+    spec2tint = deluxe.Color(default=1, help="""
         Tint second spec hilight, reflected from inside hair and so multiplied by hair surface color.""")
-    spec2shiftToTip = delight.Float(default=1, help="How much to shift first spec hilight towards root")
-    diffTint = delight.Color(default=.5, help="Multiplies diffuse.")
-    diffFalloff = delight.Float(default=.5, help="""
+    spec2shiftToTip = deluxe.Float(default=1, help="How much to shift first spec hilight towards root")
+    diffTint = deluxe.Color(default=.5, help="Multiplies diffuse.")
+    diffFalloff = deluxe.Float(default=.5, help="""
         If 1, regular normal-dependent falloff is used.
         If 0, normal has no effect, eg. even back-facing surfaces are fully illuminated""")
-    indirectIntensity = delight.Color(help="Multiplies indirect diffuse.")
+    indirectIntensity = deluxe.Color(help="Multiplies indirect diffuse.")
 
     #Reflection
-#    indexOfRefraction = delight.Float(default=0, softmax=3, storage='uniform',
+#    indexOfRefraction = deluxe.Float(default=0, softmax=3, storage='uniform',
 #                                      help="(Relative) index of refraction of material. The index of refraction from air to glass is 1.5. Air to water is 1.33. ")
-#    falloff = delight.Enum(default='None',
+#    falloff = deluxe.Enum(default='None',
 #                           choices=['None', 'Linear', 'Quadratic'],
 #                           help="How reflections from objects fall off with distance.")
-#    falloffDistance = delight.Float(default=1, storage='uniform',
+#    falloffDistance = deluxe.Float(default=1, storage='uniform',
 #                                    help="""The distance at which the reflected energy is actually
 #                                            equal to intensity*reflcolor.  In other words, the intensity
 #                                            is actually given by: I = (falloffdist / distance) ^ falloff""")
-#    maxIntensity = delight.Float(default=1, storage='uniform',
+#    maxIntensity = deluxe.Float(default=1, storage='uniform',
 #                                 help="""To prevent the reflection intensity from becoming unboundedly
 #                                         large when the distance < falloffdist, it is
 #                                         smoothly clamped to this maximum value.""");
 #    
-#    occIntensityMult = delight.Float(storage='uniform', default=1, softmin=0, softmax=2,
+#    occIntensityMult = deluxe.Float(storage='uniform', default=1, softmin=0, softmax=2,
 #                         help="Intensity multiplier for raytraced reflection occlusion.")
-#    occSamplesMult = delight.Float(shortname='os', storage='uniform', default=1, softmin=0, softmax=2,
+#    occSamplesMult = deluxe.Float(shortname='os', storage='uniform', default=1, softmin=0, softmax=2,
 #                         help="Samples multiplier for raytraced reflection occlusion.")
-#    occConeAngleMult = delight.Float(storage='uniform', default=1, softmin=0, softmax=2,
+#    occConeAngleMult = deluxe.Float(storage='uniform', default=1, softmin=0, softmax=2,
 #                         help="Cone angle multiplier for raytraced reflection occlusion.")
 #
-#    reflectionOcclusion = delight.Group([occIntensityMult, occSamplesMult, occConeAngleMult], collapse=False)
+#    reflectionOcclusion = deluxe.Group([occIntensityMult, occSamplesMult, occConeAngleMult], collapse=False)
 #
-#    ptcEnable = delight.Enum(default='Off',
+#    ptcEnable = deluxe.Enum(default='Off',
 #                           choices=['Off', 'In front of raytracing', 'Behind raytracing'],
 #                           help="Where to insert pointcloud reflections, if at all.")
-#    ptcFile = delight.File(default='', label='Point Cloud File', help="""The point cloud of objects to reflect.""")
+#    ptcFile = deluxe.File(default='', label='Point Cloud File', help="""The point cloud of objects to reflect.""")
 #
-#    ptcIntensity = delight.Float(default=1, help="""Intensity of pointcloud reflections.""")
+#    ptcIntensity = deluxe.Float(default=1, help="""Intensity of pointcloud reflections.""")
 #
-#    ptcBlur = delight.Float(default=0, help="""
+#    ptcBlur = deluxe.Float(default=0, help="""
 #        How much to blur the pointcloud reflections (clamped to >= .01 to avoid artifacts).""")
 #
-#    pointcloudReflection = delight.Group([ptcEnable, ptcFile, ptcIntensity, ptcBlur], collapse=False)
+#    pointcloudReflection = deluxe.Group([ptcEnable, ptcFile, ptcIntensity, ptcBlur], collapse=False)
 #
-#    reflection = delight.Group([indexOfRefraction, falloff, falloffDistance, maxIntensity, reflectionOcclusion, pointcloudReflection])
+#    reflection = deluxe.Group([indexOfRefraction, falloff, falloffDistance, maxIntensity, reflectionOcclusion, pointcloudReflection])
 
     # Primvars.
-    surfacenormal = delight.Normal(shortname="sn", default=-12345, message=True)
-    basecolor = delight.Color(shortname="bc", default=1, message=True)
-    tipcolor = delight.Color(shortname="tc", default=1, message=True)
+    surfacenormal = deluxe.Normal(shortname="sn", default=-12345, message=True)
+    basecolor = deluxe.Color(shortname="bc", default=1, message=True)
+    tipcolor = deluxe.Color(shortname="tc", default=1, message=True)
 
     rsl = \
     """    

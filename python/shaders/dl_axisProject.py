@@ -1,15 +1,15 @@
-import delight
+import deluxe
 
-class dl_axisProject(delight.Utility):
+class dl_axisProject(deluxe.Utility):
     typeid = 0x00300336
     description = "Axis projection."
     
-    scale = delight.Vector(default=1)
-    coordsys = delight.CoordinateSystem(default="world")
+    scale = deluxe.Vector(default=1)
+    coordsys = deluxe.CoordinateSystem(default="world")
 
-    xst = delight.UV(output=True)
-    yst = delight.UV(output=True)
-    zst = delight.UV(output=True)
+    xst = deluxe.UV(output=True)
+    yst = deluxe.UV(output=True)
+    zst = deluxe.UV(output=True)
     
     
     rsl = \

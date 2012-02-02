@@ -1,19 +1,19 @@
-import delight
+import deluxe
 
-class dl_cellNoise(delight.Texture3D):
+class dl_cellNoise(deluxe.Texture3D):
     typeid = 0x0030013b
     description = "\"Worley noise\" from \"A Cellular Texture Basis Function\", SIGGRAPH '96"
     
-    frequency = delight.Float(default=4, softmin=.1, softmax=10, storage='uniform', help="Controls the size of the cells. Higher frequencies make smaller cells.")
-    noisetype = delight.Enum(default='Voronoi Euclidian',choices=['Voronoi Euclidian','Voronoi Manhattan','Simple Cellnoise'] ,storage='uniform', help="The means to measure distances to neighboring cells. Manhattan distance gives more rectangular shapes and Euclidian distance gives more spherical shapes.")
-    jitter = delight.Float(default=0.75, softmin=0, softmax=1, help="Controls the distortion of the cells.")
-    clamp = delight.Boolean(default=True, storage='uniform', help="Causes resulting distances to be clamped to the range 0->1")
-    c1 = delight.Float(default=0.8, softmin=-2, softmax=2, help="Multiplier for the distances to the first feature.")
-    c2 = delight.Float(default=-0.2, softmin=-2, softmax=2, help="Multiplier for the distance to the second feature.")
-    voronoi = delight.Group([jitter, clamp, c1, c2], collapse=False)
-    avgcolor = delight.Color(shortname='ac', default=1, storage='uniform', help="")
-    colorvariation = delight.Float(shortname='cv', default=.5, storage='uniform', help="")
-    simple = delight.Group([avgcolor, colorvariation], collapse=False)
+    frequency = deluxe.Float(default=4, softmin=.1, softmax=10, storage='uniform', help="Controls the size of the cells. Higher frequencies make smaller cells.")
+    noisetype = deluxe.Enum(default='Voronoi Euclidian',choices=['Voronoi Euclidian','Voronoi Manhattan','Simple Cellnoise'] ,storage='uniform', help="The means to measure distances to neighboring cells. Manhattan distance gives more rectangular shapes and Euclidian distance gives more spherical shapes.")
+    jitter = deluxe.Float(default=0.75, softmin=0, softmax=1, help="Controls the distortion of the cells.")
+    clamp = deluxe.Boolean(default=True, storage='uniform', help="Causes resulting distances to be clamped to the range 0->1")
+    c1 = deluxe.Float(default=0.8, softmin=-2, softmax=2, help="Multiplier for the distances to the first feature.")
+    c2 = deluxe.Float(default=-0.2, softmin=-2, softmax=2, help="Multiplier for the distance to the second feature.")
+    voronoi = deluxe.Group([jitter, clamp, c1, c2], collapse=False)
+    avgcolor = deluxe.Color(shortname='ac', default=1, storage='uniform', help="")
+    colorvariation = deluxe.Float(shortname='cv', default=.5, storage='uniform', help="")
+    simple = deluxe.Group([avgcolor, colorvariation], collapse=False)
     
     rslpost = ""
     rsl = \

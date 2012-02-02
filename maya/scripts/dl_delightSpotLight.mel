@@ -171,7 +171,7 @@ global proc string dl_LightCreate()
 	setAttr -e-keyable true ($lightCreate[0] + ".transformationBlur");
 		
 	//
-	int $lightSetCount = python("import delight.components;delight.components.lightsetcount");
+	int $lightSetCount = python("import deluxe.components;deluxe.components.lightsetcount");
 	
 	string $lightsetEnum = "0";
 	for($i = 1; $i < $lightSetCount; $i++)

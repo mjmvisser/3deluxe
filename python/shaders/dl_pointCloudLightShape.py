@@ -1,30 +1,30 @@
-import delight
+import deluxe
 
-class dl_pointCloudLightShape(delight.LightBase):
+class dl_pointCloudLightShape(deluxe.LightBase):
     typeid = 0x29f5d0a0
     description = "Point cloud control light."
 
-    enable = delight.Boolean(default=True)
-    enableAmbientOcclusion = delight.Boolean(default=True)
-    enableColorBleeding = delight.Boolean(default=True, )
-    enableReflection = delight.Boolean(default=True, shortname='erfl')
-    enableReflectionOcclusion = delight.Boolean(default=True )
-    enableRefraction = delight.Boolean(default=True, shortname='erfr', )
-    enableSubsurface = delight.Boolean(default=True, shortname='ess')
-    ptcFile = delight.File(label="Point Cloud File")
+    enable = deluxe.Boolean(default=True)
+    enableAmbientOcclusion = deluxe.Boolean(default=True)
+    enableColorBleeding = deluxe.Boolean(default=True, )
+    enableReflection = deluxe.Boolean(default=True, shortname='erfl')
+    enableReflectionOcclusion = deluxe.Boolean(default=True )
+    enableRefraction = deluxe.Boolean(default=True, shortname='erfr', )
+    enableSubsurface = deluxe.Boolean(default=True, shortname='ess')
+    ptcFile = deluxe.File(label="Point Cloud File")
 
     #
-    __enableAmbientOcclusion = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __enableColorBleeding = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __enableReflection = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __enableReflectionOcclusion = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __enableRefraction = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __enableSubsurface = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
-    __ptcFile = delight.String(output=True, message=True, messagetype='lightsource')
+    __enableAmbientOcclusion = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __enableColorBleeding = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __enableReflection = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __enableReflectionOcclusion = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __enableRefraction = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __enableSubsurface = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __ptcFile = deluxe.String(output=True, message=True, messagetype='lightsource')
 
     # category
-    __category = delight.String(default='pointcloud', message=True, messagetype='lightsource')
-    _3delight_light_category = delight.String(shortname='cat', default='pointcloud', notemplate=True, norsl=True)
+    __category = deluxe.String(default='pointcloud', message=True, messagetype='lightsource')
+    _3delight_light_category = deluxe.String(shortname='cat', default='pointcloud', notemplate=True, norsl=True)
 
     rsl = \
     """

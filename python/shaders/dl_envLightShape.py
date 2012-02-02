@@ -1,18 +1,18 @@
-import delight
+import deluxe
 
-class dl_envLightShape(delight.EnvLight):
+class dl_envLightShape(deluxe.EnvLight):
     typeid = 0x00310002
     description = "Environment light for shiny reflections."
     includes = ["remap_utils.h", "physicalsky_utils.h", "env_utils.h"]
     
     #
-#    delight.EnvLight.envMap.default = "default_env.tdl"
+#    deluxe.EnvLight.envMap.default = "default_env.tdl"
 
     # reflection occlusion
   
-    environmentMap = delight.Group([delight.EnvLight.envMethod, delight.EnvLight.envMap, delight.EnvLight.envSpace, delight.EnvLight.physicalSky, delight.EnvLight.envColorCorrection], collapse=False, shortname='emg')
+    environmentMap = deluxe.Group([deluxe.EnvLight.envMethod, deluxe.EnvLight.envMap, deluxe.EnvLight.envSpace, deluxe.EnvLight.physicalSky, deluxe.EnvLight.envColorCorrection], collapse=False, shortname='emg')
     
-    occMethod = delight.Enum(default='Point Cloud',
+    occMethod = deluxe.Enum(default='Point Cloud',
                              choices=['None', 'Ray Tracing', 'Point Cloud', 'Use Ambient Occlusion'],
                              label='Occlusion Method',
                              help=""""Ray Tracing" uses the standard occlusion() call. 
@@ -22,40 +22,40 @@ class dl_envLightShape(delight.EnvLight):
                                      PARMS ARE IGNORED!
                                      """)
                                      
-    reflectionOcclusion = delight.Group([occMethod, delight.EnvLight.occPointCloud, delight.EnvLight.occRayTracing, delight.EnvLight.occAdvanced, delight.EnvLight.occRemapping],collapse=False,)
+    reflectionOcclusion = deluxe.Group([occMethod, deluxe.EnvLight.occPointCloud, deluxe.EnvLight.occRayTracing, deluxe.EnvLight.occAdvanced, deluxe.EnvLight.occRemapping],collapse=False,)
 
 
-    traceSamplesMult = delight.Float(shortname='tsm',
+    traceSamplesMult = deluxe.Float(shortname='tsm',
                             softmin=0, softmax=2, default=1, storage='uniform',
                             label='Trace Samples Multiplier',
                             help="Multplier for raytraced reflection samples.")
     
-    rayTracingOverrides = delight.Group([traceSamplesMult])
+    rayTracingOverrides = deluxe.Group([traceSamplesMult])
     
     # input messages
-    __occSamplesMult = delight.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
-    __occConeAngleMult = delight.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
-    __physkyBlur = delight.Float(default=0, storage='uniform', message=True, messagetype='lightsource')
-    __physkySamps = delight.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
-    __envDir = delight.Vector(default=12345, storage='varying', message=True, messagetype='lightsource')
+    __occSamplesMult = deluxe.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
+    __occConeAngleMult = deluxe.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
+    __physkyBlur = deluxe.Float(default=0, storage='uniform', message=True, messagetype='lightsource')
+    __physkySamps = deluxe.Float(default=1, storage='uniform', message=True, messagetype='lightsource')
+    __envDir = deluxe.Vector(default=12345, storage='varying', message=True, messagetype='lightsource')
 
 
     # output messages
-    __map = delight.String(default='', storage='uniform', output=True, message=True, messagetype='lightsource')
-    __coordsys = delight.String(default='', storage='uniform', output=True, message=True, messagetype='lightsource')
-    __occlusion = delight.Float(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
-    __occlusionColor = delight.Color(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
-    __traceSamplesMult = delight.Float(default=1, storage='uniform',  output=True, message=True, messagetype='lightsource')
-    __exposure = delight.Float(default=1, storage='uniform', output=True, message=True, messagetype='lightsource')
-    __gamma = delight.Float(default=0.5, storage='uniform', output=True, message=True, messagetype='lightsource')
-    __offset = delight.Float(default=0.5, storage='uniform', output=True, message=True, messagetype='lightsource')
+    __map = deluxe.String(default='', storage='uniform', output=True, message=True, messagetype='lightsource')
+    __coordsys = deluxe.String(default='', storage='uniform', output=True, message=True, messagetype='lightsource')
+    __occlusion = deluxe.Float(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
+    __occlusionColor = deluxe.Color(default=0, storage='varying',  output=True, message=True, messagetype='lightsource')
+    __traceSamplesMult = deluxe.Float(default=1, storage='uniform',  output=True, message=True, messagetype='lightsource')
+    __exposure = deluxe.Float(default=1, storage='uniform', output=True, message=True, messagetype='lightsource')
+    __gamma = deluxe.Float(default=0.5, storage='uniform', output=True, message=True, messagetype='lightsource')
+    __offset = deluxe.Float(default=0.5, storage='uniform', output=True, message=True, messagetype='lightsource')
 
     #
-    __useAmbientOcclusion = delight.Boolean(default=False, output=True, message=True, messagetype='lightsource')
+    __useAmbientOcclusion = deluxe.Boolean(default=False, output=True, message=True, messagetype='lightsource')
 
     # category
-    __category = delight.String(default='environment', message=True, messagetype='lightsource')
-    _3delight_light_category = delight.String(shortname='cat', default='environment', notemplate=True, norsl=True)
+    __category = deluxe.String(default='environment', message=True, messagetype='lightsource')
+    _3delight_light_category = deluxe.String(shortname='cat', default='environment', notemplate=True, norsl=True)
   
     rsl = \
     """

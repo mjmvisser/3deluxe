@@ -1,10 +1,10 @@
-import delight
+import deluxe
 
-class dl_incandescence(delight.ShadingComponent):
+class dl_incandescence(deluxe.ShadingComponent):
     typeid = 0x0030000a
     description = "Simple incandescence to simulate internal illumination."
     
-    bakeIncomingColor = delight.Enum(
+    bakeIncomingColor = deluxe.Enum(
                             help="""
                                 To bake a color or float to a 2d texture using uv
                                 coordinates, plug the output from a hypershade node
@@ -15,15 +15,15 @@ class dl_incandescence(delight.ShadingComponent):
                                 """, default='Off',
                             choices=['Off', 'As color', 'As float (luminance)']
                             )
-    bakeFile = delight.String (help="""
+    bakeFile = deluxe.String (help="""
                                 File to bake 2d texture to.  The .bake suffix is
                                 recommended, then do tdlmake filename.bake filename.tdl.
                             """, default="bakedColor.bake")
-    method = delight.Enum(default='Uniform',
+    method = deluxe.Enum(default='Uniform',
                           choices=['Uniform', 'Facing', 'Edge', 'Light'],
                           storage='uniform',
                           help="Method of incandescence approximation")
-    shape = delight.Float(default=1, storage='uniform',
+    shape = deluxe.Float(default=1, storage='uniform',
                           help='Shape of falloff (for "Edge" and "Facing" methods). Values above 1 falloff sooner. Values below 1 fall off later.')
 
     rsl = \

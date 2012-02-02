@@ -1,17 +1,17 @@
-import delight
+import deluxe
 
-class dl_brick(delight.Texture2D):
+class dl_brick(deluxe.Texture2D):
     typeid = 0x00366666
     description = "Makes a wall of bricks. Need more be said?"
       
-    brickColor   = delight.Color(default=(0.6,0.1,0.1),help="Brick Color")
-    mortarColor =  delight.Color(default=(0.6,0.6,0.6),help="Mortar Color")      
-    jagged = delight.Float(default=0.006, softmin=0, max=1,help="How much do bricks deviate from squares?") 
-    brickVary =   delight.Float(default=0.3, min=0, max=1,help="How much does the brick color vary from brick to brick?")
-    brickWidth =  delight.Float(default=.25, min=0, max=1,help="Width of a brick")
-    brickHeight =  delight.Float(default=.08, min=0, max=1,help="Height of a brick")
-    mortarThickness =  delight.Float(default= .01, min=0, max=1,help="Thickness of the mortar")
-    rowVary =  delight.Float(default=.25, min=0, max=1,help="How much does each row shift")
+    brickColor   = deluxe.Color(default=(0.6,0.1,0.1),help="Brick Color")
+    mortarColor =  deluxe.Color(default=(0.6,0.6,0.6),help="Mortar Color")      
+    jagged = deluxe.Float(default=0.006, softmin=0, max=1,help="How much do bricks deviate from squares?") 
+    brickVary =   deluxe.Float(default=0.3, min=0, max=1,help="How much does the brick color vary from brick to brick?")
+    brickWidth =  deluxe.Float(default=.25, min=0, max=1,help="Width of a brick")
+    brickHeight =  deluxe.Float(default=.08, min=0, max=1,help="Height of a brick")
+    mortarThickness =  deluxe.Float(default= .01, min=0, max=1,help="Thickness of the mortar")
+    rowVary =  deluxe.Float(default=.25, min=0, max=1,help="How much does each row shift")
     
    
     rslpost = ""

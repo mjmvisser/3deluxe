@@ -1,43 +1,43 @@
-import delight
+import deluxe
 
-class dl_volumeNoise(delight.Texture3D):
+class dl_volumeNoise(deluxe.Texture3D):
     typeid = 0x00300339
     includes = ["volumeNoise_utils.h"]
     
     # u float 
-    frequencyIncrement = delight.Float(shortname="fd", default=.5, storage="uniform")
-    threshold = delight.Float(shortname="th", default=0, storage="uniform")
-    amplitude = delight.Float(shortname="am", default=1, storage="uniform")
-    ratio = delight.Float(shortname="ra", default=.707, storage="uniform")
-    frequencyRatio = delight.Float(shortname="fr", default=2, storage="uniform")
-    depthMax = delight.Float(shortname="dm", default=3, storage="uniform")
-    inflection = delight.Boolean(shortname="in", default=False, storage="uniform")
-    time = delight.Float(shortname="ti", default=0, storage="uniform")
-    frequency = delight.Float(shortname="fq", default=8)
+    frequencyIncrement = deluxe.Float(shortname="fd", default=.5, storage="uniform")
+    threshold = deluxe.Float(shortname="th", default=0, storage="uniform")
+    amplitude = deluxe.Float(shortname="am", default=1, storage="uniform")
+    ratio = deluxe.Float(shortname="ra", default=.707, storage="uniform")
+    frequencyRatio = deluxe.Float(shortname="fr", default=2, storage="uniform")
+    depthMax = deluxe.Float(shortname="dm", default=3, storage="uniform")
+    inflection = deluxe.Boolean(shortname="in", default=False, storage="uniform")
+    time = deluxe.Float(shortname="ti", default=0, storage="uniform")
+    frequency = deluxe.Float(shortname="fq", default=8)
     
     # u point
-    scale = delight.Point(shortname="sc", default=1, storage="uniform")
-    origin = delight.Point(shortname="or", default=0, storage="uniform")
+    scale = deluxe.Point(shortname="sc", default=1, storage="uniform")
+    origin = deluxe.Point(shortname="or", default=0, storage="uniform")
     
     # float
-    implode = delight.Float(shortname="im", default=0)
+    implode = deluxe.Float(shortname="im", default=0)
     
     # point
-    implodeCenter = delight.Point(shortname="ic", default=0)
+    implodeCenter = deluxe.Point(shortname="ic", default=0)
     
     # u float
-    noiseType = delight.Enum(shortname="nt", default="Billow",
+    noiseType = deluxe.Enum(shortname="nt", default="Billow",
         choices=["Perlin Noise", "Billow", "Volume Wave", "Wispy", "SpaceTime"], storage="uniform")
     
     # float
-    density = delight.Float(shortname="de", default=1)
-    spottyness = delight.Float(shortname="sp", default=.1)
-    sizeRand = delight.Float(shortname="sr", default=0)
-    randomness = delight.Float(shortname="rn", default=1)
-    falloff = delight.Enum(shortname="fa", default="Fast", choices=["Linear", "Smooth", "Fast", "Bubble"])
+    density = deluxe.Float(shortname="de", default=1)
+    spottyness = deluxe.Float(shortname="sp", default=.1)
+    sizeRand = deluxe.Float(shortname="sr", default=0)
+    randomness = deluxe.Float(shortname="rn", default=1)
+    falloff = deluxe.Enum(shortname="fa", default="Fast", choices=["Linear", "Smooth", "Fast", "Bubble"])
     
     # float
-    numWaves = delight.Float(shortname="nw", default=5)
+    numWaves = deluxe.Float(shortname="nw", default=5)
     
     
     

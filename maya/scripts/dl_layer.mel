@@ -24,7 +24,7 @@ global string $dl_layerComponentTypes[];
 // ----------------------------------------------------------------------------
 proc int[] getSortingIndices(string $unsorted[]) 
 {
-	return python("import delight;delight.utils.getSortingIndices(['" + stringArrayToString($unsorted, "', '") + "'])");
+	return python("import deluxe;deluxe.utils.getSortingIndices(['" + stringArrayToString($unsorted, "', '") + "'])");
 }
 
 // ----------------------------------------------------------------------------

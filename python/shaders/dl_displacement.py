@@ -1,40 +1,40 @@
-import delight
+import deluxe
 
-class dl_displacement(delight.Displacement):
+class dl_displacement(deluxe.Displacement):
     typeid = 0x00320000
     includes = ["displacement_utils.h"]
     
-    globalScale = delight.Float(min=0, max=1, default=1, storage='uniform')
-    globalOffset = delight.Float(softmin=-1, softmax=1, default=0, storage='uniform')
+    globalScale = deluxe.Float(min=0, max=1, default=1, storage='uniform')
+    globalOffset = deluxe.Float(softmin=-1, softmax=1, default=0, storage='uniform')
     
-    useShadingNormals = delight.Boolean(default=False,
+    useShadingNormals = deluxe.Boolean(default=False,
                                         help="""When a displacement map is used, this shader calls
                                                 calculatenormal().  This causes polygonal data to
                                                 appear faceted.  This parameter causes the original
                                                 shading normal offset to be added to the calculated
                                                 normal, generally re-smoothing polygonal data.""")
     
-    useNormalMap = delight.Boolean(default=False, storage='uniform',
+    useNormalMap = deluxe.Boolean(default=False, storage='uniform',
         help="If on, the normal is set by an input to the normalMap parameter, typically a texture.")
-    normalMap = delight.Color(default=0, storage='varying',
+    normalMap = deluxe.Color(default=0, storage='varying',
         help="""If the useNormalMap parameter is on, this sets the normal.
         Typically you would input a colour texture of a worldspace normal map.
         """)
     
     # per input parameters
-    name = delight.String(default="input",help="Name of this displacement layer.", norsl=True)
-    enable = delight.Boolean(default=True,  help="Enable/disable this layer of displacement.")
-    alpha = delight.Float(shortname="alpha", default=1, min=0, max=1, help="Alpha for this layer of displacement.")
-    scale = delight.Float(default=1, softmin=-1, softmax=1, help="Scale this layer of displacement.")
-    offset = delight.Float(default=0, softmin=-1, softmax=1, help="Offset this layer of displacement.")
-    bumpOrDisplace = delight.Float(default=1, min=0, max=1, help="Only modifies the normal if 0, displaces at 1, blends between.")
-    recalculateNormal = delight.Float(default=1, min=0, max=1, help="Recalculates the normal if 1, does not if 0, blends between.")
-    amount = delight.Float(min=0, max=1, help="Plug utility nodes in here to displace.")
-    lip = delight.Float(shortname="lip", min=0, max=1, help="it's a lip.")
-    lipRimSharp = delight.Float(shortname="liprs", min=0, max=1, help="it's a lip.")
+    name = deluxe.String(default="input",help="Name of this displacement layer.", norsl=True)
+    enable = deluxe.Boolean(default=True,  help="Enable/disable this layer of displacement.")
+    alpha = deluxe.Float(shortname="alpha", default=1, min=0, max=1, help="Alpha for this layer of displacement.")
+    scale = deluxe.Float(default=1, softmin=-1, softmax=1, help="Scale this layer of displacement.")
+    offset = deluxe.Float(default=0, softmin=-1, softmax=1, help="Offset this layer of displacement.")
+    bumpOrDisplace = deluxe.Float(default=1, min=0, max=1, help="Only modifies the normal if 0, displaces at 1, blends between.")
+    recalculateNormal = deluxe.Float(default=1, min=0, max=1, help="Recalculates the normal if 1, does not if 0, blends between.")
+    amount = deluxe.Float(min=0, max=1, help="Plug utility nodes in here to displace.")
+    lip = deluxe.Float(shortname="lip", min=0, max=1, help="it's a lip.")
+    lipRimSharp = deluxe.Float(shortname="liprs", min=0, max=1, help="it's a lip.")
     
-    inputs = delight.Compound([name,enable,alpha,scale,offset,bumpOrDisplace,recalculateNormal,amount,lip, lipRimSharp],array=True)
-    selectedInput = delight.Integer(hidden = True)
+    inputs = deluxe.Compound([name,enable,alpha,scale,offset,bumpOrDisplace,recalculateNormal,amount,lip, lipRimSharp],array=True)
+    selectedInput = deluxe.Integer(hidden = True)
     
     # notes:
     # need

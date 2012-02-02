@@ -1,22 +1,22 @@
-import delight
+import deluxe
 
-class dl_switch(delight.Utility):
+class dl_switch(deluxe.Utility):
     typeid = 0x00370002
     description = "Switcher"
     
-    dl_switch_selectInput_override_0 = delight.Float(shortname="sio0", default=-1, message=True, help="")
-    dl_switch_selectInput_override_1 = delight.Float(shortname="sio1", default=-1, message=True, help="")
-    dl_switch_selectInput_override_2 = delight.Float(shortname="sio2", default=-1, message=True, help="")
-    dl_switch_selectInput_override_3 = delight.Float(shortname="sio3", default=-1, message=True, help="")
-    dl_switch_selectInput_override_4 = delight.Float(shortname="sio4", default=-1, message=True, help="")
-    dl_switch_selectInput_override_5 = delight.Float(shortname="sio5", default=-1, message=True, help="")
-    dl_switch_selectInput_override_6 = delight.Float(shortname="sio6", default=-1, message=True, help="")
-    dl_switch_selectInput_override_7 = delight.Float(shortname="sio7", default=-1, message=True, help="")
-    dl_switch_selectInput_override_8 = delight.Float(shortname="sio8", default=-1, message=True, help="")
-    dl_switch_selectInput_override_9 = delight.Float(shortname="sio9", default=-1, message=True, help="")
-    colorSet1 = delight.Color(shortname="cs1", storage='varying', default=-1, message=True, help="");
+    dl_switch_selectInput_override_0 = deluxe.Float(shortname="sio0", default=-1, message=True, help="")
+    dl_switch_selectInput_override_1 = deluxe.Float(shortname="sio1", default=-1, message=True, help="")
+    dl_switch_selectInput_override_2 = deluxe.Float(shortname="sio2", default=-1, message=True, help="")
+    dl_switch_selectInput_override_3 = deluxe.Float(shortname="sio3", default=-1, message=True, help="")
+    dl_switch_selectInput_override_4 = deluxe.Float(shortname="sio4", default=-1, message=True, help="")
+    dl_switch_selectInput_override_5 = deluxe.Float(shortname="sio5", default=-1, message=True, help="")
+    dl_switch_selectInput_override_6 = deluxe.Float(shortname="sio6", default=-1, message=True, help="")
+    dl_switch_selectInput_override_7 = deluxe.Float(shortname="sio7", default=-1, message=True, help="")
+    dl_switch_selectInput_override_8 = deluxe.Float(shortname="sio8", default=-1, message=True, help="")
+    dl_switch_selectInput_override_9 = deluxe.Float(shortname="sio9", default=-1, message=True, help="")
+    colorSet1 = deluxe.Color(shortname="cs1", storage='varying', default=-1, message=True, help="");
 
-    selectInput = delight.Enum(default='0',
+    selectInput = deluxe.Enum(default='0',
                               choices=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
                               storage='uniform',
                               help="""
@@ -25,7 +25,7 @@ class dl_switch(delight.Utility):
                                 the primvar specified in primvarOverride will override them both.
                                 """);   
 
-    primvarOverride = delight.Enum(default='None',
+    primvarOverride = deluxe.Enum(default='None',
                               choices=[
                                 'dl_switch_selectInput_override_0',
                                 'dl_switch_selectInput_override_1',
@@ -45,38 +45,38 @@ class dl_switch(delight.Utility):
                                 Specify the name of the primvar that will override the selectInput parameter."
                                 """);   
 
-    colorSet1nChoices = delight.Integer(shortname="cs1m",
+    colorSet1nChoices = deluxe.Integer(shortname="cs1m",
                             help="How many inputs to randomly choose from when primvarOverride = 'colorSet1[0]'")
 
-    ribAttrOverride = delight.String(help="""
+    ribAttrOverride = deluxe.String(help="""
                                 The rib attribute that will override the selectInput parameter.  For example,
                                 if you have a user rib attr called "switch_override", enter "user:switch_override".
                                 """);
 
-    inputFloat0 = delight.Float(shortname="if0", help="This will be assigned to outAlpha if input 0 is selected.")
-    inputFloat1 = delight.Float(shortname="if1", help="This will be assigned to outAlpha if input 1 is selected.")
-    inputFloat2 = delight.Float(shortname="if2", help="This will be assigned to outAlpha if input 2 is selected.")
-    inputFloat3 = delight.Float(shortname="if3", help="This will be assigned to outAlpha if input 3 is selected.")
-    inputFloat4 = delight.Float(shortname="if4", help="This will be assigned to outAlpha if input 4 is selected.")
-    inputFloat5 = delight.Float(shortname="if5", help="This will be assigned to outAlpha if input 5 is selected.")
-    inputFloat6 = delight.Float(shortname="if6", help="This will be assigned to outAlpha if input 6 is selected.")
-    inputFloat7 = delight.Float(shortname="if7", help="This will be assigned to outAlpha if input 7 is selected.")
-    inputFloat8 = delight.Float(shortname="if8", help="This will be assigned to outAlpha if input 8 is selected.")
-    inputFloat9 = delight.Float(shortname="if9", help="This will be assigned to outAlpha if input 9 is selected.")
+    inputFloat0 = deluxe.Float(shortname="if0", help="This will be assigned to outAlpha if input 0 is selected.")
+    inputFloat1 = deluxe.Float(shortname="if1", help="This will be assigned to outAlpha if input 1 is selected.")
+    inputFloat2 = deluxe.Float(shortname="if2", help="This will be assigned to outAlpha if input 2 is selected.")
+    inputFloat3 = deluxe.Float(shortname="if3", help="This will be assigned to outAlpha if input 3 is selected.")
+    inputFloat4 = deluxe.Float(shortname="if4", help="This will be assigned to outAlpha if input 4 is selected.")
+    inputFloat5 = deluxe.Float(shortname="if5", help="This will be assigned to outAlpha if input 5 is selected.")
+    inputFloat6 = deluxe.Float(shortname="if6", help="This will be assigned to outAlpha if input 6 is selected.")
+    inputFloat7 = deluxe.Float(shortname="if7", help="This will be assigned to outAlpha if input 7 is selected.")
+    inputFloat8 = deluxe.Float(shortname="if8", help="This will be assigned to outAlpha if input 8 is selected.")
+    inputFloat9 = deluxe.Float(shortname="if9", help="This will be assigned to outAlpha if input 9 is selected.")
 
-    inputColor0 = delight.Color(shortname="ic0", help="This will be assigned to outColor if input 0 is selected.")
-    inputColor1 = delight.Color(shortname="ic1", help="This will be assigned to outColor if input 1 is selected.")
-    inputColor2 = delight.Color(shortname="ic2", help="This will be assigned to outColor if input 2 is selected.")
-    inputColor3 = delight.Color(shortname="ic3", help="This will be assigned to outColor if input 3 is selected.")
-    inputColor4 = delight.Color(shortname="ic4", help="This will be assigned to outColor if input 4 is selected.")
-    inputColor5 = delight.Color(shortname="ic5", help="This will be assigned to outColor if input 5 is selected.")
-    inputColor6 = delight.Color(shortname="ic6", help="This will be assigned to outColor if input 6 is selected.")
-    inputColor7 = delight.Color(shortname="ic7", help="This will be assigned to outColor if input 7 is selected.")
-    inputColor8 = delight.Color(shortname="ic8", help="This will be assigned to outColor if input 8 is selected.")
-    inputColor9 = delight.Color(shortname="ic9", help="This will be assigned to outColor if input 9 is selected.")
+    inputColor0 = deluxe.Color(shortname="ic0", help="This will be assigned to outColor if input 0 is selected.")
+    inputColor1 = deluxe.Color(shortname="ic1", help="This will be assigned to outColor if input 1 is selected.")
+    inputColor2 = deluxe.Color(shortname="ic2", help="This will be assigned to outColor if input 2 is selected.")
+    inputColor3 = deluxe.Color(shortname="ic3", help="This will be assigned to outColor if input 3 is selected.")
+    inputColor4 = deluxe.Color(shortname="ic4", help="This will be assigned to outColor if input 4 is selected.")
+    inputColor5 = deluxe.Color(shortname="ic5", help="This will be assigned to outColor if input 5 is selected.")
+    inputColor6 = deluxe.Color(shortname="ic6", help="This will be assigned to outColor if input 6 is selected.")
+    inputColor7 = deluxe.Color(shortname="ic7", help="This will be assigned to outColor if input 7 is selected.")
+    inputColor8 = deluxe.Color(shortname="ic8", help="This will be assigned to outColor if input 8 is selected.")
+    inputColor9 = deluxe.Color(shortname="ic9", help="This will be assigned to outColor if input 9 is selected.")
 
-    outColor = delight.Color(shortname="oc", output=True)
-    outAlpha = delight.Float(shortname="oa", output=True)
+    outColor = deluxe.Color(shortname="oc", output=True)
+    outAlpha = deluxe.Float(shortname="oa", output=True)
 
     rslpost = ""
               

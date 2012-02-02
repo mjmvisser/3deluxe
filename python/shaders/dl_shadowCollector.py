@@ -1,6 +1,6 @@
-import delight
+import deluxe
 
-class dl_shadowCollector(delight.DiffuseBase, delight.ShadingComponent):
+class dl_shadowCollector(deluxe.DiffuseBase, deluxe.ShadingComponent):
     typeid = 0x00300012
     description = """Shading component for collecting shadows from lights.
         Direct shadows (affecting diff, spec and rim) go in aov_direct_shadow,
@@ -12,29 +12,29 @@ class dl_shadowCollector(delight.DiffuseBase, delight.ShadingComponent):
                     'Direct (white)', 'Indirect (white)',
                     'For slapcomp: rgb = shadowColor * shadowOpacity, (alpha = Direct + Indirect)*shadowOpacity']
     
-    beautyMode = delight.Enum(default=beautyModes[0], choices=beautyModes, storage='varying',
+    beautyMode = deluxe.Enum(default=beautyModes[0], choices=beautyModes, storage='varying',
                               help="What to show in the beauty. ")
     
-    diffuseFalloff = delight.Float(shortname='dfo', default=1,
+    diffuseFalloff = deluxe.Float(shortname='dfo', default=1,
         help="Make shadows fade as normal points away from light.")
 
-    useLightColor = delight.Enum(shortname='ulc', default="Direct & Indirect", storage='varying',
+    useLightColor = deluxe.Enum(shortname='ulc', default="Direct & Indirect", storage='varying',
         choices=["Direct & Indirect", "Direct", "Indirect", "None"])
 
-    shadowColor = delight.Color(shortname='shc',default=0, help="""
+    shadowColor = deluxe.Color(shortname='shc',default=0, help="""
         Color of shadow, ONLY USED WHEN showInBty == 'rgb = shadowColor * shadowOpacity, alpha = (Direct + Indirect)*shadowOpacity'
         """)
     
-    shadowOpacity = delight.Float(shortname='sho', default=1, help="Opacity/intensity of shadows.")
+    shadowOpacity = deluxe.Float(shortname='sho', default=1, help="Opacity/intensity of shadows.")
     
-    hemispheres = delight.Float(default=.9, max=2,
+    hemispheres = deluxe.Float(default=.9, max=2,
                 help="""How much of the hemisphere around the normal to search for direct shadows.
                     To include self-shadowing, use 2 (search whole sphere).
                     To not include self-shadowing, use < 1 (search less than hemisphere).""")
     
-    hemisphereFalloff = delight.Float(default=0.05, max=1, help="How far from the searched hemisphere to fade direct shadows.")
+    hemisphereFalloff = deluxe.Float(default=0.05, max=1, help="How far from the searched hemisphere to fade direct shadows.")
 
-    advanced = delight.Group([shadowColor, shadowOpacity, hemispheres, hemisphereFalloff])
+    advanced = deluxe.Group([shadowColor, shadowOpacity, hemispheres, hemisphereFalloff])
 
 
     rsl = \

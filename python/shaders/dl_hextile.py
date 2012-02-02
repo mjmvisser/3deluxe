@@ -1,19 +1,19 @@
-import delight
+import deluxe
 
-class dl_hextile(delight.Texture2D):
+class dl_hextile(deluxe.Texture2D):
     typeid = 0x00366667
     description = "Makes a pattern of hexagonal tiles"
 
-    tileColor = delight.Color(default=(0.55,0.0,0.0),help="")  
-    mortarColor = delight.Color(default=(0.5,0.5,0.5),help="") 
-    tileRadius = delight.Float(default=0.2, min=0, max=1,help="")
-    mortarWidth = delight.Float(default=0.02, min=0, max=1,help="")
-    tileVary =   delight.Float(default=0.15, min=0, max=1,help="")
-    tileScuffing = delight.Float(default=0.5, min=0, max=1,help="")
-    stains = delight.Float(default=0.4, min=0, max=1,help="")
-    stainFrequency = delight.Float(default=2, min=0, softmax=100,help="")
-    tileScuffFrequency =delight.Float(default=4, min=0, softmax=100,help="")  
-    tileScuffColor =  delight.Color(default=(.05,.05,.05),help="") 
+    tileColor = deluxe.Color(default=(0.55,0.0,0.0),help="")  
+    mortarColor = deluxe.Color(default=(0.5,0.5,0.5),help="") 
+    tileRadius = deluxe.Float(default=0.2, min=0, max=1,help="")
+    mortarWidth = deluxe.Float(default=0.02, min=0, max=1,help="")
+    tileVary =   deluxe.Float(default=0.15, min=0, max=1,help="")
+    tileScuffing = deluxe.Float(default=0.5, min=0, max=1,help="")
+    stains = deluxe.Float(default=0.4, min=0, max=1,help="")
+    stainFrequency = deluxe.Float(default=2, min=0, softmax=100,help="")
+    tileScuffFrequency =deluxe.Float(default=4, min=0, softmax=100,help="")  
+    tileScuffColor =  deluxe.Color(default=(.05,.05,.05),help="") 
     rslpost = ""
     rsl = """
 #define snoise(x) (2*noise(x)-1)

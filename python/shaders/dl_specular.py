@@ -1,25 +1,25 @@
-import delight
+import deluxe
 
-class dl_specular(delight.ShadingComponent, delight.EnvironmentMapBase):
+class dl_specular(deluxe.ShadingComponent, deluxe.EnvironmentMapBase):
     typeid = 0x00300002
     description = "The specular component simulates the reflection of light sources. Samples all incoming lights along the specular direction of the surface."
     includes = ["env_utils.h"]
     
-    model = delight.Enum(default='3Delight',
+    model = deluxe.Enum(default='3Delight',
                          choices=['3Delight', 'Standard', 'Phong', 'Cook-Torrance', 'Glossy', 'Anisotropic', 'Kajiya'],
                          storage='uniform',
                          help="""Specular model to use. 3Delight, Standard and Phong all model traditional specularity. 
                                  Cook-Torrance is for metallic surfaces, Glossy is for highly glossy surfaces, and
                                  Kajiya assumes the surface is a hair-like thin tube.""")
-    roughness = delight.Float(min=0, softmax=0.2, default=0.05, 
+    roughness = deluxe.Float(min=0, softmax=0.2, default=0.05, 
                               help="Size or roughness of highlight")
-    sharpness = delight.Float(min=0, softmax=1, default=0.2,
+    sharpness = deluxe.Float(min=0, softmax=1, default=0.2,
                               help="(Glossy) Sharpness of highlight. 1 is infinitely sharp, 0 is very dull.")
-    indexOfRefraction = delight.Float(default=0, min=0, softmax=50,
+    indexOfRefraction = deluxe.Float(default=0, min=0, softmax=50,
                                       help="Index of refraction of the material")
-    uRoughness = delight.Float(min=0, softmax=1, default=0.2, help="(Anisotropic) Size of highlight in the U direction ")
-    vRoughness = delight.Float(min=0, softmax=1, default=0.9, help="(Anisotropic) Size of highlight in the V direction ")
-    useEnvironment = delight.Boolean(default=False,
+    uRoughness = deluxe.Float(min=0, softmax=1, default=0.2, help="(Anisotropic) Size of highlight in the U direction ")
+    vRoughness = deluxe.Float(min=0, softmax=1, default=0.9, help="(Anisotropic) Size of highlight in the V direction ")
+    useEnvironment = deluxe.Boolean(default=False,
                              help="Whether to respond to traditional CG lights only or also include lighting from the environment. ")
 
     rsl = \

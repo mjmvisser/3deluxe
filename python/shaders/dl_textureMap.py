@@ -1,64 +1,64 @@
-import delight
+import deluxe
 
-class dl_textureMap(delight.Texture2D):
+class dl_textureMap(deluxe.Texture2D):
     typeid = 0x00370001
     description = "Wrapper around 3Delight \"texture\" function"
     
-    textureName = delight.Image(storage='uniform',
+    textureName = deluxe.Image(storage='uniform',
                                 help="""Texture file in tdl format. Use 'N' or 'NNNN' for the
                                         frame number if using indexed sprites.""")
-    indexedSprites = delight.Boolean(help="Treat the filename as a sequence indexed with spritePP.")
-    blur = delight.Float(default=0, min=0, softmax=0.2, storage='uniform',
+    indexedSprites = deluxe.Boolean(help="Treat the filename as a sequence indexed with spritePP.")
+    blur = deluxe.Float(default=0, min=0, softmax=0.2, storage='uniform',
                          help="""Specifies an additional length to be added to texture
                                  lookup region in both s and t, expressed in units of texture
                                  coordinates (range = [0..1]). A value of 1.0 would request that
                                  the entire texture be blurred in the result.""")    
-    filterType = delight.Enum(default='Gaussian',
+    filterType = deluxe.Enum(default='Gaussian',
                               choices=['Box', 'Triangle', 'Gaussian'],
                               storage='uniform',
                               help="Specifies the reconstruction filter to use when accessing the texture map.");   
-    samples = delight.Integer(default=4, storage='uniform',
+    samples = deluxe.Integer(default=4, storage='uniform',
                               help="(Box filter only) Number of samples.")
-    gamma = delight.Float3(default=1, min=0.0001, max=3,
+    gamma = deluxe.Float3(default=1, min=0.0001, max=3,
                            help="Gamma correction to apply to the texture.")
    
-    gammaCorrection = delight.Group([gamma])
+    gammaCorrection = deluxe.Group([gamma])
     
-    spriteNumPP = delight.Integer(default=0, storage='uniform', message=True)
+    spriteNumPP = deluxe.Integer(default=0, storage='uniform', message=True)
 
-    coordsys = delight.CoordinateSystem(help="""
+    coordsys = deluxe.CoordinateSystem(help="""
         Coordinate system (or camera) in which to look up texture.
         Use a delightCoordinateSystem shape name (eg. delightCoordinateSystemShape1)
         or mayaCamera:cameraName (eg. "mayaCamera:persp", NOT "mayaCamera:perspShape").
         """)
 
-    alphaInsideUVMult = delight.Float(shortname="aism", default=1, help="""
+    alphaInsideUVMult = deluxe.Float(shortname="aism", default=1, help="""
         Multiply the alpha by this value where the surface is inside the UV coordinates
         (ie. u and v are > 0 and < 1).
         """)
 
-    alphaInsideUVOffset = delight.Float(shortname="aiso", default=0, help="""
+    alphaInsideUVOffset = deluxe.Float(shortname="aiso", default=0, help="""
         Add this value to the alpha where the surface is inside the UV coordinates
         (ie. u and v are > 0 and < 1).
         """)
 
-    specifyAlphaOutsideUV = delight.Boolean(default=False, help="""
+    specifyAlphaOutsideUV = deluxe.Boolean(default=False, help="""
             If on, alpha will be set to alphaOutsideUV value where the surface is
             outside the UV coordinates (ie. u or v is > 1 or < 0).""")
 
 
-    alphaOutsideUV = delight.Float(shortname="aos", default=0,
+    alphaOutsideUV = deluxe.Float(shortname="aos", default=0,
         help="""If specifyAlphaOutsideUV is on, this is the alpha where the
             surface is outside the UV coordinates (ie. u or v is > 1 or < 0).""")
 
-    alphaCorrection = delight.Group([alphaInsideUVMult, alphaInsideUVOffset, specifyAlphaOutsideUV, alphaOutsideUV])
+    alphaCorrection = deluxe.Group([alphaInsideUVMult, alphaInsideUVOffset, specifyAlphaOutsideUV, alphaOutsideUV])
 
-    warpMode = delight.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
-    warpNoiseAmount = delight.Float2(shortname='wna', default=1)
-    warpNoiseFreq = delight.Float2(shortname='wnf', default=1)
-    warpNoiseOffset = delight.Float2(shortname='wno', default=0)
-    warpInput = delight.Float2(shortname='wi', default=0)
-    warp = delight.Group([ warpMode, warpNoiseAmount, warpNoiseFreq, warpNoiseOffset, warpInput]) 
+    warpMode = deluxe.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
+    warpNoiseAmount = deluxe.Float2(shortname='wna', default=1)
+    warpNoiseFreq = deluxe.Float2(shortname='wnf', default=1)
+    warpNoiseOffset = deluxe.Float2(shortname='wno', default=0)
+    warpInput = deluxe.Float2(shortname='wi', default=0)
+    warp = deluxe.Group([ warpMode, warpNoiseAmount, warpNoiseFreq, warpNoiseOffset, warpInput]) 
 
     rsl = """    
         void warpST(

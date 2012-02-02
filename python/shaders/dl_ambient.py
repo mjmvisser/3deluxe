@@ -1,6 +1,6 @@
-import delight
+import deluxe
 
-class dl_ambient(delight.ShadingComponent):
+class dl_ambient(deluxe.ShadingComponent):
     typeid = 0x00300000
     description = "Ambient illumination component."
     includes = ["env_utils.h"]

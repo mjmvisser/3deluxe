@@ -1,59 +1,59 @@
-import delight
+import deluxe
 
-class dl_triplanar(delight.Utility):
+class dl_triplanar(deluxe.Utility):
     typeid = 0x00300335
     description = "Triplanar texture projector."
     
     
-    coordsys = delight.CoordinateSystem(shortname="cs", default="world", help="""
+    coordsys = deluxe.CoordinateSystem(shortname="cs", default="world", help="""
         Enter a standard shading space (eg 'world', 'object') or a coordinate system shape.
         """)
-    scale = delight.Float(shortname="sc", default=1, help="Global scale for x, y, and z projections.")
-    blendWidth = delight.Float(shortname="bl", default=.5,
+    scale = deluxe.Float(shortname="sc", default=1, help="Global scale for x, y, and z projections.")
+    blendWidth = deluxe.Float(shortname="bl", default=.5,
         help="How much to blend between x, y, and z projections (0 makes hard line between them).")
 
-    warpMode = delight.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
-    warpNoiseAmount = delight.Float(shortname='wna', default=1)
-    warpNoiseFreq = delight.Float(shortname='wnf', default=1)
-    warpNoiseOffset = delight.Vector(shortname='wno', default=0)
-    warpInput = delight.Vector(shortname='wi', default=0)
-    warp = delight.Group([warpMode, warpNoiseAmount, warpNoiseFreq, warpNoiseOffset, warpInput])
+    warpMode = deluxe.Enum(shortname='wm', default='Off', choices=['Off', 'Noise','Input'])
+    warpNoiseAmount = deluxe.Float(shortname='wna', default=1)
+    warpNoiseFreq = deluxe.Float(shortname='wnf', default=1)
+    warpNoiseOffset = deluxe.Vector(shortname='wno', default=0)
+    warpInput = deluxe.Vector(shortname='wi', default=0)
+    warp = deluxe.Group([warpMode, warpNoiseAmount, warpNoiseFreq, warpNoiseOffset, warpInput])
 
-    Xtex = delight.Image(shortname="xtx", default="", help="Texture for projection on x-axis.")
-    Xrot = delight.Float(shortname="xro", default=0, softmin=-180, softmax=180,
+    Xtex = deluxe.Image(shortname="xtx", default="", help="Texture for projection on x-axis.")
+    Xrot = deluxe.Float(shortname="xro", default=0, softmin=-180, softmax=180,
         help="Rotation about x-axis of x-axis projection.")
-    XrepeatS = delight.Float(shortname="xrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
-    XrepeatTSameAsS = delight.Boolean(shortname="xrst", default=True, 
+    XrepeatS = deluxe.Float(shortname="xrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
+    XrepeatTSameAsS = deluxe.Boolean(shortname="xrst", default=True, 
         help="Also use XrepeatS value for repetitions of t-coordinate (ignore XrepeatT parameter).")
-    XrepeatT = delight.Float(shortname="xrt", default=1, help="Repetitions of t-coordinate (ignored if XrepeatTSameAsS is on).", softmin = -2, softmax = 2) 
+    XrepeatT = deluxe.Float(shortname="xrt", default=1, help="Repetitions of t-coordinate (ignored if XrepeatTSameAsS is on).", softmin = -2, softmax = 2) 
 
-    Xprojection = delight.Group([Xtex, Xrot, XrepeatS, XrepeatTSameAsS, XrepeatT], collapse=False)
+    Xprojection = deluxe.Group([Xtex, Xrot, XrepeatS, XrepeatTSameAsS, XrepeatT], collapse=False)
 
-    Ytex = delight.Image(shortname="ytx", default="",
+    Ytex = deluxe.Image(shortname="ytx", default="",
         help="Texture for projection on y-axis.  If blank or invalid, Xtex is used.")
-    Yrot = delight.Float(shortname="yro", default=0, softmin=-180, softmax=180,
+    Yrot = deluxe.Float(shortname="yro", default=0, softmin=-180, softmax=180,
         help="Rotation about y-axis of y-axis projection.")
-    YrepeatS = delight.Float(shortname="yrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
-    YrepeatTSameAsS = delight.Boolean(shortname="yrst", default=True,
+    YrepeatS = deluxe.Float(shortname="yrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
+    YrepeatTSameAsS = deluxe.Boolean(shortname="yrst", default=True,
         help="Also use YrepeatS value for repetitions of t-coordinate (ignore YrepeatT parameter).")
-    YrepeatT = delight.Float(shortname="yrt", default=1, help="Repetitions of t-coordinate (ignored if YrepeatTSameAsS is on).", softmin = -2, softmax = 2)
+    YrepeatT = deluxe.Float(shortname="yrt", default=1, help="Repetitions of t-coordinate (ignored if YrepeatTSameAsS is on).", softmin = -2, softmax = 2)
 
-    Yprojection = delight.Group([Ytex, Yrot, YrepeatS, YrepeatTSameAsS, YrepeatT], collapse=False)
+    Yprojection = deluxe.Group([Ytex, Yrot, YrepeatS, YrepeatTSameAsS, YrepeatT], collapse=False)
 
-    Ztex = delight.Image(shortname="ztx", default="",
+    Ztex = deluxe.Image(shortname="ztx", default="",
         help="Texture for projection on z-axis.  If blank or invalid, Xtex is used.")
-    Zrot = delight.Float(shortname="zro", default=0, softmin=-180, softmax=180,
+    Zrot = deluxe.Float(shortname="zro", default=0, softmin=-180, softmax=180,
         help="Rotation about z-axis of z-axis projection.")
-    ZrepeatS = delight.Float(shortname="zrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
-    ZrepeatTSameAsS = delight.Boolean(shortname="zrst", default=True,
+    ZrepeatS = deluxe.Float(shortname="zrs", default=1, help="Repetitions of s-coordinate.", softmin = -2, softmax = 2)
+    ZrepeatTSameAsS = deluxe.Boolean(shortname="zrst", default=True,
         help="Also use ZrepeatS value for repetitions of t-coordinate (ignore ZrepeatT parameter).")
-    ZrepeatT = delight.Float(shortname="zrt", default=1, help="Repetitions of t-coordinate (ignored if ZrepeatTSameAsS is on).", softmin = -2, softmax = 2)
+    ZrepeatT = deluxe.Float(shortname="zrt", default=1, help="Repetitions of t-coordinate (ignored if ZrepeatTSameAsS is on).", softmin = -2, softmax = 2)
 
-    Zprojection = delight.Group([Ztex, Zrot, ZrepeatS, ZrepeatTSameAsS, ZrepeatT], collapse=False)
+    Zprojection = deluxe.Group([Ztex, Zrot, ZrepeatS, ZrepeatTSameAsS, ZrepeatT], collapse=False)
 
-    Pref = delight.Point(message=True, messagetype='Pref_param', storage='varying')
+    Pref = deluxe.Point(message=True, messagetype='Pref_param', storage='varying')
     
-    outColor = delight.Color(output=True)
+    outColor = deluxe.Color(output=True)
     
     
     rslpost = ""

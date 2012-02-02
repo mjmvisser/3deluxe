@@ -1,14 +1,14 @@
-import delight
+import deluxe
 
-class dl_fresnel(delight.ShadingComponent):
+class dl_fresnel(deluxe.ShadingComponent):
     typeid = 0x00300004
     description = "Weights an interior and an exterior shadingcomponent based upon a fresnel calculation "
     
-    indexOfRefraction = delight.Float(default=1.5, softmax=3, storage='uniform',
+    indexOfRefraction = deluxe.Float(default=1.5, softmax=3, storage='uniform',
                                       help="(Relative) index of refraction of material to use for weighting the two components. The index of refraction from air to glass is 1.5. Air to water is 1.33.")
-    amount = delight.Float(default=1, storage='uniform', help="Amount of fresnel weighting")
-    interior = delight.ShadingComponent.generateComponents('int')
-    exterior = delight.ShadingComponent.generateComponents('ext')
+    amount = deluxe.Float(default=1, storage='uniform', help="Amount of fresnel weighting")
+    interior = deluxe.ShadingComponent.generateComponents('int')
+    exterior = deluxe.ShadingComponent.generateComponents('ext')
 
     rsl = \
 """

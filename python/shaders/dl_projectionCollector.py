@@ -1,19 +1,19 @@
-import delight
+import deluxe
 
-class dl_projectionCollector(delight.Utility):
+class dl_projectionCollector(deluxe.Utility):
     typeid = 0x00370003
     classification = 'utility/color'
     description = "Wrapper around 3Delight \"texture\" function"
 
-    baseColor = delight.Color(default=0, help="Color before projected textures are applied.")
-    baseAlpha = delight.Float(default=0, help="Alpha before projected textures are applied.")
-    projLightSubset = delight.String(default="", help="""
+    baseColor = deluxe.Color(default=0, help="Color before projected textures are applied.")
+    baseAlpha = deluxe.Float(default=0, help="Alpha before projected textures are applied.")
+    projLightSubset = deluxe.String(default="", help="""
 Receive projections only from projectionLights with matching projLightSubset values.
 They are evaluated in alphabetical order.
     """)
 
-    outColor = delight.Color(shortname="oc", output=True)
-    outAlpha = delight.Float(shortname="al", output=True)
+    outColor = deluxe.Color(shortname="oc", output=True)
+    outAlpha = deluxe.Float(shortname="al", output=True)
 
               
     rsl = """    

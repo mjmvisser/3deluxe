@@ -1,11 +1,11 @@
-import delight
+import deluxe
 
-class dl_sinus(delight.Texture2D):
+class dl_sinus(deluxe.Texture2D):
     typeid = 0x00350001
     description = "2d sine texture"
-    symmetric = delight.Boolean(help="allow negative values,disabling power")
-    normalized = delight.Boolean(help="remap symmetric to 0-1")       
-    power = delight.Float(default=1,softmax=10,help="scaling factor non-symmetric curves")   
+    symmetric = deluxe.Boolean(help="allow negative values,disabling power")
+    normalized = deluxe.Boolean(help="remap symmetric to 0-1")       
+    power = deluxe.Float(default=1,softmax=10,help="scaling factor non-symmetric curves")   
       
     rslpost = ""     
     rsl = \

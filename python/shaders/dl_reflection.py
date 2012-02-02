@@ -1,19 +1,19 @@
-import delight
+import deluxe
 
-class dl_reflection(delight.ReflectionRefractionComponent):
+class dl_reflection(deluxe.ReflectionRefractionComponent):
     typeid = 0x00300005
     description = "Calculates reflections "
     
-    delight.ReflectionRefractionComponent.indexOfRefraction.default = 0;
+    deluxe.ReflectionRefractionComponent.indexOfRefraction.default = 0;
     
-    occIntensityMult = delight.Float(storage='uniform', default=1, softmin=0, softmax=2,
+    occIntensityMult = deluxe.Float(storage='uniform', default=1, softmin=0, softmax=2,
                          help="Intensity multiplier for raytraced reflection occlusion.")
-    occSamplesMult = delight.Float(shortname='os', storage='uniform', default=1, softmin=0, softmax=2,
+    occSamplesMult = deluxe.Float(shortname='os', storage='uniform', default=1, softmin=0, softmax=2,
                          help="Samples multiplier for raytraced reflection occlusion.")
-    occConeAngleMult = delight.Float(storage='uniform', default=1, softmin=0, softmax=2,
+    occConeAngleMult = deluxe.Float(storage='uniform', default=1, softmin=0, softmax=2,
                          help="Cone angle multiplier for raytraced reflection occlusion.")
 
-    reflectionOcclusion = delight.Group([occIntensityMult, occSamplesMult, occConeAngleMult])
+    reflectionOcclusion = deluxe.Group([occIntensityMult, occSamplesMult, occConeAngleMult])
 
     rsl = \
     """
