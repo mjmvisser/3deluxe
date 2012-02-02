@@ -5,7 +5,9 @@ import textwrap
 from maya.OpenMaya import *
 from maya.OpenMayaMPx import *
 
-from .items import Item 
+import pymel.core as pm
+
+from .items import Item, CallCustom 
 from .containers import Container
 from . import components
 from .utils import ArrayDataHandleIterator
@@ -49,7 +51,8 @@ class Attribute(Item):
                      'suppress': False,
                      'utility':False,
                      'external':False,
-                     'multi':True}
+                     'multi':True,
+                     'callcustom': None}
 
     def __init__(self, *args, **kwargs):
         self.setDefaults(Attribute.__defaultArgs)
@@ -500,6 +503,7 @@ class Integer(Float):
 
     def set(self, dataHandle, value):
         dataHandle.setInt(value)
+
 
 class IntArray(Attribute):
     
@@ -968,6 +972,73 @@ class Message(String):
             self.obj = attr.create(self.longname, self.shortname)
             self.setAttributeFlags(attr)
 
+class CoordinateSystem(String):
+    class CoordinateSystemCallCustom(CallCustom):
+        def new(self, plug):
+            plug = pm.Attribute(plug)
+            with pm.ui.UITemplate("attributeEditorTemplate"):
+                with pm.rowLayout(numberOfColumns=3, adjustableColumn=2) as self._coordsysLayout:
+                    if not self.attr.label:
+                        label = pm.interToUI(self.attr.longname)
+                    else:
+                        label = self.attr.label
+                    pm.text(label=label, annotation=self.attr.help)
+                    self._coordsys = pm.textField(annotation=help)
+                    self._browserButton = pm.symbolButton(image="coordsys.png", annotation=self.attr.help)
+                    self._popupMenu = pm.popupMenu(parent=self._browserButton, button=1)
+            
+            self.replace(str(plug))
+        
+        def replace(self, plug):
+            plug = pm.Attribute(plug)
+            pm.connectControl(self._coordsys.name(), plug, index=2)
+            
+            # populate the popup menu with coordinate systems
+            self._popupMenu.deleteAllItems()
+            
+            with self._popupMenu:
+                objects = []
+                
+                # include the default, if any
+                if self.attr.default:
+                    objects.append(self.attr.default)
+                
+                # add 3delight coordinate systems
+                objects.extend(pm.ls(type="delightCoordinateSystem"))
+                
+                # TODO: add maya cameras
+                
+                for obj in objects:
+                    pm.menuItem(label=str(obj), command=lambda arg, plug=plug, coordsys=obj: plug.set(coordsys))
+
+                if objects:
+                    pm.menuItem(divider=True)
+
+                pm.menuItem(label="Create New Coordinate System", boldFont=True,
+                            command=lambda arg, plug=plug: plug.set(self._createCoordsys()))
+    
+        @staticmethod
+        def _createCoordsys():
+            new_node = pm.createNode("delightCoordinateSystem", name="delightCoordinateSystemShape1", skipSelect=True)
+            pm.mel.DL_setVersionAttr(new_node)
+            pm.mel.DCS_init(new_node)
+            return new_node
+    
+    __defaultArgs = {'callcustom': CoordinateSystemCallCustom}
+    
+    def __init__(self, **kwargs):
+        self.setDefaults(CoordinateSystem.__defaultArgs)
+        super(CoordinateSystem, self).__init__(**kwargs)
+        
+    def getTemplate(self):
+        if not self.hidden and not self.notemplate and self.output != True:
+            return (r"""
+                editorTemplate -callCustom "AETEMPLATE_LONGNAME_New" 
+                                           "AETEMPLATE_LONGNAME_Replace" 
+                                           "%s";
+            """ % self.longname).replace('LONGNAME', self.longname)
+        else:
+            return ''
 
 class Address(Attribute):
     def isValid(self, value):
@@ -985,8 +1056,7 @@ class Address(Attribute):
     
 class Compound(Attribute, Container):
     __defaultArgs = {'keyable': False,
-                     'affect': False,
-                     'callcustom': None}
+                     'affect': False}
     
     def __init__(self, children, **kwargs):
         self.setDefaults(Compound.__defaultArgs)
@@ -1017,7 +1087,7 @@ class Compound(Attribute, Container):
                 attr.addChild(child.obj)
 
     def getHelpers(self):
-        if not self.hidden and not self.notemplate and not self.output and self.callcustom != None:
+        if not self.hidden and not self.notemplate and not self.output and isinstance(self.callcustom, basestring):
             helpers = self.callcustom
         else:
             return ''
@@ -1025,18 +1095,24 @@ class Compound(Attribute, Container):
         return helpers.replace('LONGNAME', self.longname)
     
     def getTemplate(self):
+        if self.label == None:
+            name = '(interToUI(\"%s\"))' % self.longname
+        else:
+            name = '("%s")' % self.label
         if not self.hidden and not self.notemplate and not self.output and self.callcustom != None:
             template = r"""
+                editorTemplate -beginLayout %s  -collapse 1;
                 editorTemplate -callCustom "AETEMPLATE_LONGNAME_New"
                                            "AETEMPLATE_LONGNAME_Replace"
                                            "LONGNAME";
+                editorTemplate -endLayout;
                 editorTemplate -suppress "LONGNAME";
-                """
+                """ % name
             for attr in self.children:
                 template += '                editorTemplate -suppress "%s";\n' % attr.longname
             return template.replace('LONGNAME', self.longname)
         else:
-            return ''
+            return super(Compound, self).getTemplate()
 
 class Ramp(Compound):
     __interpChoices = ['None', 'Linear', 'Smooth', 'Spline']
@@ -1211,5 +1287,3 @@ class ComponentData(Compound):
         self.setDefaults(ComponentData.__defaultArgs)
         super(ComponentData, self).__init__(**kwargs)    
  
-
-    
