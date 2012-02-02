@@ -6,6 +6,9 @@ import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 import math, sys
 
+import pymel.core as pm
+
+
 glRenderer = OpenMayaRender.MHardwareRenderer.theRenderer()
 glFT = glRenderer.glFunctionTable()
 
@@ -61,53 +64,12 @@ class dl_uberLightShape(delight.Light):
                                            help='Controls whether or not this light contributes to the translucence component.')
 
 
-    Contributions = delight.Group([contributeDiffuse, contributeSpecular, contributeTranslucence], label='Component Contributions')
+    contributions = delight.Group([contributeDiffuse, contributeSpecular, contributeTranslucence], label='Component Contributions')
 
     # gobo
-    gbTex = delight.Image ( label='Gobo Texture', default="")
-    gbBlur = delight.Float ( label='Blur', shortname='blr', default=0, min=0, max=1)
-    gbInfl = delight.Float ( label='Influence', shortname='infl', default=1, min=0, max=1)
-    gbSoffset = delight.Float ( label='sOffset', shortname='sofs', default=0, softmin=-1, softmax=1)
-    gbToffset = delight.Float ( label='tOffset', shortname='tofs', default=0, softmin=-1, softmax=1)
-    gbSscale = delight.Float ( label='sScale', shortname='sscale', default=1, softmin=0, softmax=2)
-    gbTscale = delight.Float ( label='tScale', shortname='tscale', default=1, softmin=0, softmax=2)
-    gbRotate = delight.Float ( label='rotate', default=0, softmin=-.5, softmax=.5)
-    outOfRangeMode = delight.Enum ( default='Tile', choices=['Tile', 'Hold', 'Black'])
-    gobo = delight.Group([gbTex, gbBlur, gbInfl, gbSoffset, gbToffset, gbSscale, gbTscale, gbRotate, outOfRangeMode])
-
- 
-    # blockers
-    blockerParms = \
-"""
-bkNNCoordsys = delight.String (shortname='bkNNcs', label = 'coordinateSystem', default="")
-bkNNTint = delight.Color(shortname='bkNNtn', label = 'tint', storage='uniform')
-bkNNTex = delight.Image (shortname='bkNNtx', label = 'texture', default="")
-bkNNChannel = delight.Enum (shortname='bkNNch', label = 'channel', default='rgb', choices=['rgb', 'r', 'g', 'b', 'a', 'luminance'])
-bkNNBlur = delight.Float (shortname='bkNNbl', label='Blur', default=0, min=0, max=1)
-bkNNInfl = delight.Float (shortname='bkNNin', label='Influence', default=1, min=0, max=1)
-bkNNHedge = delight.Float(shortname='bkNNhe', label = 'vert edge', min=0, softmax=.5, default=0, storage='uniform')
-bkNNWedge = delight.Float(mshortname='bkNNwe', label = 'horiz edge', min=0, softmax=.5, default=0, storage='uniform') 
-
-blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChannel, bkNNBlur, bkNNHedge, bkNNWedge])
-"""
-    lmBlockersStr = "lmBlockers = delight.Group(["
-
-    nBlockers = 10
-
-    for i in range(1, nBlockers + 1):
-        num = '%02d' % i
-        parmBlock = blockerParms.replace('NN', num)
-        exec parmBlock
-        lmBlockersStr += "blocker" + num
-        if (i == nBlockers):
-            lmBlockersStr += """
-], label = 'Blockers (integrated)')
-"""
-        else:
-            lmBlockersStr += ", "
-
-    exec lmBlockersStr
-
+    goboColor = delight.Color(shortname='gbc', label="Gobo Color", default=(1,1,1), prepare=True)
+    goboAlpha = delight.Float(shortname='gba', label="Gobo Alpha", default=1, prepare=True)
+    gobo = delight.Group([goboColor, goboAlpha])
 
     # cut on/off
     cutOn = delight.Float(shortname='cn', min=0, softmax=10, default=0.01, storage='uniform')
@@ -123,28 +85,28 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
     # barn doors
     barnDoorLeftAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
     barnDoorLeftEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorLeftLength = delight.Float(hidden=1, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorLeftLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
     barnDoorLeftRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
 
     barnDoorRightAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
     barnDoorRightEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorRightLength = delight.Float(hidden=1, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorRightLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
     barnDoorRightRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
 
     barnDoorTopAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
     barnDoorTopEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorTopLength = delight.Float(hidden=1, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorTopLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
     barnDoorTopRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
 
     barnDoorBottomAngle = delight.Float(default=90, min=0, max=90, storage='uniform')
     barnDoorBottomEdge = delight.Float(default=5, min=0, softmax=20, storage='uniform')
-    barnDoorBottomLength = delight.Float(hidden=1, default=0, min=0, softmax=5, storage='uniform')
+    barnDoorBottomLength = delight.Float(hidden=True, default=0, min=0, softmax=5, storage='uniform')
     barnDoorBottomRoll = delight.Float(default=0, min=-90, max=90, storage='uniform')
 
-    barnDoors = delight.Group([barnDoorLeftAngle, barnDoorLeftEdge, barnDoorLeftRoll,
-                               barnDoorRightAngle, barnDoorRightEdge, barnDoorRightRoll,
-                               barnDoorTopAngle, barnDoorTopEdge, barnDoorTopRoll,
-                               barnDoorBottomAngle, barnDoorBottomEdge, barnDoorBottomRoll])
+    barnDoors = delight.Group([barnDoorLeftAngle, barnDoorLeftEdge, barnDoorLeftLength, barnDoorLeftRoll,
+                               barnDoorRightAngle, barnDoorRightEdge, barnDoorRightLength, barnDoorRightRoll,
+                               barnDoorTopAngle, barnDoorTopEdge, barnDoorTopLength, barnDoorTopRoll,
+                               barnDoorBottomAngle, barnDoorBottomEdge, barnDoorBottomLength, barnDoorBottomRoll])
 
     # Noisy light
     noiseAmplitude = delight.Float()
@@ -162,6 +124,7 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
                               choices=['None', 'Mapped', 'Ray-Traced'],
                               help="""If you are using "Mapped", you MUST assign a 3delight light attribute to this light.""")
     # mapped shadows
+    
     shadowBlur = delight.Float(label='Blur',
                                shortname='bl', default=0.01, min=0, softmax=0.2, storage='uniform',
                                help="""Amount to blur the shadow. A value of 1.0 would
@@ -233,164 +196,73 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
 
     digidoubleShadows = delight.Group([digidoubleShadowType, digidoubleSubset, digidoubleShadowMap])
 
-    shadows = delight.Group([shadowColor, shadowIntensity, useAmbientOcclusion, orthoShadow, shadowType, mappedShadows, tracedShadows, digidoubleShadows])
-
-    blockerProcs = r"""
-    proc addNewBlocker(string $blockers)
-    {
-        string $node  = plugNode($blockers);
-
-        string $new_node = `shadingNode -asUtility "dl_shadowBlocker"`;
-
-        // new name should be like this:
-        // blahblah1 -> blahblahAmbientSC1
-        // blahblah -> blahblahAmbientSC
-
-        string $number = `match "[0-9]*$" $node`;
-        string $bareNode = `substitute "[0-9]*$" $node ""`;
-
-        string $newName = ($bareNode + "Blocker" + $number);
-        $new_node = `rename $new_node $newName`;
-
-        int $new_index = dl_dgPlugArrayAddNew($blockers);               
-        string $plugName = $blockers + "[" + $new_index + "]";
-
-        connectAttr -f ($new_node+".outColor") ($plugName +".blockerColor");
-        connectAttr -f ($new_node+".outAlpha") ($plugName +".blockerValue");
-
-        string $p3tname = `shadingNode -asUtility place3dTexture`;
-        string $manipName = $new_node +"Manip";
-        string $manip  = `rename $p3tname $manipName`;
-        setAttr ($manip+".scaleZ") 0;
-        setAttr ($manip+".rotateX") 90;
-        connectAttr -f  ($manip +".worldInverseMatrix") ($new_node+".placementMatrix");
-        
-        // TODO: do this via the prepare hook
-        connectAttr -f  ($node +".cutOn") ($new_node+".cutOn");
-	
-        select -r $node;
-
-    }
-
-    proc string getPlugFromSelection(string $blockers)
-    {
-        int $selidxlist[] = `textScrollList -q -selectIndexedItem blockerList`;
-        int $selindex =  $selidxlist[0];        
-        if ($selindex)
-        {
-            $selindex--;
-            int $indexList[] = dl_dgPlugArrayGetIndices($blockers);           
-            int $index =  $indexList[$selindex];            
-            string $plug = ($blockers+"["+$index+"]");           
-            return $plug;                        
-        }
-        else
-        {
-            return "";
-        }        
-    }
-
-    proc string  getSourceFromPlug(string $plug)
-    {
-        string $input = $plug+".blockerColor" ;
-        string $sources[] = `listConnections -source 1 -destination 0 $input`;
-
-        return $sources[0];
-    }
-
-    proc deleteBlocker(string $blockers)
-    {    
-        string $plug = getPlugFromSelection($blockers);
-        if (size($plug))
-        {            
-            string $source = getSourceFromPlug($plug);
-            removeMultiInstance -b true $plug ;
-            delete $source;
-            delete ($source +"Manip");                        
-        }        
-    }
-
-    proc selectBlocker(string $blockers)
-    {
-        string $plug = getPlugFromSelection($blockers);
-        if (size($plug))
-        {     
-            string $source = getSourceFromPlug($plug);
-            select -r $source;
-        } 
-    } 
-
-    proc renameBlockers(string $blockers)
-    {
-        string $node  = plugNode($blockers);
-        int $indexList[] = dl_dgPlugArrayGetIndices($blockers);
-        int $i;
-        for ($i in $indexList)
-        {           
-            string $source = getSourceFromPlug ($blockers +  "[" + $i + "]");
-            string $nt = `nodeType $source`;             
-            string $number = `match "[0-9]*$" $node`;
-            string $bareNode = `substitute "[0-9]*$" $node ""`;
-            string $bareNt = `substitute "^dl_blocker" $nt ""`;            
-            string $newName = ($bareNode + $bareNt + $number);
-            rename $source $newName;
-        }        
-    }
-
-    global proc AETEMPLATE_LONGNAME_New(string $blockers)
-    {
-        string $plugNode = plugNode($blockers);
-        print ("\n\n ------------ JEREMY plugNode = " + $plugNode);
-        columnLayout;
-            rowLayout -nc 2;
-                text -l " ";
-                rowLayout -nc 2 -columnWidth2 75 75;
-                    button -ann "Add and connect a new blocker." -l "Add"  -align "center" blockerAddButton;
-                    button -ann "Delete the selected blocker"  -l "Delete" -align "center" blockerDeleteButton;
-                setParent ..;
-            setParent ..;
-            rowLayout -nc 2;
-                text -ann "List of blocker nodes." -l "blockers";
-                textScrollList -ann "List of blocker nodes." -height 150 blockerList;
-            setParent ..;
-            separator -st "none" -h 4;
-            rowLayout -nc 2;
-                text -l " ";
-                button -ann "Rename blocker nodes using this node's name as a prefix." -l "Rename Nodes" -align "center" renameNodesButton;
-            setParent ..;
-        setParent ..;        
-        separator -st "none" -h 4;
-        AETEMPLATE_LONGNAME_Replace($blockers);
-    }
-
-    global proc AETEMPLATE_LONGNAME_Replace(string $blockers)
-    {
-        button -edit -command ("addNewBlocker "+$blockers) blockerAddButton;
-        button -edit -command ("deleteBlocker "+$blockers) blockerDeleteButton;
-        textScrollList -edit -removeAll blockerList;
-        int $indexList[] = dl_dgPlugArrayGetIndices($blockers);
-        int $i;
-        for ($i in $indexList)
-        {           
-            string $source = getSourceFromPlug ($blockers +  "[" + $i + "]");
-            textScrollList -edit -append $source blockerList;
-        }
-        textScrollList -edit -doubleClickCommand ("selectBlocker " + $blockers) blockerList;
-        button -edit -command ("renameBlockers "+$blockers) renameNodesButton;         
-    }
-    """
+    # blockers
+    blockerColor = delight.Color(shortname='bkc', label='Color', default=(0,0,0))
+    blockerValue = delight.Float(shortname='bka', label='Alpha', min=0, max=1, default=1)
     
-    blockerColor = delight.Color(shortname='shdc', notemplate=True)
-    blockerValue = delight.Float(shortname='shdv', notemplate=True)
-    blockers = delight.Compound([blockerColor, blockerValue], array=True, callcustom=blockerProcs)
+    class BlockersCallCustom(delight.CallCustom):
+        def new(self, plug):
+            plug = pm.Attribute(plug)
+            with pm.ui.UITemplate("attributeEditorTemplate"):
+                self._blockerLayout = pm.columnLayout(adjustableColumn=True)
+                    
+            self.replace(str(plug))
+                    
+        def replace(self, plug):
+            plug = pm.Attribute(plug)
+            # clear the layout
+            self._blockerLayout.clear()
+            old_parent = pm.setParent(self._blockerLayout)
+            with pm.ui.UITemplate("attributeEditorTemplate"):
+                for attr in plug:
+                    if attr.isConnected():
+                        with pm.rowLayout(numberOfColumns=3, adjustableColumn=2, columnWidth3=(145, 200, 24),
+                                          columnAttach3=("both", "both", "both")):
+                            blocker = attr.inputs()[0]
+                            pm.symbolButton(image="smallTrash.xpm",
+                                            command=lambda arg, plug=plug, attr=attr: self._removeBlocker(plug, attr),
+                                            annotation="Delete this Blocker node.")
+                            pm.text(label=attr.inputs()[0], align="left")
+                            pm.symbolButton(image="outArrow.png",
+                                              command=lambda arg, blocker=blocker: pm.mel.updateAE(blocker),
+                                              annotation="Select this Blocker node in the Attribute Editor.")
+                with pm.rowLayout(numberOfColumns=3, adjustableColumn=2, columnWidth3=(145, 200, 24),
+                                  columnAttach3=("both", "both", "both")):
+                    pm.text(label="")
+                    pm.text(label="New Blocker", align="left")
+                    pm.symbolButton(image="navButtonUnconnected.xpm",
+                                    command=lambda arg, plug=plug: self._addBlocker(plug),
+                                    annotation="Create and connect a new Blocker node.")
 
-    blockerGroup = delight.Group([blockers], label='Blockers', hidden=True)
-
-    # Gobos
-    goboColor = delight.Color(shortname='gbc', notemplate=True)
-    gobos = delight.Compound([goboColor], array=True)
+            pm.setParent(old_parent)
     
-    goboGroup = delight.Group([gobos], hidden=True, label='Gobos')
+        def _addBlocker(self, plug):
+            # create and connect the blocker node
+            new_blocker = pm.shadingNode("dl_blocker", asUtility=True, skipSelect=True)
+            new_blocker.attr("blocker").connect(plug, nextAvailable=True)
+            
+            # the blocker needs access to these light attributes
+            plug.node().attr("cutOn").connect(new_blocker.attr("cutOn"))
+            plug.node().attr("lightType").connect(new_blocker.attr("lightType"))
+
+        def _removeBlocker(self, plug, attr):
+            # first disconnect the blocker
+            blocker = attr.inputs()[0]
+            blocker.attr("cutOn").disconnect()
+            blocker.attr("lightType").disconnect()
+            attr.remove(b=True)
+            
+            # delete the blocker
+            pm.delete(blocker)
+            
+            # and update the UI
+            self.replace(plug)
+            
+
+    blockers = delight.Compound([blockerColor, blockerValue], array=True, readable=False, indexmatters=False,
+                                callcustom=BlockersCallCustom)
+
+    shadows = delight.Group([shadowColor, shadowIntensity, useAmbientOcclusion, orthoShadow, shadowType, mappedShadows, tracedShadows, blockers, digidoubleShadows])
 
     # display stuff...
     displayPenumbraAngle = delight.Boolean(default=False)
@@ -408,6 +280,38 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
 
     # category
     __category = delight.String(default='', message=True, messagetype='lightsource')
+
+    rslprepare = \
+    """
+        uniform point from = point "shader" (0,0,0);
+        uniform point to = point "shader" (0,0,1);
+
+        extern vector L;
+        extern float ss, tt;
+
+        float coneangle = radians(i_coneAngle);
+        float penumbraangle = radians(i_penumbraAngle);
+        float max_angle = coneangle / 2;
+        if( penumbraangle > 0.0 )
+                max_angle += penumbraangle;
+
+
+        uniform vector A = (to - from)/length(to-from);
+        uniform vector xaxis = A ^ vector "shader" (1,0,0);
+        if (length(xaxis) == 0)
+                xaxis = A ^ vector "shader" (0,1,0);
+
+        uniform vector yaxis = normalize(A ^ xaxis);
+
+        illuminate( from, A, max_angle )
+        {
+                float anglex = atan(L.xaxis, L.A);
+                float angley = atan(L.yaxis, L.A);
+
+                tt = 1 - ((tan(anglex) / tan(max_angle)) * 0.5 + 0.5);
+                ss = (tan(angley) / tan(max_angle)) * 0.5 + 0.5;
+        }
+    """
 
     rsl = \
     """
@@ -443,81 +347,6 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
 
         uniform float coneAngle_tan = abs(tan(radians(i_coneAngle/2)));
         uniform float penumbraAngle_tan = abs(tan(radians(i_coneAngle/2 + i_penumbraAngle)));
-
-        // TODO:  We should have a wrapper function like this for all texture lookups.
-        void getTexture(string tex; float ss, tt, channel, blur; output color clr) {
-            uniform float num_channels;
-            if (tex != "" && textureinfo(tex, "exists", 0) == 1) {
-                textureinfo( tex, "channels", num_channels );
-                // Treat as if channel == 1 (red) if there only is one channel.
-                uniform float channelToUse = num_channels == 1 ? 1 : channel;
-                if (channelToUse == 0 || channelToUse == 5) {
-                    clr = texture(tex, ss, tt, "blur", blur);
-                    if (channelToUse == 5) {
-                        clr = luminance(clr);
-                    } else if (num_channels == 2) {
-                        clr = (clr[0] + clr[1])/2;
-                    }
-                } else {
-                    clr = float texture(tex[channelToUse - 1], ss, tt, "blur", blur);
-                }
-            }
-        }
-
-        void applyBlocker(
-            string bkCoordsys;
-            color bkTint;
-            string bkTex;
-            float bkChannel;
-            float bkBlur;
-            float bkInfl;
-            float bkHedge;
-            float bkWedge;
-            output color lcol;
-            ) {
-
-            extern vector L;
-            extern point Ps;
-
-            if (bkCoordsys != "")
-            {
-                vector sAx = normalize(vtransform(bkCoordsys, "current", vector (1, 0, 0)));
-                vector tAx = normalize(vtransform(bkCoordsys, "current", vector (0, 1, 0)));
-                point cOrg = transform(bkCoordsys, "current", point (0, 0, 0));
-
-                vector cOrgToP =  Ps - cOrg;
-                float projOnPlaneS = sAx.cOrgToP;
-                float projOnPlaneT = tAx.cOrgToP;
-                point projOnPlane = cOrg + projOnPlaneS * sAx + projOnPlaneT * tAx;
-                vector toProjOnPlane = projOnPlane - Ps;
-                vector Ln = normalize(L);
-                float cs = normalize(toProjOnPlane).Ln;
-                point Pint = Ps + Ln * length(toProjOnPlane)/cs;
-                vector cOrgToPint = Pint - cOrg;
-                //float sBk = cOrgToPint.sAx;
-                //float tBk = cOrgToPint.tAx;
-                point PintCs = transform(bkCoordsys, Pint);
-                float sBk = (1+PintCs[0])/2;
-                float tBk = 1-(1+PintCs[1])/2;
-
-                //lcol = (sBk, tBk, .5);
-                float inBlocker = 
-                          smoothstep (0, bkWedge, sBk)
-                        * (1-smoothstep (1-bkWedge, 1, sBk))
-                        * smoothstep (0, bkHedge, tBk)
-                        * (1-smoothstep (1-bkHedge, 1, tBk));
-                inBlocker *= filterstep(depth(Pint), depth(Ps));
-                
-                color bkClr = 1;
-                getTexture(bkTex, sBk, tBk, bkChannel, bkBlur, bkClr);
-                bkClr *= bkTint;
-                lcol *= mix(color 1, bkClr, inBlocker * bkInfl);
-            }
-        }
-
-
-
-
 
 
         if (i_lightType == 0) 
@@ -570,59 +399,7 @@ blockerNN = delight.Group([ bkNNCoordsys, bkNNInfl, bkNNTint, bkNNTex, bkNNChann
             /* If the volume says we aren't being lit, skip the remaining tests */
             if (atten > 0)
             {
-                /* Apply OUR gobo (which works) */
-                if ((i_gbTex != "") && i_gbInfl > 0 && textureinfo(i_gbTex, "exists", 0) == 1) {
-                    float totalConeAngFromAxis = i_coneAngle/2 + i_penumbraAngle;
-                    float m = 45/totalConeAngFromAxis;
-                    float ss = PL[0]/PL[2]*m;
-                    float tt = PL[1]/PL[2]*m;
-                    float ang = atan(tt, ss);
-                    float dist = sqrt(ss*ss + tt*tt);
-                    ang += i_gbRotate;
-                    ss = cos(ang)*dist;
-                    tt = sin(ang)*dist;
-                    ss = .5 + .5 * ss / i_gbSscale;
-                    tt = .5 + .5 * tt / i_gbTscale;
-                    ss += i_gbSoffset;
-                    tt += i_gbToffset;
-                    if (i_outOfRangeMode == 1) {
-                        ss = clamp(ss, 0, 1);
-                        tt = clamp(tt, 0, 1);
-                    } else if (i_outOfRangeMode == 2 &&
-                        (ss > 1 || ss < 0 || tt > 1 || tt < 0)) {
-                        // Using filterstep for this provides a cleaner edge
-                        // but causes artifacts at the edge of the light cone.
-                        lcol = 0;
-                    }
-
-                    color gbClr = 1;
-                    if (i_gbInfl > 0) {
-                        getTexture(i_gbTex, ss, tt, 0, i_gbBlur, gbClr);
-                    }
-                    lcol *= mix(color 1, gbClr, i_gbInfl);
-                }
-
-                /* Apply THEIR gobos (which don't work) */
-                uniform float num_gobos = arraylength(i_goboColor);
-                float gobo_index;
-                for (gobo_index = 0; gobo_index < num_gobos; gobo_index += 1)
-                {
-                    lcol *= i_goboColor[gobo_index];
-                }
-
-                /* Apply OUR blockers (which allow textures) */
-#define APPLYBLOCKER(N) applyBlocker( i_bk##N##Coordsys, i_bk##N##Tint, i_bk##N##Tex, i_bk##N##Channel, i_bk##N##Blur, i_bk##N##Infl, i_bk##N##Hedge, i_bk##N##Wedge, lcol);
-
-APPLYBLOCKER(01)
-APPLYBLOCKER(02)
-APPLYBLOCKER(03)
-APPLYBLOCKER(04)
-APPLYBLOCKER(05)
-APPLYBLOCKER(06)
-APPLYBLOCKER(07)
-APPLYBLOCKER(08)
-APPLYBLOCKER(09)
-APPLYBLOCKER(10)
+                lcol *= i_goboColor * i_goboAlpha;
 
                 /* Apply noise */
                 if (i_noiseAmplitude > 0)
