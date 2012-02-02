@@ -705,6 +705,13 @@ visitConnection(string $src_plug, string $dst_plug)
     
     $result = $srcidx;
     
+    // markv: remove any #... from the plugs
+    if (match("#param$", $src_plug) != "")
+      $src_plug = substring($src_plug, 1, (size($src_plug) - size("#param")));
+
+    if (match("#param$", $dst_plug) != "")
+      $dst_plug = substring($dst_plug, 1, (size($dst_plug) - size("#param")));
+    
     // markv: to handle connected compounds, we add connections for all children of that compound
     if ($dst_plug != "")
     {
@@ -3173,15 +3180,9 @@ traverseNode(
 
     }
 
-    // markv: $node + "#prepare" hasn't been visited yet, so this returns -1
-    //$max_prepared_depth = findMaxDepthForScope($prepare_node_scope) + 1;
-
-    //visitNode(($node + "#prepare"), $max_prepared_depth, $prepare_node_scope);
-
-    visitNode(($node + "#prepare"), $node_depth, $prepare_node_scope);
     $max_prepared_depth = findMaxDepthForScope($prepare_node_scope) + 1;
-
-    // end markv
+    
+    visitNode(($node + "#prepare"), $max_prepared_depth, $prepare_node_scope);
   }
 
   for ($i = 0; $i < size($input_plugs); $i++)
