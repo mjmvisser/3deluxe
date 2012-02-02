@@ -17,9 +17,9 @@ class dl_bakeLightShape(delight.Light):
                              help="""The point cloud file in which to bake objects
                                         THAT DON'T OCCLUDE THEMSELVES OR EACH OTHER
                                     ( Attribute "user" "float selfOcclude" [ 0 ] ), eg groundplane.""")
-    coordSys = delight.Message(default='world',
-                               label='Coordinate System', 
-                               help="""The coordinate system in which points will be stored in the ptc file. Default is "world".""")
+    coordSys = delight.CoordinateSystem(default='world',
+                                        label='Coordinate System', 
+                                        help="""The coordinate system in which points will be stored in the ptc file. Default is "world".""")
 
     radiusScale = delight.Float(shortname='rsc', default = 1, softmax = 3,
          help="Scale radius of baked points.")

@@ -3,6 +3,12 @@
 
 /*
 begin inputs
+	prepare color color
+	varying color transparency
+	uniform float compositeMode
+	uniform string projLightSubset
+	uniform float intensity
+	uniform color lightColor
 	uniform float shadowBlur
 	uniform float shadowFilterType
 	uniform float shadowBias
@@ -14,12 +20,6 @@ begin inputs
 	uniform float shadowDecay
 	uniform float shadowDecayCutOn
 	uniform float shadowDecayCutOff
-	prepare color color
-	varying color transparency
-	uniform float compositeMode
-	uniform string projLightSubset
-	uniform float intensity
-	uniform color lightColor
 end inputs
 
 begin shader_extra_parameters lightsource
@@ -41,6 +41,12 @@ void
 prepare_maya_dl_projectionLightShape(
 	// Inputs
 	//
+	varying color i_color;
+	varying color i_transparency;
+	uniform float i_compositeMode;
+	uniform string i_projLightSubset;
+	uniform float i_intensity;
+	uniform color i_lightColor;
 	uniform float i_shadowBlur;
 	uniform float i_shadowFilterType;
 	uniform float i_shadowBias;
@@ -52,12 +58,6 @@ prepare_maya_dl_projectionLightShape(
 	uniform float i_shadowDecay;
 	uniform float i_shadowDecayCutOn;
 	uniform float i_shadowDecayCutOff;
-	varying color i_color;
-	varying color i_transparency;
-	uniform float i_compositeMode;
-	uniform string i_projLightSubset;
-	uniform float i_intensity;
-	uniform color i_lightColor;
 	)
 {
 
@@ -73,6 +73,12 @@ void
 end_maya_dl_projectionLightShape(
 	// Inputs
 	//
+	varying color i_color;
+	varying color i_transparency;
+	uniform float i_compositeMode;
+	uniform string i_projLightSubset;
+	uniform float i_intensity;
+	uniform color i_lightColor;
 	uniform float i_shadowBlur;
 	uniform float i_shadowFilterType;
 	uniform float i_shadowBias;
@@ -84,12 +90,6 @@ end_maya_dl_projectionLightShape(
 	uniform float i_shadowDecay;
 	uniform float i_shadowDecayCutOn;
 	uniform float i_shadowDecayCutOff;
-	varying color i_color;
-	varying color i_transparency;
-	uniform float i_compositeMode;
-	uniform string i_projLightSubset;
-	uniform float i_intensity;
-	uniform color i_lightColor;
 	)
 {
 

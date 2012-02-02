@@ -3,9 +3,11 @@
 
 /*
 begin inputs
+	uniform float intensity
+	uniform color lightColor
 	uniform float envMethod
 	texture string envMap
-	sourceshapename string envSpace
+	uniform string envSpace
 	vector physkySunLightRotation
 	uniform float physkyJustSun
 	texture string physkyCloudTex
@@ -53,8 +55,6 @@ begin inputs
 	uniform float occBias
 	uniform float occGain
 	uniform float traceSamplesMult
-	uniform float intensity
-	uniform color lightColor
 end inputs
 
 begin shader_extra_parameters lightsource
@@ -88,6 +88,8 @@ void
 maya_dl_envLightShape(
 	// Inputs
 	//
+	uniform float i_intensity;
+	uniform color i_lightColor;
 	uniform float i_envMethod;
 	uniform string i_envMap;
 	uniform string i_envSpace;
@@ -138,8 +140,6 @@ maya_dl_envLightShape(
 	uniform float i_occBias;
 	uniform float i_occGain;
 	uniform float i_traceSamplesMult;
-	uniform float i_intensity;
-	uniform color i_lightColor;
 	)
 {
 

@@ -3,16 +3,6 @@
 
 /*
 begin inputs
-	color defaultColor
-	color colorGain
-	color colorOffset
-	float alphaGain
-	float alphaOffset
-	uniform float alphaIsLuminance
-	uniform float blend
-	uniform float local
-	uniform float wrap
-	uniform float invert
 	uniform float frequencyIncrement
 	uniform float threshold
 	uniform float amplitude
@@ -34,6 +24,16 @@ begin inputs
 	uniform float falloff
 	float numWaves
 	matrix placementMatrix
+	color defaultColor
+	color colorGain
+	color colorOffset
+	float alphaGain
+	float alphaOffset
+	uniform float alphaIsLuminance
+	uniform float blend
+	uniform float local
+	uniform float wrap
+	uniform float invert
 end inputs
 
 begin outputs
@@ -56,16 +56,6 @@ void
 maya_dl_volumeNoise(
 	// Inputs
 	//
-	color i_defaultColor;
-	color i_colorGain;
-	color i_colorOffset;
-	float i_alphaGain;
-	float i_alphaOffset;
-	uniform float i_alphaIsLuminance;
-	uniform float i_blend;
-	uniform float i_local;
-	uniform float i_wrap;
-	uniform float i_invert;
 	uniform float i_frequencyIncrement;
 	uniform float i_threshold;
 	uniform float i_amplitude;
@@ -87,6 +77,16 @@ maya_dl_volumeNoise(
 	uniform float i_falloff;
 	float i_numWaves;
 	matrix i_placementMatrix;
+	color i_defaultColor;
+	color i_colorGain;
+	color i_colorOffset;
+	float i_alphaGain;
+	float i_alphaOffset;
+	uniform float i_alphaIsLuminance;
+	uniform float i_blend;
+	uniform float i_local;
+	uniform float i_wrap;
+	uniform float i_invert;
 	// Outputs
 	//
 	output color o_outColor;

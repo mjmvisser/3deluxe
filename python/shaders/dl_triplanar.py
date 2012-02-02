@@ -5,7 +5,7 @@ class dl_triplanar(delight.Utility):
     description = "Triplanar texture projector."
     
     
-    coordinateSystem = delight.String(shortname="cs", default="world", help="""
+    coordsys = delight.CoordinateSystem(shortname="cs", default="world", help="""
         Enter a standard shading space (eg 'world', 'object') or a coordinate system shape.
         """)
     scale = delight.Float(shortname="sc", default=1, help="Global scale for x, y, and z projections.")
@@ -122,10 +122,10 @@ class dl_triplanar(delight.Utility):
     if(Pref != point(0))
         pp = Pref;
         
-    point Pcs = transform(i_coordinateSystem, pp);
+    point Pcs = transform(i_coordsys, pp);
     point Ptex = Pcs / i_scale;
     normal Nn = normalize(N);
-    normal Ncs = normalize(ntransform(i_coordinateSystem, Nn));
+    normal Ncs = normalize(ntransform(i_coordsys, Nn));
     
     warpN(i_warpMode, i_warpNoiseAmount, i_warpNoiseFreq,
         i_warpNoiseOffset, i_warpInput, Pcs, Ncs);

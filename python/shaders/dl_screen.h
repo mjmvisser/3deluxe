@@ -3,6 +3,9 @@
 
 /*
 begin inputs
+	float density
+	float frequency
+	float2 uvFilterSize
 	color defaultColor
 	color colorGain
 	color colorOffset
@@ -11,9 +14,6 @@ begin inputs
 	uniform float alphaIsLuminance
 	uniform float invert
 	init={ss,tt} float2 uvCoord
-	float density
-	float frequency
-	float2 uvFilterSize
 end inputs
 
 begin outputs
@@ -30,6 +30,9 @@ void
 maya_dl_screen(
 	// Inputs
 	//
+	float i_density;
+	float i_frequency;
+	float i_uvFilterSize[2];
 	color i_defaultColor;
 	color i_colorGain;
 	color i_colorOffset;
@@ -38,9 +41,6 @@ maya_dl_screen(
 	uniform float i_alphaIsLuminance;
 	uniform float i_invert;
 	float i_uvCoord[2];
-	float i_density;
-	float i_frequency;
-	float i_uvFilterSize[2];
 	// Outputs
 	//
 	output color o_outColor;

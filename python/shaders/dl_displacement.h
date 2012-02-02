@@ -8,6 +8,7 @@ begin inputs
 	uniform float useShadingNormals
 	uniform float useNormalMap
 	varying color normalMap
+	uniform float selectedInput
 	uniform float[] inputs[].enable
 	float[] inputs[].alpha
 	float[] inputs[].scale
@@ -17,7 +18,6 @@ begin inputs
 	float[] inputs[].amount
 	float[] inputs[].lip
 	float[] inputs[].lipRimSharp
-	uniform float selectedInput
 end inputs
 
 begin outputs
@@ -43,6 +43,7 @@ maya_dl_displacement(
 	uniform float i_useShadingNormals;
 	uniform float i_useNormalMap;
 	varying color i_normalMap;
+	uniform float i_selectedInput;
 	uniform float i_enable[];
 	float i_alpha[];
 	float i_scale[];
@@ -52,7 +53,6 @@ maya_dl_displacement(
 	float i_amount[];
 	float i_lip[];
 	float i_lipRimSharp[];
-	uniform float i_selectedInput;
 	// Outputs
 	//
 	output color o_outColor;

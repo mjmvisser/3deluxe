@@ -3,6 +3,9 @@
 
 /*
 begin inputs
+	uniform string coordsys
+	float scale
+	float blendWidth
 	uniform float warpMode
 	float warpNoiseAmount
 	float warpNoiseFreq
@@ -23,9 +26,6 @@ begin inputs
 	float ZrepeatS
 	uniform float ZrepeatTSameAsS
 	float ZrepeatT
-	uniform string coordinateSystem
-	float scale
-	float blendWidth
 end inputs
 
 begin outputs
@@ -42,6 +42,9 @@ void
 maya_dl_triplanar(
 	// Inputs
 	//
+	uniform string i_coordsys;
+	float i_scale;
+	float i_blendWidth;
 	uniform float i_warpMode;
 	float i_warpNoiseAmount;
 	float i_warpNoiseFreq;
@@ -62,9 +65,6 @@ maya_dl_triplanar(
 	float i_ZrepeatS;
 	uniform float i_ZrepeatTSameAsS;
 	float i_ZrepeatT;
-	uniform string i_coordinateSystem;
-	float i_scale;
-	float i_blendWidth;
 	// Outputs
 	//
 	output color o_outColor;
@@ -134,10 +134,10 @@ maya_dl_triplanar(
     if(Pref != point(0))
         pp = Pref;
         
-    point Pcs = transform(i_coordinateSystem, pp);
+    point Pcs = transform(i_coordsys, pp);
     point Ptex = Pcs / i_scale;
     normal Nn = normalize(N);
-    normal Ncs = normalize(ntransform(i_coordinateSystem, Nn));
+    normal Ncs = normalize(ntransform(i_coordsys, Nn));
     
     warpN(i_warpMode, i_warpNoiseAmount, i_warpNoiseFreq,
         i_warpNoiseOffset, i_warpInput, Pcs, Ncs);

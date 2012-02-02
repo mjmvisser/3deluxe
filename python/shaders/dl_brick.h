@@ -3,14 +3,6 @@
 
 /*
 begin inputs
-	color defaultColor
-	color colorGain
-	color colorOffset
-	float alphaGain
-	float alphaOffset
-	uniform float alphaIsLuminance
-	uniform float invert
-	init={ss,tt} float2 uvCoord
 	color brickColor
 	color mortarColor
 	float jagged
@@ -20,6 +12,14 @@ begin inputs
 	float mortarThickness
 	float rowVary
 	float2 uvFilterSize
+	color defaultColor
+	color colorGain
+	color colorOffset
+	float alphaGain
+	float alphaOffset
+	uniform float alphaIsLuminance
+	uniform float invert
+	init={ss,tt} float2 uvCoord
 end inputs
 
 begin outputs
@@ -36,14 +36,6 @@ void
 maya_dl_brick(
 	// Inputs
 	//
-	color i_defaultColor;
-	color i_colorGain;
-	color i_colorOffset;
-	float i_alphaGain;
-	float i_alphaOffset;
-	uniform float i_alphaIsLuminance;
-	uniform float i_invert;
-	float i_uvCoord[2];
 	color i_brickColor;
 	color i_mortarColor;
 	float i_jagged;
@@ -53,6 +45,14 @@ maya_dl_brick(
 	float i_mortarThickness;
 	float i_rowVary;
 	float i_uvFilterSize[2];
+	color i_defaultColor;
+	color i_colorGain;
+	color i_colorOffset;
+	float i_alphaGain;
+	float i_alphaOffset;
+	uniform float i_alphaIsLuminance;
+	uniform float i_invert;
+	float i_uvCoord[2];
 	// Outputs
 	//
 	output color o_outColor;

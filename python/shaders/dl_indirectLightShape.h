@@ -3,11 +3,13 @@
 
 /*
 begin inputs
+	uniform float intensity
+	uniform color lightColor
 	uniform float envMethod
 	float envIntensity
 	color envColor
 	texture string envMap
-	sourceshapename string envSpace
+	uniform string envSpace
 	uniform float envConvolveMode
 	uniform float envBlur
 	vector physkySunLightRotation
@@ -70,8 +72,6 @@ begin inputs
 	uniform float indirectMaxDistance
 	uniform float indirectFalloffMode
 	float indirectFalloff
-	uniform float intensity
-	uniform color lightColor
 end inputs
 
 begin shader_extra_parameters lightsource
@@ -97,6 +97,8 @@ void
 maya_dl_indirectLightShape(
 	// Inputs
 	//
+	uniform float i_intensity;
+	uniform color i_lightColor;
 	uniform float i_envMethod;
 	float i_envIntensity;
 	color i_envColor;
@@ -164,8 +166,6 @@ maya_dl_indirectLightShape(
 	uniform float i_indirectMaxDistance;
 	uniform float i_indirectFalloffMode;
 	float i_indirectFalloff;
-	uniform float i_intensity;
-	uniform color i_lightColor;
 	)
 {
 

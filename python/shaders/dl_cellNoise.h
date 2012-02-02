@@ -3,6 +3,15 @@
 
 /*
 begin inputs
+	uniform float frequency
+	uniform float noisetype
+	matrix placementMatrix
+	float jitter
+	uniform float clamp
+	float c1
+	float c2
+	uniform color avgcolor
+	uniform float colorvariation
 	color defaultColor
 	color colorGain
 	color colorOffset
@@ -13,15 +22,6 @@ begin inputs
 	uniform float local
 	uniform float wrap
 	uniform float invert
-	float jitter
-	uniform float clamp
-	float c1
-	float c2
-	uniform color avgcolor
-	uniform float colorvariation
-	uniform float frequency
-	uniform float noisetype
-	matrix placementMatrix
 end inputs
 
 begin outputs
@@ -43,6 +43,15 @@ void
 maya_dl_cellNoise(
 	// Inputs
 	//
+	uniform float i_frequency;
+	uniform float i_noisetype;
+	matrix i_placementMatrix;
+	float i_jitter;
+	uniform float i_clamp;
+	float i_c1;
+	float i_c2;
+	uniform color i_avgcolor;
+	uniform float i_colorvariation;
 	color i_defaultColor;
 	color i_colorGain;
 	color i_colorOffset;
@@ -53,15 +62,6 @@ maya_dl_cellNoise(
 	uniform float i_local;
 	uniform float i_wrap;
 	uniform float i_invert;
-	float i_jitter;
-	uniform float i_clamp;
-	float i_c1;
-	float i_c2;
-	uniform color i_avgcolor;
-	uniform float i_colorvariation;
-	uniform float i_frequency;
-	uniform float i_noisetype;
-	matrix i_placementMatrix;
 	// Outputs
 	//
 	output color o_outColor;

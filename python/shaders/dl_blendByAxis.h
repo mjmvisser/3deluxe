@@ -3,13 +3,13 @@
 
 /*
 begin inputs
+	uniform string coordsys
+	uniform float axis
 	uniform float globalWarpMode
 	float globalWarpNoiseAmount
 	float globalWarpNoiseFreq
 	vector globalWarpNoiseOffset
 	vector globalWarpInput
-	uniform string coordsys
-	uniform float axis
 	uniform string[] entries[].label
 	color[] entries[].colour
 	float[] entries[].value
@@ -48,13 +48,13 @@ void
 maya_dl_blendByAxis(
 	// Inputs
 	//
+	uniform string i_coordsys;
+	uniform float i_axis;
 	uniform float i_globalWarpMode;
 	float i_globalWarpNoiseAmount;
 	float i_globalWarpNoiseFreq;
 	vector i_globalWarpNoiseOffset;
 	vector i_globalWarpInput;
-	uniform string i_coordsys;
-	uniform float i_axis;
 	uniform string i_label[];
 	color i_colour[];
 	float i_value[];

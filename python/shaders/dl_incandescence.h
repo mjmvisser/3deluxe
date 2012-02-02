@@ -3,19 +3,21 @@
 
 /*
 begin inputs
-	uniform float mute
-	uniform float contribution
-	float intensity
-	color color
-	uniform float shadeCurves
 	uniform float bakeIncomingColor
 	uniform string bakeFile
 	uniform float method
 	uniform float shape
 	normal normalCamera
+	uniform float mute
+	uniform float contribution
+	float intensity
+	color color
+	uniform float shadeCurves
 end inputs
 
 begin outputs
+	color outColor
+	color outTransparency
 	void outputComponent
 	color outputComponent.output_beauty
 	color[] outputComponent.output_light
@@ -48,8 +50,6 @@ begin outputs
 	color outputComponent.output_subsurface
 	color[] outputComponent.output_collect_direct_shad
 	color outputComponent.output_collect_indirect_shad
-	color outColor
-	color outTransparency
 end outputs
 
 */
@@ -61,18 +61,20 @@ void
 maya_dl_incandescence(
 	// Inputs
 	//
-	uniform float i_mute;
-	uniform float i_contribution;
-	float i_intensity;
-	color i_color;
-	uniform float i_shadeCurves;
 	uniform float i_bakeIncomingColor;
 	uniform string i_bakeFile;
 	uniform float i_method;
 	uniform float i_shape;
 	normal i_normalCamera;
+	uniform float i_mute;
+	uniform float i_contribution;
+	float i_intensity;
+	color i_color;
+	uniform float i_shadeCurves;
 	// Outputs
 	//
+	output color o_outColor;
+	output color o_outTransparency;
 	output color o_output_beauty;
 	output color o_output_light[];
 	output color o_output_diffuse_unocc[];
@@ -104,8 +106,6 @@ maya_dl_incandescence(
 	output color o_output_subsurface;
 	output color o_output_collect_direct_shad[];
 	output color o_output_collect_indirect_shad;
-	output color o_outColor;
-	output color o_outTransparency;
 	)
 {
 

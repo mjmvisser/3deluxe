@@ -3,14 +3,13 @@
 
 /*
 begin inputs
-	color defaultColor
-	color colorGain
-	color colorOffset
-	float alphaGain
-	float alphaOffset
-	uniform float alphaIsLuminance
-	uniform float invert
-	init={ss,tt} float2 uvCoord
+	texture string textureName
+	uniform float indexedSprites
+	uniform float blur
+	uniform float filterType
+	uniform float samples
+	uniform string coordsys
+	float2 uvFilterSize
 	float3 gamma
 	float alphaInsideUVMult
 	float alphaInsideUVOffset
@@ -21,13 +20,14 @@ begin inputs
 	float2 warpNoiseFreq
 	float2 warpNoiseOffset
 	float2 warpInput
-	texture string textureName
-	uniform float indexedSprites
-	uniform float blur
-	uniform float filterType
-	uniform float samples
-	uniform string coordsys
-	float2 uvFilterSize
+	color defaultColor
+	color colorGain
+	color colorOffset
+	float alphaGain
+	float alphaOffset
+	uniform float alphaIsLuminance
+	uniform float invert
+	init={ss,tt} float2 uvCoord
 end inputs
 
 begin outputs
@@ -48,14 +48,13 @@ void
 maya_dl_textureMap(
 	// Inputs
 	//
-	color i_defaultColor;
-	color i_colorGain;
-	color i_colorOffset;
-	float i_alphaGain;
-	float i_alphaOffset;
-	uniform float i_alphaIsLuminance;
-	uniform float i_invert;
-	float i_uvCoord[2];
+	uniform string i_textureName;
+	uniform float i_indexedSprites;
+	uniform float i_blur;
+	uniform float i_filterType;
+	uniform float i_samples;
+	uniform string i_coordsys;
+	float i_uvFilterSize[2];
 	float i_gamma[3];
 	float i_alphaInsideUVMult;
 	float i_alphaInsideUVOffset;
@@ -66,13 +65,14 @@ maya_dl_textureMap(
 	float i_warpNoiseFreq[2];
 	float i_warpNoiseOffset[2];
 	float i_warpInput[2];
-	uniform string i_textureName;
-	uniform float i_indexedSprites;
-	uniform float i_blur;
-	uniform float i_filterType;
-	uniform float i_samples;
-	uniform string i_coordsys;
-	float i_uvFilterSize[2];
+	color i_defaultColor;
+	color i_colorGain;
+	color i_colorOffset;
+	float i_alphaGain;
+	float i_alphaOffset;
+	uniform float i_alphaIsLuminance;
+	uniform float i_invert;
+	float i_uvCoord[2];
 	// Outputs
 	//
 	output color o_outColor;

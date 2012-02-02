@@ -3,14 +3,6 @@
 
 /*
 begin inputs
-	color defaultColor
-	color colorGain
-	color colorOffset
-	float alphaGain
-	float alphaOffset
-	uniform float alphaIsLuminance
-	uniform float invert
-	init={ss,tt} float2 uvCoord
 	color tileColor
 	color mortarColor
 	float tileRadius
@@ -22,6 +14,14 @@ begin inputs
 	float tileScuffFrequency
 	color tileScuffColor
 	float2 uvFilterSize
+	color defaultColor
+	color colorGain
+	color colorOffset
+	float alphaGain
+	float alphaOffset
+	uniform float alphaIsLuminance
+	uniform float invert
+	init={ss,tt} float2 uvCoord
 end inputs
 
 begin outputs
@@ -38,14 +38,6 @@ void
 maya_dl_hextile(
 	// Inputs
 	//
-	color i_defaultColor;
-	color i_colorGain;
-	color i_colorOffset;
-	float i_alphaGain;
-	float i_alphaOffset;
-	uniform float i_alphaIsLuminance;
-	uniform float i_invert;
-	float i_uvCoord[2];
 	color i_tileColor;
 	color i_mortarColor;
 	float i_tileRadius;
@@ -57,6 +49,14 @@ maya_dl_hextile(
 	float i_tileScuffFrequency;
 	color i_tileScuffColor;
 	float i_uvFilterSize[2];
+	color i_defaultColor;
+	color i_colorGain;
+	color i_colorOffset;
+	float i_alphaGain;
+	float i_alphaOffset;
+	uniform float i_alphaIsLuminance;
+	uniform float i_invert;
+	float i_uvCoord[2];
 	// Outputs
 	//
 	output color o_outColor;

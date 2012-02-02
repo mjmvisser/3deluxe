@@ -26,7 +26,7 @@ class dl_textureMap(delight.Texture2D):
     
     spriteNumPP = delight.Integer(default=0, storage='uniform', message=True)
 
-    coordsys = delight.String(help="""
+    coordsys = delight.CoordinateSystem(help="""
         Coordinate system (or camera) in which to look up texture.
         Use a delightCoordinateSystem shape name (eg. delightCoordinateSystemShape1)
         or mayaCamera:cameraName (eg. "mayaCamera:persp", NOT "mayaCamera:perspShape").

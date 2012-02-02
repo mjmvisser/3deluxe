@@ -4,7 +4,7 @@ class dl_blendByNormal(delight.Utility):
     typeid = 0x00300337
     description = "Blend by normal."
 
-    globalCoordsys = delight.String(shortname='gcs', label='Global Coordsys', default='world',
+    globalCoordsys = delight.CoordinateSystem(shortname='gcs', label='Global Coordsys', default='world',
         description="Coordsys to use if an axis' Coordsys To Use is set to Global Coordsys (default).")
     globalWarpMode = delight.Enum(shortname='gm', default='Off', choices=['Off', 'Noise','Input'])
     globalWarpNoiseAmount = delight.Float(shortname='gwna', default=1)

@@ -4,7 +4,7 @@ class dl_blendByAxis(delight.Utility):
     typeid = 0x00300338
     description = "Blend by axis."
 
-    coordsys = delight.String(shortname='cs', default='world')
+    coordsys = delight.CoordinateSystem(shortname='cs', default='world')
     axis = delight.Enum(default='Y', choices=['X', 'Y', 'Z'])
 
     globalWarpMode = delight.Enum(shortname='gm', default='Off', choices=['Off', 'Noise','Input'])

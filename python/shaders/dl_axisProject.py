@@ -5,7 +5,7 @@ class dl_axisProject(delight.Utility):
     description = "Axis projection."
     
     scale = delight.Vector(default=1)
-    coordsys = delight.String(default="world")
+    coordsys = delight.CoordinateSystem(default="world")
 
     xst = delight.UV(output=True)
     yst = delight.UV(output=True)

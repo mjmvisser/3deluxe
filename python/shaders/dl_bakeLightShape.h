@@ -3,6 +3,16 @@
 
 /*
 begin inputs
+	uniform string ptcFile
+	uniform string ptcFileNoSelfOcclude
+	uniform string coordSys
+	float radiusScale
+	uniform float bakeRadiosity
+	uniform string bakeRadiosityVariable
+	uniform float bakeRaytracing
+	float opacityThreshold
+	uniform float intensity
+	uniform color lightColor
 	uniform float useBoundingBoxes
 	uniform float boundBox1enable
 	point boundBox1min
@@ -24,16 +34,6 @@ begin inputs
 	point boundBox5min
 	point boundBox5max
 	float boundBox5buffer
-	uniform string ptcFile
-	uniform string ptcFileNoSelfOcclude
-	sourceshapename string coordSys
-	float radiusScale
-	uniform float bakeRadiosity
-	uniform string bakeRadiosityVariable
-	uniform float bakeRaytracing
-	float opacityThreshold
-	uniform float intensity
-	uniform color lightColor
 end inputs
 
 begin shader_extra_parameters lightsource
@@ -52,6 +52,16 @@ void
 maya_dl_bakeLightShape(
 	// Inputs
 	//
+	uniform string i_ptcFile;
+	uniform string i_ptcFileNoSelfOcclude;
+	uniform string i_coordSys;
+	float i_radiusScale;
+	uniform float i_bakeRadiosity;
+	uniform string i_bakeRadiosityVariable;
+	uniform float i_bakeRaytracing;
+	float i_opacityThreshold;
+	uniform float i_intensity;
+	uniform color i_lightColor;
 	uniform float i_useBoundingBoxes;
 	uniform float i_boundBox1enable;
 	point i_boundBox1min;
@@ -73,16 +83,6 @@ maya_dl_bakeLightShape(
 	point i_boundBox5min;
 	point i_boundBox5max;
 	float i_boundBox5buffer;
-	uniform string i_ptcFile;
-	uniform string i_ptcFileNoSelfOcclude;
-	uniform string i_coordSys;
-	float i_radiusScale;
-	uniform float i_bakeRadiosity;
-	uniform string i_bakeRadiosityVariable;
-	uniform float i_bakeRaytracing;
-	float i_opacityThreshold;
-	uniform float i_intensity;
-	uniform color i_lightColor;
 	)
 {
 
