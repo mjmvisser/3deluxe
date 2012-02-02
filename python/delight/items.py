@@ -39,6 +39,7 @@ class Item(object):
     def getHelpers(self):
         return None
 
+
 class Separator(Item):
     def createAttributes(self):
         self.obj = None
@@ -58,3 +59,8 @@ class Separator(Item):
 
     def getHelpers(self):
         return None
+
+class CallCustom(object):
+    def __init__(self, attr):
+        self.attr = attr
+

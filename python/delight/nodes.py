@@ -1,4 +1,4 @@
-import sys, inspect, operator, copy, re, types
+import sys, inspect, operator, copy, re, types, traceback
 from math import *
 
 import maya.OpenMaya as OpenMaya
@@ -7,13 +7,43 @@ import maya.OpenMayaRender as OpenMayaRender
 import maya.OpenMayaUI as OpenMayaUI
 
 
-from .items import Item
+from .items import Item, CallCustom
 from .containers import Container, Group, Master
 from .attributes import (Address, Attribute, Boolean, Color, ColorArray, ComponentData, Enum, File, Float, Float2, Float3, Image,  
-                         Integer, LightData, Matrix, Message, Normal, Point, String, UV, Vector)
+                         Integer, LightData, Matrix, Message, Normal, Point, String, UV, Vector, Compound, CoordinateSystem)
 
 glRenderer = OpenMayaRender.MHardwareRenderer.theRenderer()
 glFT = glRenderer.glFunctionTable()
+
+class AETemplateCommand(OpenMayaMPx.MPxCommand):
+    """
+    An MPxCommand that calls the given python callable.
+    """
+    def __init__(self, func):
+        self.func = func
+        OpenMayaMPx.MPxCommand.__init__(self)
+        
+    def doIt(self, args):
+        # parse the arguments
+        argData = OpenMaya.MArgDatabase(self.syntax(), args)
+        args = [args.asString(index) for index in range(0, args.length())]
+        
+        self.func(*args)
+    
+
+def createCommandSyntax(func):
+    """
+    Creates an MSyntax object that matches the given python callable.
+    Args are assumed to be strings. Keyword args are ignored.
+    """
+    syntax = OpenMaya.MSyntax()
+    argspec = inspect.getargspec(func)
+    #syntax.setObjectType(OpenMaya.MSyntax.kStringObjects, len(argspec.args), len(argspec.args))
+    # skip "self"
+    for arg in argspec.args[1:]:
+        syntax.addArg(OpenMaya.MSyntax.kString)
+    return syntax
+
 
 class Function(object):
     def __init__(self, name='myFunction', type='void', rsl='', inputs=[], outputs=[]):
@@ -108,32 +138,26 @@ class Shader(object):
         allattribs = copy.deepcopy(allattribs)
         
         # Set newly copied attributes back to class
-        attribs = []
         for attr in allattribs:
             setattr(cls, attr._name, attr)
             
-            # add top level attrs
-            if attr.parent == None:
-                attribs.append(attr)
-
         # create a group for non-grouped attributes
         groupName = cls.__name__.replace('dl_', '').replace('Shape', '')
         if groupName[-1].isupper():
             groupName = groupName + ' ' + 'Attributes'
         else:
             groupName = groupName + 'Attributes'
-        ungroupedAttributes = filter(lambda attr: isinstance(attr, Attribute), attribs)
-        topGroup = Group(ungroupedAttributes, longname=groupName, collapse=False)
-        attribs = [topGroup] + filter(lambda attr: not isinstance(attr, Attribute), attribs)
+        ungroupedAttribs = [attr for attr in allattribs if attr.parent is None and not isinstance(attr, (Group, Compound))]
+        topGroup = Group(ungroupedAttribs, longname=groupName, collapse=False)
+        unsortedAttribs = [topGroup] + [attr for attr in allattribs if attr.parent is None and isinstance(attr, (Group, Compound))]
         
-        attribs.sort(key=lambda item: item._counter if item._counter is not None else sys.maxint)
-        
-#        attribs = []
-#        for attr in unsortedAttribs:
-#            if attr._counter is not None:
-#                attribs.insert(attr._counter, attr)
-#            else:
-#                attribs.append(attr)
+        # sort them
+        attribs = []
+        for attr in unsortedAttribs:
+            if attr._counter is not None:
+                attribs.insert(attr._counter, attr)
+            else:
+                attribs.append(attr)
             
             
         # create the top-level master container
@@ -356,7 +380,7 @@ class Shader(object):
         rsl += '#endif /* __%s_h */\n' % cls.__name__
         
         return rsl 
-            
+
     @classmethod
     def register(cls, obj):
 #        if cls.rsl == None:
@@ -368,7 +392,7 @@ class Shader(object):
         if cls.typeid == None:
             raise TypeError('Node %s has no typeid' % cls.__name__)
 
-        plugin = OpenMayaMPx.MFnPlugin(obj, '3Delight', '1.0', 'Any')
+        plugin = OpenMayaMPx.MFnPlugin(obj, '3Deluxe', '1.0', 'Any')
         
         classification = cls.classification
         if cls.swatcher:
@@ -382,10 +406,27 @@ class Shader(object):
                                 cls.nodetype, 
                                 classification)
             OpenMaya.MGlobal.executeCommand(cls.getTemplate())
+            
+            # register python callcustoms
+            for attr in cls.__master.filterAttributes(lambda attr: isinstance(attr, Attribute)
+                                                                   and attr.callcustom 
+                                                                   and issubclass(attr.callcustom, CallCustom)):
+                
+                # instantiate a CallCustom object
+                callcustom = attr.callcustom(attr)
+
+                plugin.registerCommand("AE%s_%s_New" % (cls.__name__, attr.longname),
+                                       lambda func=callcustom.new: OpenMayaMPx.asMPxPtr(AETemplateCommand(func)),
+                                       lambda func=callcustom.new: createCommandSyntax(func))
+                plugin.registerCommand("AE%s_%s_Replace" % (cls.__name__, attr.longname),
+                                       lambda func=callcustom.replace: OpenMayaMPx.asMPxPtr(AETemplateCommand(func)),
+                                       lambda func=callcustom.replace: createCommandSyntax(func))
+
             if cls.melpost != None:
                 OpenMaya.MGlobal.executeCommand(cls.melpost)
         except Exception, e:
             sys.stderr.write("Failed to register %s: %s"  % (cls.__name__, str(e)))
+            sys.stderr.write(traceback.format_exc())
             raise
         
         postCmd = \
@@ -402,6 +443,14 @@ class Shader(object):
         plugin = OpenMayaMPx.MFnPlugin(obj, '3Delight', '1.0', 'Any')
         try:
             plugin.deregisterNode(OpenMaya.MTypeId(cls.typeid))
+
+            # deregister python callcustoms
+            for attr in cls.__master.filterAttributes(lambda attr: isinstance(attr, Attribute) 
+                                                                   and attr.callcustom
+                                                                   and issubclass(attr.callcustom, CallCustom)):
+                plugin.deregisterCommand("AE%s_%s_New" % (cls.__name__, attr.longname))
+                plugin.deregisterCommand("AE%s_%s_Replace" % (cls.__name__, attr.longname))
+        
         except Exception, e:
             sys.stderr.write("Failed to deregister %s: %s"  % (cls.__name__, str(e)))
             raise
@@ -893,7 +942,7 @@ class EnvLight(Light):
     
     physkyYIsUp = Boolean(default=True, label="YIsUp")
     
-    physkyCoordsys = String(shortname="cs", default="world", label="Coordsys")
+    physkyCoordsys = CoordinateSystem(shortname="cs", default="world", label="Coordsys")
 
     physkyBakeSkyMap = Boolean(shortname="bsm", default=False, label="BakeSkyMap")
     physkyBakeSkyMapFile = String(shortname="bsmf", default="sky.bake", label="BakeSkyMapFile")
@@ -903,7 +952,7 @@ class EnvLight(Light):
         physkyHaze, physkyRedBlueShift, physkySaturation, physkyHorizonHeight, physkyHorizonBlur, physkyFakeSkyBlur, physkyFakeSkyBlurUpBias,
         physkyGroundColour, physkyNightColour, physkySunDiskIntensity, physkySunDiskScale, physkySunGlowIntensity,
         physkySunMaxIntensity, physkyYIsUp, physkyCoordsys, physkyBakeSkyMap, physkyBakeSkyMapFile])
-    envSpace = Message(shortname='esp',
+    envSpace = CoordinateSystem(shortname='esp',
                                default='world', 
                                label='Coordinate System',
                                help="The coordinate system used to place the environment map.")
