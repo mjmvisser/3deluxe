@@ -1,0 +1,3858 @@
+/*
+  Copyright (c) 2006 soho vfx inc.
+  Copyright (c) 2006 The 3Delight Team.
+*/
+
+global int $g_DL_haveMayaUI = -1;
+
+/*
+  Stubs for global functions which have been renamed for clarity but might have
+  been used by someone's scripts. They really shouldn't all have been global
+  though.
+
+  TODO: We should deprecate them, make some of the new ones not global and
+  eventually remove the deprecated ones.
+*/
+global proc string
+DL_getShapeSetShaderPlug( string $shape_set, string $shader_type )
+{
+  return DL_getShapeSetAttribPlug( $shape_set, $shader_type );
+}
+
+global proc string
+DL_getObjectShaderFromShapeSet( string $shape_set, string $shader_type )
+{
+  return DL_getObjectAttribFromShapeSet( $shape_set, $shader_type );
+}
+
+global proc string
+DL_getObjectShaderFromShape( string $shape, string $shader_type )
+{
+  return DL_getObjectAttribFromShape( $shape, $shader_type );
+}
+
+global proc
+DL_setObjectShader( string $shader, string $shader_type, string $transforms[] )
+{
+  DL_setObjectAttrib( $shader, $shader_type, $transforms );
+}
+
+global proc
+DL_setAttribsNode(
+  string $attribs_node, string $attribs_node_type, string $transforms[] )
+{
+  DL_setObjectAttrib($attribs_node, $attribs_node_type, $transforms);
+}
+
+global proc
+DL_copyObjectShaderConnection(
+  string $shader_type, string $from_shape_set, string $to_shape_set)
+{
+  DL_copyObjectAttribConnection( $shader_type, $from_shape_set, $to_shape_set );
+}
+
+global proc string
+DL_getShaderCollectionOverrideShaderPlug(
+  string $shader_collection, string $shader_type )
+{
+  return DL_getShaderCollectionOverrideAttribPlug(
+      $shader_collection, $shader_type );
+}
+
+global proc string
+DL_getOverrideShaderFromShaderCollection(
+  string $shader_collection, string $shader_type )
+{
+  return DL_getOverrideAttribFromShaderCollection(
+      $shader_collection, $shader_type );
+}
+
+global proc
+DL_setOverrideShader(
+  string $shader, string $shader_type, string $shader_collection ) 
+{
+  DL_setOverrideAttrib( $shader, $shader_type, $shader_collection );
+}
+
+global proc string
+DL_getShaderCollectionShaderPlug(
+  string $shader_collection, int $index, string $shader_type )
+{
+  return DL_getShaderCollectionAttribPlug(
+      $shader_collection, $index, $shader_type );
+}
+
+global proc string
+DL_getShaderFromShaderCollection(
+  string $shader_collection, int $index, string $shader_type )
+{
+  return DL_getAttribFromShaderCollection(
+    $shader_collection, $index, $shader_type );
+}
+
+global proc string
+DL_getCollectionShaderFromShape(
+  string $shape, string $shader_type, string $shader_collection )
+{
+  return DL_getCollectionAttribFromShape(
+    $shape, $shader_type, $shader_collection );
+}
+
+global proc
+DL_copyCollectionShaderConnection(
+  string $shader_type,
+  string $from_shader_collection, string $from_index,
+  string $to_shader_collection, string $to_index )
+{
+  DL_copyCollectionAttribConnection(
+    $shader_type, $from_shader_collection, $from_index,
+    $to_shader_collection, $to_index );
+}
+
+global proc
+DL_setCollectionShader(
+  string $shader, string $shader_type,
+  string $transforms[], string $shader_collection )
+{
+  DL_setCollectionAttrib(
+    $shader, $shader_type, $transforms, $shader_collection );
+}
+
+
+global proc
+DL_replaceNodeWithNode(
+  string $old_node,
+  string $new_node)
+{
+  //
+  // Description:
+  //  This procedure replaces the specified old node with the specified new
+  //  node. All connections from other nodes to the old node are broken and
+  //  made to the new node instead. All connections from the old node to other
+  //  nodes are broken and made from the new node instead. This means the new
+  //  node needs to have attributes of the same names and types as attributes
+  //  of the old node that were connected. Generally, old node and new node
+  //  should be the same type of node.
+  //
+
+  string $incoming_connections[] = 
+    `listConnections
+      -connections true
+      -plugs true
+      -shapes true
+      -source true
+      -destination false
+      $old_node`;
+
+  int $i;
+  for ($i = 0; $i < size($incoming_connections); $i += 2)
+  {
+    string $dst_plug = $incoming_connections[$i];
+    string $src_plug = $incoming_connections[$i + 1];
+    string $new_dst_plug = ($new_node + "." + plugAttr($dst_plug));
+
+    disconnectAttr $src_plug $dst_plug;
+    connectAttr $src_plug $new_dst_plug;
+  }
+
+  string $outgoing_connections[] = 
+    `listConnections
+      -connections true
+      -plugs true
+      -shapes true
+      -source false
+      -destination true
+      $old_node`;
+
+  for ($i = 0; $i < size($outgoing_connections); $i += 2)
+  {
+    string $src_plug = $outgoing_connections[$i];
+    string $dst_plug = $outgoing_connections[$i + 1];
+    string $new_src_plug = ($new_node + "." + plugAttr($src_plug));
+
+    disconnectAttr $src_plug $dst_plug;
+    connectAttr $new_src_plug $dst_plug;
+  }
+}
+
+
+global proc string
+DL_getPlugType(
+  string $plug)
+{
+  //
+  // Description:
+  //  This procedure returns the type of the specified plug. 
+  //  This procedure properly recognizes color attributes, which the standard
+  //  getAttr command doesn't.
+  //  This procedure will return types that aren't supported by this
+  //  translation mechanism. It is up to the caller to verify that plugs
+  //  they are using are supported, by calling isSupportedPlug().
+  //
+  // Returns:
+  //  A string giving the type of the specified plug.
+  //
+
+  string $plug_type = "";
+  
+  string $node = plugNode($plug);
+  string $attr = plugAttr($plug);
+  string $attr = match("^[^\[]*", $attr);
+
+  // Maya 7 and older patches
+  if (getApplicationVersionAsFloat() < 8)
+  {
+    // The few message atrtibutes that will go through here
+    if ($attr == "illuminationFrom" || $attr == "traceSubsetSets")
+    {
+      $plug_type = "message";
+    }
+  }
+  else if (`attributeQuery -node $node -msg $attr` == 1)
+  {
+    $plug_type = "message";
+  }
+  
+  if ($plug_type == "")
+  {
+    $plug_type = `getAttr -type $plug`;
+
+    if ($plug_type == "")
+    {
+      // No type because the attr was never assigned a value, which happen
+      // with older node on their string attr
+      $plug_type  = "string";
+    }
+    else if (`addAttr -q -usedAsColor $plug`)
+    {
+      $plug_type  = "color";
+    }
+  }
+  return $plug_type;
+}
+
+
+global proc string
+DL_getListLightNodesCmd()
+{
+  // Construct a string containing all light node types. This is necessary since
+  // "ls -type light" will only return the built-in Maya light types.
+  //
+
+  string $all_light_types[] = `listNodeTypes light`;
+  string $cmd = "ls ";
+  
+  for ($curr_light_type in $all_light_types)
+  {
+    $cmd += "-type " + $curr_light_type + " ";
+  }
+
+  return $cmd;
+}
+
+
+global proc string
+DL_getObjectsType(string $objects[], string $assignable_objects[])
+{
+  //
+  // Description:
+  //  This procedure looks at the received objects array and returns a
+  //  string describing the selection in terms of its meaningfulness to shader
+  //  assignment and attribs node assignment.
+  //
+  //  $assignable_shapes will be filled with the list of assignable nodes.
+  //  
+  // Returns:
+  //  "geometry" if the selection contains any geometry at all.
+  //  "lights" if the selection contains no geometry, but contains lights.
+  //  "cameras" if the selection contains no geometry or lights, but contains
+  //  cameras.
+  //  "nothing" if the selection contains no geometry, lights, or cameras.
+  //
+
+  string $type = "nothing";
+  clear($assignable_objects);
+  
+  string $transforms[];
+  clear($transforms);
+  
+  if (size($objects) > 0)
+  {
+    $assignable_objects = DL_getAssignableNodesForObjectType("geometry", $objects); 
+    
+    // If we got only transforms, we need to try out the other types; we'll
+    // fall back to the "geoemtry" type in last resort.
+    //
+    $transforms = `ls -type "transform" $assignable_objects`;
+    int $assignable_objects_size = size($assignable_objects);
+
+    // markv: weird bug -- we occasionally get an empty string in $transforms
+    if (   $assignable_objects_size > 0
+        && ($assignable_objects_size > 1 || $transforms[0] != "")
+        && $assignable_objects_size != size($transforms))
+    {
+      $type = "geometry";
+    }
+    else
+    {
+      $assignable_objects = DL_getAssignableNodesForObjectType("light", $objects);
+      int $num_lights_selected = size($assignable_objects);
+
+      if ($num_lights_selected > 0)
+      {
+        $type = "lights";
+      }
+      else
+      {
+        $assignable_objects = DL_getAssignableNodesForObjectType("camera", $objects);
+        int $num_cameras_selected = size($assignable_objects);
+
+        if ($num_cameras_selected > 0)
+        {
+          $type = "cameras";
+        }
+        else if (size($transforms) > 0)
+        {
+          $type = "geometry";
+          DL_stringArrayAppend($assignable_objects, $transforms);
+        }
+        else
+        {
+          $type = "nothing";
+        }
+      }
+    }
+  }
+
+  return $type;
+}
+  
+global proc string
+DL_getSelectionType()
+{
+  //
+  // Description:
+  //  This procedure looks at the currently selected objects and returns a
+  //  string describing the selection in terms of its meaningfulness to shader
+  //  assignment and attribs node assignment.
+  //
+  // Returns:
+  //  "geometry" if the selection contains any geometry at all.
+  //  "lights" if the selection contains no geometry, but contains lights.
+  //  "cameras" if the selection contains no geometry or lights, but contains
+  //  cameras.
+  //  "nothing" if the selection contains no geometry, lights, or cameras.
+  //
+
+  string $selection_type;
+  string $selection[];
+  string $dummy_assignable_objects[];
+  
+  $selection = `ls -sl`;
+  return DL_getObjectsType($selection, $dummy_assignable_objects);
+}
+
+global proc string
+DL_getShapeSetPlugFromShape(
+  string $shape)
+{
+  //
+  // Description:
+  //  Given a shape, this procedure returns the plug on the delightShapeSet 
+  //  to which it is connected, if any.
+  //
+  // Returns:
+  //  The name of the plug on the shape set to which the specified shape is
+  //  connected, or an empty string if the shape does not belong to any shape 
+  //  set.
+  //
+
+  string $shape_set_plugs[] = 
+    `listConnections
+      -plugs true
+      -source false
+      -destination true
+      -type "delightShapeSet"
+      $shape`;
+
+  if (size($shape_set_plugs) > 0)
+  {
+    return ($shape_set_plugs[0]);
+  }
+  else
+  {
+    return "";
+  }
+}
+
+global proc string
+DL_getShapeSetFromShape(
+  string $shape)
+{
+  //
+  // Description:
+  //  Given a shape, this procedure returns the delightShapeSet to which it 
+  //  belongs, if any.
+  //
+  // Returns:
+  //  The name of the shape set to which the specified shape belongs, or an
+  //  empty string if the shape does not belong to any shape set.
+  //
+
+  string $shape_sets[] = 
+    `listConnections
+      -source false
+      -destination true
+      -type "delightShapeSet"
+      $shape`;
+
+  // The shape may be connected to shape sets that it is not actually a member
+  // of. This can happen when the shape is instanced, and another instance of
+  // the shape belongs to a shape set. We need to verify that this instance of
+  // the shape belongs to a shape set before we return the name of that shape
+  // set.
+  //
+  for ($shape_set in $shape_sets)
+  {
+    if (`sets -isMember $shape_set $shape`)
+    {
+      return $shape_set;
+    }
+  }
+
+  // If we get to here, the shape is not a member of any shape set.
+  //
+  return "";
+}
+
+global proc string
+DL_getShaderCollectionFromPass(
+  string $pass)
+{
+  //
+  // Description:
+  //  Given a delightRenderPass, this procedure returns the name of the
+  //  delightShaderCollection connected to it, if any.
+  //
+  // Returns:
+  //  The name of the shader collection connected to the specified pass, or an
+  //  empty string if the pass is not connected to any shader collection.
+  //
+
+  return DL_getSourceNode($pass + ".shaderCollection");
+}
+
+global proc int
+DL_isShaderCollectionUsedByPass(
+  string $shader_collection,
+  string $pass)
+{
+  //
+  // Description:
+  //  This procedure returns true if the specified shader collection is used
+  //  by the specified render pass.
+  //
+  // Returns:
+  //  True if the specified shader collection is used by the specified render 
+  //  pass, false if not.
+  //
+
+  return (DL_getShaderCollectionFromPass($pass) == $shader_collection);
+}
+
+global proc string
+DL_getShapeSetAttribPlug(
+  string $shape_set,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the plug on the specified shape set to
+  //  which a node of the specified attribute type can be connected. A
+  //  shader/attribs node/whatever connected to that plug will be the
+  //  shader/attribs/... of the specified type for shapes in the shape set.
+  //
+  // Returns:
+  //  The name of the plug on the shape set.
+  //
+
+  string $attr;
+
+  if( $attribute_type == "delightGeoAttribs" )
+  {
+    $attr = "geoAttribs";
+  }
+  else if( $attribute_type == "delightLightAttribs" )
+  {
+    $attr = "lightAttribs";
+  }
+  else
+  {
+    /*
+      surface, displacement, etc have a plug name which matches the type of
+      shader being connected. See DL_initShapeSetNode() for the full list.
+    */
+    $attr = $attribute_type;
+  }
+
+  return ($shape_set + "." + $attr);
+}
+
+global proc string
+DL_getShaderCollectionOverrideAttribPlug(
+  string $shader_collection,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the name of a plug on the specified shader
+  //  collection to which a node of the specifed type can be connected. 
+  //  The node connected to that plug will override any other
+  //  node attachment of the specified type for every shape in the render
+  //  pass that uses the specified shader collection.
+  //
+  // Returns:
+  //  The name of the plug on the shader collection to which an attrib  of the 
+  //  specified type should be connected (in order to be the override attrib).
+  //
+
+  string $attr;
+
+  if( $attribute_type == "delightGeoAttribs" )
+  {
+    $attr = "geoAttribs";
+  }
+  else if( $attribute_type == "delightLightAttribs" )
+  {
+    $attr = "lightAttribs";
+  }
+  else
+  {
+    /*
+      surface, displacement, etc have a plug name which matches the type of
+      shader being connected. See DL_initShaderCollectionNode() for the full
+      list.
+    */
+    $attr = $attribute_type;
+  }
+
+  return ($shader_collection + "." + $attr + "Override");
+}
+
+global proc string
+DL_getShaderCollectionAttribPlug(
+  string $shader_collection,
+  int $index,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the name of a plug in the shaders/attribs array
+  //  attribute on the specified shader collection. Attributes of the specified
+  //  type can be connected to that plug. The attribute connected to that plug
+  //  will be used as the attribute of the specified type for shapes in the
+  //  shape set connected on the same index of the shaders attribute, when
+  //  rendering a render pass that uses the shader collection.
+  //
+  // Returns:
+  //  The name of the plug on the shader collection to which an attribute of
+  //  the specified type can be connected.
+  //
+
+  string $attr;
+
+  if( $attribute_type == "delightGeoAttribs" )
+  {
+    $attr = ".attribs[" + $index + "].geoAttribs";
+  }
+  else if( $attribute_type == "delightLightAttribs" )
+  {
+    $attr = ".attribs[" + $index + "].lightAttribs";
+  }
+  else if ( $attribute_type == "light" )
+  {
+    $attr = "." + $attribute_type + "[" + $index + "]";
+  }
+  else
+  {
+    /*
+      surface, displacement, etc have a plug with the same name as the type.
+      See DL_initShaderCollectionNode() for the full list.
+    */
+    $attr = ".shaders[" + $index + "]." + $attribute_type;
+  }
+
+  return ($shader_collection + $attr);
+}
+
+global proc int
+DL_getShaderCollectionIndexOfShapeSet(
+  string $shape_set,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure returns the index of the shaders attribute of the
+  //  specified shader collection to which the specified shape set is
+  //  connected. 
+  //  Multiple connections from one shape set to the same shader collection
+  //  should not exist. If the shape is connected to the shader collection
+  //  multiple times, only one index will be returned. Which index is returned
+  //  in that situation is undefined. 
+  //
+  // Returns:
+  //  The index of the shaders attribute of the specified shader collection 
+  //  to which the specified shape set is connected. If the shape set is not
+  //  connected to the shader collection, the return value is -1.
+  //
+
+  int $index = -1;
+
+  // Get all of the shader collections connected to the specified shape set.
+  //
+  string $connections[] = 
+    `listConnections 
+      -connections true 
+      -plugs true 
+      -source false 
+      -destination true 
+      ($shape_set + ".shaderCollections")`;
+
+  int $i;
+
+  for ($i = 0; $i < size($connections); $i = $i + 2)
+  {
+    string $src_plug = $connections[$i];
+    string $dst_plug = $connections[$i+1];
+
+    if (plugNode($dst_plug) == $shader_collection)
+    {
+      string $index_string = `match "\\[+[0-9]+\\]+" $dst_plug`;
+      $index = `substring $index_string 2 (size($index_string) - 1)`;
+
+      // We have found a connection between the specified shape set and the
+      // specified shader collection. There should be only one such
+      // connection. Now that we have found a connection, we won't look
+      // for others.
+      // 
+      break;
+    }
+  }
+
+  return $index;
+}
+
+global proc int[]
+DL_getShaderCollectionIndicesOfShader(
+  string $shader,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure returns the indices of the shaders attribute of the
+  //  specified shader collection to which the specified shader is
+  //  connected. 
+  //
+  // Returns:
+  //  The indices of the shaders attribute of the specified shader collection 
+  //  to which the specified shader is connected. If the shader is not
+  //  connected to the shader collection, the result will be an empty array.
+  //
+  
+  int $indices[];
+
+  // Get all of the shader collections connected to the specified shader.
+  //
+  string $connections[] = 
+    `listConnections 
+      -connections true 
+      -plugs true 
+      -source false 
+      -destination true 
+      -type delightShaderCollection
+      ($shader)`;
+
+  int $i;
+  int $index;
+
+  for ($i = 0; $i < size($connections); $i = $i + 2)
+  {
+    string $src_plug = $connections[$i];
+    string $dst_plug = $connections[$i+1];
+
+    if (plugNode($dst_plug) == $shader_collection)
+    {
+      string $index_string = `match "\\[+[0-9]+\\]+" $dst_plug`;
+
+      if (size($index_string) > 2)
+      {
+        $index = `substring $index_string 2 (size($index_string) - 1)`;
+        $indices[size($indices)] = $index;
+      }
+    }
+  }
+
+  return $indices;
+}
+
+
+global proc string
+DL_getObjectAttribFromShapeSet(
+  string $shape_set,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the shader/attribs node of the specified type
+  //  connected to the specified shape set.
+  //
+  // Returns:
+  //  The node's name or an empty string if the shape set has no attribute of
+  //  the specified type.
+  //
+
+  string $plug = DL_getShapeSetAttribPlug($shape_set, $attribute_type);
+
+  return DL_getSourceNode($plug);
+}
+
+global proc string
+DL_getOverrideAttribFromShaderCollection(
+  string $shader_collection,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the override attribute of the specified type 
+  //  connected to the specified shader collection.
+  //
+  // Returns:
+  //  The node's name or an empty string if the shader collection has no 
+  //  override attribute of the specified type.
+  //
+  return 
+    `delightNodeQuery
+      -nodeType $attribute_type
+      -shaderCollection $shader_collection
+      -overrideOnly`;
+}
+
+global proc string
+DL_getAttribFromShaderCollection(
+  string $shader_collection,
+  int $index,
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the attribute of the specified type on the
+  //  specified index of the shaders/attribs attribute of the specified shader
+  //  collection.
+  //
+  // Returns:
+  //  The node name or an empty string if no attribute of the specified type
+  //  exists on that index.
+  //
+
+  string $plug =
+    DL_getShaderCollectionAttribPlug(
+      $shader_collection, $index, $attribute_type );
+
+  return DL_getSourceNode($plug);
+}
+
+global proc string
+DL_getCollectionAttribFromShape(
+  string $shape, 
+  string $attribute_type,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the attribute of the specified type  
+  //  attached to the specified shape via specified shader collection.
+  //
+  // Returns:
+  //  The name of the node which represents the attribute.
+  //  If no such node exists, an empty string is returned.
+  //
+
+  return 
+    `delightNodeQuery
+      -shape $shape
+      -nodeType $attribute_type
+      -shaderCollection $shader_collection
+      -collectionOnly`;
+}
+
+global proc string
+DL_getObjectAttribFromShape(
+  string $shape, 
+  string $attribute_type)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the object shader or attribs node of
+  //  the specified type for the specified shape.
+  //
+  // Returns:
+  //  The name of the node or an empty string if there is none.
+  //
+
+  return `delightNodeQuery
+            -shape $shape
+            -nodeType $attribute_type
+            -objectOnly`;
+}
+
+    
+global proc string
+DL_getShaderFromShape(
+  string $shape, 
+  string $shader_type,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the shader of the specified type to 
+  //  be used for the specified shape in the context of the specified shader
+  //  collection.
+  //  This procedure takes override shaders, collection shaders, and object
+  //  shaders into consideration.
+  //
+  // Returns:
+  //  The name of the shader of the specified type to be used for the 
+  //  specified shape in the context of the specified shader collection.
+  //  If no override shader, collection shader or object shader of the
+  //  specified type exists for the specified shape in the context of the
+  //  specified shader collection, an empty string is returned.
+  //
+
+  string $shader;
+
+  // This operation is performed by a plugin command, rather than in MEL code,
+  // because it is called so many times during the render process that it
+  // needs to be as efficient as possible. 
+  //
+  $shader = 
+    `delightNodeQuery
+      -shape $shape
+      -nodeType $shader_type
+      -shaderCollection $shader_collection
+      -highest`;
+
+  // When we get to here, $shader contains the shader with highest precedence
+  // for the shape, or is an empty string because the shape has no shader in
+  // the context of the specified collection, nor does it have an object
+  // shader.
+  //
+  return $shader;
+}
+
+global proc string[]
+DL_getShapesFromObjectShader(
+  string $shader)
+{
+  //
+  // Description:
+  //  This procedure returns the names of all shapes for which
+  //  the specified shader is used as an object shader.
+  //  This procedure does not care what shader type the specified shader is
+  //  used as.
+  //
+  // Returns:
+  //  The names of all shapes for which the specified shader is used as an 
+  //  object shader.
+  //
+
+  string $shapes[];
+
+  string $shape_sets[] = 
+    `listConnections
+      -source false
+      -destination true
+      -type delightShapeSet
+      ($shader)`;
+
+  for ($shape_set in $shape_sets)
+  {
+    string $shape_set_members[] = `sets -query $shape_set`;
+    DL_stringArrayAppend( $shapes, $shape_set_members );
+  }
+
+  return $shapes;
+}
+
+global proc string[]
+DL_getShapesFromCollectionShader(
+  string $shader,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure returns the names of all shapes for which
+  //  the specified shader is used as a collection shader via the specified
+  //  collection.
+  //  This procedure does not care what shader type the specified shader is
+  //  used as.
+  //
+  // Returns:
+  //  The names of all shapes for which the specified shader is used as a 
+  //  collection shader via the specified collection.
+  //
+  
+  string $shapes[];
+
+  int $indices[] = 
+    DL_getShaderCollectionIndicesOfShader($shader, $shader_collection);
+  int $index;
+
+  for ($index in $indices)
+  {
+    string $shape_set = 
+      DL_getSourceNode(
+        $shader_collection 
+        + ".shaders[" 
+        + $index 
+        + "].shapeSet");
+
+    if ($shape_set != "")
+    {
+      DL_stringArrayAppend( $shapes, `sets -query $shape_set` );
+    }
+  }
+
+  return $shapes;
+}
+
+global proc int
+DL_isOverrideGeoAttribs(
+  string $geo_attribs_node,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure determines if the given geo attribs node is the 
+  //  override attribs for the given shader collection.
+  //
+  // Returns:
+  //  1 if the given geo attribs node is the override attribs 
+  //  node for the given shader collection, 0 otherwise.
+  //
+
+  int $is_override_attribs = 0;
+
+  string $connections[] = 
+    `listConnections 
+       -source true 
+       -destination false 
+       -type delightGeoAttribs
+       ($shader_collection + ".geoAttribsOverride")`;
+
+  for ($i = 0; $i < size($connections); $i++)
+  {
+    if ($connections[$i] == $geo_attribs_node)
+    {
+      $is_override_attribs = 1;
+      break;
+    }
+  }
+
+  return $is_override_attribs;
+}
+
+// TODO: this isn't strictly correct since we're not listing any user-defined
+// types here
+global proc string[]
+DL_getAllShapesFromGeoAttribsNode(
+  string $geo_attribs_node,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure finds all shapes attached to the given 
+  //  geo attribs node, be it at the object, collection or 
+  //  override level.
+  //
+  // Returns:
+  //  An array containing all the shapes attached to the 
+  //  given geo attribs node.
+  //
+
+  string $shapes[];
+  clear($shapes);
+
+  if ($shader_collection != "")
+  {
+    if (DL_isOverrideGeoAttribs(
+          $geo_attribs_node,
+          $shader_collection))
+    {
+      $shapes = `ls -allPaths 
+                    -geometry 
+                    -type "pfxHair" 
+                    -type "stroke" 
+                    -type "instancer" 
+                    -noIntermediate`;
+    }
+    else
+    {
+      $shapes = DL_getShapesFromCollectionShader(
+                  $geo_attribs_node,
+                  $shader_collection);
+    }
+  }
+
+  DL_stringArrayAppend(
+    $shapes,
+    DL_getShapesFromObjectShader($geo_attribs_node));
+
+  return DL_stringArrayRemoveDuplicates($shapes);
+}
+
+global proc string
+DL_getHighestAttribsNodeFromShape(
+  string $shape,
+  string $attribs_node_type,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This method returns the attribs node of the specified type to 
+  //  be used for the specified shape in the context of the specified shader
+  //  collection.
+  //  This procedure takes override, collection, and object
+  //  attribs nodes into consideration.
+  //
+  // Returns:
+  //  The attribs node of the specified type to be used for the 
+  //  specified shape in the context of the specified shader collection.
+  //  If no override, collection or object attribs node of the
+  //  specified type exists for the specified shape in the context of the
+  //  specified shader collection, an empty string is returned.
+  //
+
+  // This will return either the attribs node with highest precedence
+  // for the shape, or an empty string because the shape has no attribs in
+  // node the context of the specified collection, nor does it have an 
+  // object attribs node.
+  return 
+    `delightNodeQuery
+      -shape $shape
+      -nodeType $attribs_node_type
+      -shaderCollection $shader_collection
+      -highest`;
+}
+
+global proc string
+DL_getHighestGeoAttribsNodeFromShape(
+  string $shape,
+  string $shader_collection)
+{
+  return 
+    DL_getHighestAttribsNodeFromShape(
+      $shape,
+      "delightGeoAttribs",
+      $shader_collection);
+}
+
+global proc string
+DL_getHighestLightAttribsNodeFromShape(
+  string $shape,
+  string $shader_collection)
+{
+  return 
+    DL_getHighestAttribsNodeFromShape(
+      $shape,
+      "delightLightAttribs",
+      $shader_collection);
+}
+
+global proc string[]
+DL_getAllAttribsNodesFromShape(
+  string $shape,
+  string $attribs_node_type,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This method returns all of the attribs nodes of the specified type to be
+  //  used for the specified shape in the context of the specified shader
+  //  collection.
+  //  This procedure takes override, collection, and object attribs nodes into
+  //  consideration.
+  //
+  // Returns:
+  //  The list of attribs nodes of the specified type to be used for the 
+  //  specified shape in the context of the specified shader collection.
+  //  If no override, collection or object attribs node of the
+  //  specified type exists for the specified shape in the context of the
+  //  specified shader collection, an empty list is returned.
+  //
+
+  // This will return either the attribs node with highest precedence
+  // for the shape, or an empty string because the shape has no attribs in
+  // node the context of the specified collection, nor does it have an 
+  // object attribs node.
+  return 
+    `delightNodeQuery
+      -shape $shape
+      -nodeType $attribs_node_type
+      -shaderCollection $shader_collection
+      -all`;
+}
+
+global proc string[]
+DL_getAllGeoAttribsNodesFromShape(
+  string $shape,
+  string $shader_collection)
+{
+  return 
+    DL_getAllAttribsNodesFromShape(
+      $shape,
+      "delightGeoAttribs",
+      $shader_collection);
+}
+
+global proc string[]
+DL_getAllLightAttribsNodesFromShape(
+  string $shape,
+  string $shader_collection)
+{
+  return 
+    DL_getAllAttribsNodesFromShape(
+      $shape,
+      "delightLightAttribs",
+      $shader_collection);
+}
+
+global
+proc string
+DL_getAttribsNodeFromShape(
+  string $shape,
+  string $attribs_node_type)
+{
+  warning "DL_getAttribsNodeFromShape is obsolete.";
+  return DL_getObjectAttribFromShape( $shape, $attribs_node_type );
+}
+
+global
+proc string
+DL_getGeoAttribsNodeFromShape(
+  string $shape)
+{
+  warning "DL_getGeoAttribsNodeFromShape is obsolete.";
+  return DL_getAttribsNodeFromShape($shape, "delightGeoAttribs");
+}
+
+global
+proc string
+DL_getLightAttribsNodeFromShape(
+  string $shape)
+{
+  warning "DL_getLightAttribsNodeFromShape is obsolete.";
+  return DL_getAttribsNodeFromShape($shape, "delightLightAttribs");
+}
+
+global proc string
+DL_getSourceNode(
+  string $dst_plug)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the single source node for the
+  //  specified plug. 
+  //
+  // Returns:
+  //  The name of the single source node for the specified plug, or an empty
+  //  string if the specified plug has no source node.
+  //
+
+  string $src_node;
+
+  string $src_nodes[] = 
+    `listConnections 
+      -source true
+      -destination false
+      $dst_plug`;
+
+  if (size($src_nodes) > 0)
+  {
+    $src_node = $src_nodes[0];
+  }
+  else
+  {
+    $src_node = "";
+  }
+
+  return $src_node;
+}
+
+global proc string
+DL_getSourcePlug(
+  string $dst_plug)
+{
+  //
+  // Description:
+  //  This procedure returns the name of the single source plug for the
+  //  specified plug. 
+  //
+  // Returns:
+  //  The name of the single source plug for the specified plug, or an empty
+  //  string if the specified plug has no source plug.
+  //
+  // Note: Do NOT use listConnections here. It does not work if the source is
+  // the worldPosition[0].worldPositionX attribute of a locator instance.
+  //
+
+  if( ! `connectionInfo -isExactDestination $dst_plug` )
+    return "";
+
+  string $src_plug = `connectionInfo -sourceFromDestination $dst_plug`;
+
+  return $src_plug;
+}
+
+global proc string[]
+delightGetAnyAttachedAttribsNode(string $object)
+{
+  string  $all_sets[];
+  string  $attribs_sets[];
+
+  $all_sets = `listSets -extendToShape -object $object`;
+
+  $attribs_sets = `ls -type delightGeoAttribs
+                      -type delightLightAttribs
+                      $all_sets`;
+
+  return $attribs_sets;
+}
+
+global proc
+delightRemoveFromAttribsSets(string $objects[], string $attribs_node_type)
+{
+  string $set_connections[];
+
+  for ($curr_object in $objects)
+  {
+    $set_connections = 
+      `listConnections -s off -d on -p on -c on $curr_object`;
+
+    for ($i = 0; $i < size($set_connections); $i += 2)
+    {
+      string $src = plugNode($set_connections[$i]);
+      string $set = plugNode($set_connections[$i+1]);
+
+      // For instanced shapes, listConnections may yield 
+      // connections involving other instances. We just 
+      // want to deal with the current instance.
+      if (   $src == $curr_object 
+          && nodeType($set) == $attribs_node_type)
+      {
+        disconnectAttr $set_connections[$i] $set_connections[$i+1];
+      }
+    }
+  }
+}
+
+global proc
+DL_updateObjectAttribsConnections(
+  string $attribs_node,
+  string $attribs_node_type)
+{
+  string $shapes[];
+
+  $shapes = 
+    `listConnections -s on -d off -shapes on ($attribs_node + ".dagSetMembers")`;
+
+  if (size($shapes) > 0)
+  {
+    DL_setObjectAttrib(
+      $attribs_node,
+      $attribs_node_type,
+      $shapes);
+
+    delightRemoveFromAttribsSets($shapes, $attribs_node_type);
+  }
+}
+
+global proc
+DL_setAttribsNodeForSelection(
+  string $attribs_node,
+  string $attribs_node_type)
+{
+  //
+  // Description:
+  //  This procedure connects each shape under the selected transforms to the 
+  //  specified attribs node. If the specified attribs node is an empty string,
+  //  each shape is disconnected from any attribs node it is connected to.
+  //  The only shapes affected by this procedure are the ones to which the 
+  //  attribs node is applicable. So if, for example, the attribs node is a
+  //  delightGeoAttribs node, light shapes in the list of shapes will not get
+  //  connected to it or disconnected from their current attribs nodes.
+  //
+
+  DL_setAttribsNode($attribs_node, $attribs_node_type, `ls -selection`);
+}
+
+global proc string[]
+DL_getAssignableNodesForObjectType(
+  string $object_type,
+  string $transforms[])
+{
+  //
+  // Description:
+  //  This procedure takes the specified array of transforms and returns an
+  //  array of the nodes suitable for the assignment of a delight node of the
+  //  specified type. If, for example, the specified object type was 
+  //  "light", this procedure would return an array of the shapes under the 
+  //  specified transforms which were lights. If the specifed object type is
+  //  related to geometry (like a surface shader), the returned list of nodes
+  //  may contain transofrms. Object type can be a shader type or an attribs 
+  //  node types.
+  //
+  // Returns:
+  //  An array of shapes (and possibly transforms), to which the specified 
+  //  object type is applicable.
+  //
+
+  string $assignable_nodes[];
+  clear($assignable_nodes);
+  
+  string $shapes[];
+  clear($shapes);
+  
+  if (size($transforms) < 1)
+    return $assignable_nodes;
+
+  for ($transform in $transforms)
+  {
+    // Skip the sets nodes as we don't want their children
+    if (`nodeType $transform` != "objectSet")
+    {
+      string $child_shapes[];
+
+      // Get the children of the transforms that are shapes.
+      //
+      if (DL_assignShadersToHeirarchies())
+      {
+        // Work with children shapes only if all direct children are shapes
+        //
+        $child_shapes = `listRelatives -children -shapes -path -noIntermediate $transform`;
+        string $children[] = `listRelatives -children -path -noIntermediate $transform`;
+        
+        if (size($child_shapes) != size($children))
+        {
+          // Not all children are shapes; We'll work with the transform.
+          clear($child_shapes);
+          $assignable_nodes[size($assignable_nodes)] = $transform;
+        }
+      }
+      else
+      {
+        $child_shapes = 
+          `listRelatives 
+            -children
+            -path 
+            -noIntermediate
+            $transform`;
+      }
+
+      // Add the relevant shapes of this transform to the overall list of
+      // shapes.
+      //
+      DL_stringArrayAppend( $shapes, $child_shapes );
+    }
+  }
+
+  // add the original list of transforms to the list of shapes.. it is
+  // possible that there are actually shapes in this list.  They will be
+  // filtered propery next
+  DL_stringArrayAppend( $shapes, $transforms );
+
+  if (   $object_type == "surface"
+      || $object_type == "displacement"
+      || $object_type == "interior"
+      || $object_type == "atmosphere"
+      || $object_type == "geometry")
+  {
+    $shapes = 
+      `ls 
+        -geometry 
+        -type "pfxHair" 
+        -type "stroke"
+        -type "objectSet" 
+        -noIntermediate 
+        $shapes`;
+  }
+  else if ($object_type == "delightGeoAttribs")
+  {
+    $shapes = 
+      `ls 
+        -geometry 
+        -type "pfxHair" 
+        -type "stroke" 
+        -type "instancer"
+        -type "objectSet" 
+        -noIntermediate 
+        $shapes`;
+  }
+  else
+  {
+    // Not a geometry type, so clear any transforms in the list of nodes we're
+    // going to return
+    //
+    clear($assignable_nodes);
+    
+   if (   $object_type == "light"
+           || $object_type == "delightLightAttribs")
+    {
+      string $list_lights_cmd = DL_getListLightNodesCmd();
+      $list_lights_cmd += "-noIntermediate " + `stringArrayToString $shapes " "`;
+      $shapes = eval($list_lights_cmd);
+    }
+    else if (   $object_type == "imager"
+             || $object_type == "camera")
+    {
+      $shapes = `ls -type camera -noIntermediate $shapes`;
+    }
+  }
+
+  DL_stringArrayAppend($assignable_nodes, $shapes);
+  
+  return DL_stringArrayRemoveDuplicates($assignable_nodes);
+}
+
+global proc int
+DL_getFreeShaderCollectionIndex(
+  string $shader_collection,
+  int $hint )
+{
+  //
+  // Description:
+  //  This procedure finds the first free index of the "shaders" array 
+  //  attribute on the specified shader collection. An index is considered
+  //  free if shaderCollection.shaders[index].shapeSet does not have a source.
+  //
+  // Notes:
+  //  $hint is meant to accelerate the search by assuming no index below that
+  //  value is free. If you don't know, use 0.
+  //
+  // Returns:
+  //  The first free index.
+  //
+
+  int $index = $hint - 1;
+  int $found = false;
+
+  while (!$found)
+  {
+    $index = $index + 1;
+    string $plug = $shader_collection + ".shaders[" + $index + "].shapeSet";
+
+    if (DL_getSourceNode($plug) == "")
+    {
+      $found = true;
+    }
+  }
+
+  return $index;
+}
+
+global proc
+DL_copyObjectAttribConnection(
+  string $attribute_type,
+  string $from_shape_set,
+  string $to_shape_set)
+{
+  //
+  // Description:
+  //  This procedure determines what node, if any, of the specified
+  //  type is connected to the specified "from" shape set. That node, 
+  //  if any, is then connected to the specified "to" shape set.
+  //
+
+  string $from_plug; 
+  string $to_plug; 
+
+  $from_plug = DL_getShapeSetAttribPlug($from_shape_set, $attribute_type);
+  $to_plug = DL_getShapeSetAttribPlug($to_shape_set, $attribute_type);
+
+  if ( (size(`ls $from_plug`) != 0)
+    && (size(`ls $to_plug`) != 0))
+  {
+    string $attrib = DL_getSourceNode($from_plug);
+
+    DL_disconnectNode( $to_plug );
+
+    if ($attrib != "")
+    {
+      DL_connectNodeToMessagePlug( $attrib, $to_plug );
+    }
+  }
+}
+
+global proc
+DL_copyCollectionAttribConnection(
+  string $attribute_type,
+  string $from_shader_collection,
+  string $from_index,
+  string $to_shader_collection,
+  string $to_index)
+{
+  //
+  // Description:
+  //  This procedure determines what attribute node, if any, of the specified
+  //  type is connected to the specified "from" shader collection at the
+  //  specified "from" index. That node, if any, is then connected to the
+  //  specified "to" shader collection at the specified "to" index.
+  //
+
+  string $from_plug = 
+    DL_getShaderCollectionAttribPlug(
+      $from_shader_collection,
+      $from_index,
+      $attribute_type);
+
+  string $to_plug = 
+    DL_getShaderCollectionAttribPlug(
+      $to_shader_collection,
+      $to_index,
+      $attribute_type);
+
+  if ( (size(`ls $from_plug`) != 0)
+    && (size(`ls $to_plug`) != 0))
+  {
+    string $attribute = DL_getSourceNode($from_plug);
+
+    DL_disconnectNode( $to_plug );
+
+    if ($attribute != "")
+    {
+      DL_connectNodeToMessagePlug( $attribute, $to_plug );
+    }
+  }
+}
+
+global proc
+DL_copyLookFromShapeSetToShapeSet(
+  string $from_shape_set, 
+  string $to_shape_set)
+{
+  //
+  // Description:
+  //  This procedure connects the specified "to" shape set to each shader 
+  //  collection the specified "from" shape set is connected to. Furthermore,
+  //  this procedure associates with the "to" shape set each shader associated 
+  //  with the "from" shape set via that shader collection. The net result is
+  //  that all of the shaders attached to shapes in the "from" shape set in
+  //  any given render pass are now also associated with shapes in the "to" 
+  //  shape set in that same render pass.
+  //  Having done that, this procedure then finds all object shaders connected
+  //  to the "from" shape set and connects them to the "to" shape set.
+  //  The end result is objects in the "to" shape set will now share
+  //  the same look as objects in the "from" shape set.
+  //
+
+  string $shader_collections[] = 
+    `listConnections
+      -source false 
+      -destination true
+      -type "delightShaderCollection"
+      ($from_shape_set + ".shaderCollections")`;
+
+  int $from_index;
+  int $to_index;
+  string $shader_collection;
+
+  // Copy the collection shaders from shape set to shape set.
+  //
+  for ($shader_collection in $shader_collections)
+  {
+    $from_index = 
+      DL_getShaderCollectionIndexOfShapeSet(
+        $from_shape_set, 
+        $shader_collection);
+    $to_index = 
+      DL_getShaderCollectionIndexOfShapeSet(
+        $to_shape_set, 
+        $shader_collection);
+
+    if ($to_index == -1)
+    {
+      // The shape set is not already connected to the shader collection. We
+      // will connect it to the first free index of the shader collection.
+      //
+      connectAttr
+        ($to_shape_set + ".shaderCollections")
+        ($shader_collection 
+          + ".shaders["
+          + DL_getFreeShaderCollectionIndex($shader_collection, 0)
+          + "].shapeSet");
+
+      $to_index = 
+        DL_getShaderCollectionIndexOfShapeSet(
+          $to_shape_set, 
+          $shader_collection);
+    }
+
+    DL_copyCollectionAttribConnection(
+      "surface",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "displacement",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "atmosphere",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "interior",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "exterior",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "light",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "imager",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "delightGeoAttribs",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+
+    DL_copyCollectionAttribConnection(
+      "delightLightAttribs",
+      $shader_collection,
+      $from_index,
+      $shader_collection,
+      $to_index);
+  }
+
+  // Copy the object shaders from shape set to shape set.
+  //
+  DL_copyObjectAttribConnection("surface", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("displacement", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("atmosphere", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("interior", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("exterior", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("light", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection("imager", $from_shape_set, $to_shape_set);
+
+  // Copy the object attribs nodes from shape set to shape set.
+  //
+  DL_copyObjectAttribConnection(
+    "delightGeoAttribs", $from_shape_set, $to_shape_set);
+  DL_copyObjectAttribConnection(
+    "delightLightAttribs", $from_shape_set, $to_shape_set);
+}
+
+global proc
+DL_replaceShader(
+  string $old_shader,
+  string $new_shader)
+{
+  //
+  // Description:
+  //  This procedure replaces the specified old shader with the specified new
+  //  shader. Everywhere the old shader was being used, the new shader will be
+  //  used instead.
+  //
+
+  /*
+    Because we moved from connecting to .message to using .usedBy3dfm, we need
+    to check both attributes separetely here. We can't just check all
+    connections to the shader as there might be stuff connected to the
+    parameters too. We can't filter the result by object type either as it could
+    be a shape set or a collection.
+  */
+  string $messageDstPlugs[];
+
+  $messageDstPlugs = 
+    `listConnections 
+      -source false 
+      -destination true
+      -plugs true
+      ($old_shader + ".message")`;
+
+  for ($dstPlug in $messageDstPlugs)
+  {
+    disconnectAttr ($old_shader + ".message") $dstPlug;
+    DL_connectNodeToMessagePlug($new_shader, $dstPlug);
+  }
+
+  if( objExists( $old_shader + ".usedBy3dfm" ) )
+  {
+    $messageDstPlugs = 
+      `listConnections 
+        -source false 
+        -destination true
+        -plugs true
+        ($old_shader + ".usedBy3dfm")`;
+
+    for ($dstPlug in $messageDstPlugs)
+    {
+      disconnectAttr ($old_shader + ".usedBy3dfm") $dstPlug;
+      DL_connectNodeToMessagePlug( $new_shader, $dstPlug );
+    }
+  }
+}
+
+global proc
+DL_setObjectAttrib(
+  string $attribute,
+  string $attribute_type,
+  string $transforms[])
+{
+  //
+  // Description:
+  //  This procedure connects each shape under the specified transforms to the
+  //  specified shader/attribs node. If the specified node is an empty string,
+  //  each shape is disconnected from any node it is connected to.  The only
+  //  shapes affected by this procedure are the ones to which the node type is
+  //  applicable. So if, for example, the attribs node is a delightGeoAttribs
+  //  node, light shapes in the list of shapes will not get connected to it or
+  //  disconnected from their current attribs nodes. Or if it's a light shader,
+  //  shapes will not be affected.
+  //
+
+  // Given the array of transforms, get the actual shapes to which the shader 
+  // is to be attached.
+  //
+  string $assignable_nodes[] = 
+    DL_getAssignableNodesForObjectType($attribute_type, $transforms);
+  
+  if (size($assignable_nodes) == 0)
+  {
+    warning("Nothing selected that can be attached to " + $attribute);
+    return;
+  }
+
+  for ($node in $assignable_nodes)
+  {
+    // Get the shape set containing the specified shape.
+    //
+    string $shape_set = DL_getShapeSetFromShape($node);
+
+    // TODO: How does file referencing affect what we do here?
+    if ($shape_set == "")
+    {
+      // The shape has no shape set. Create a new shape set and put the shape
+      // in it.
+      //
+      $shape_set = DL_createShapeSetNode();
+      sets -edit -addElement $shape_set $node;
+    }
+
+    string $attrib_plug = DL_getShapeSetAttribPlug($shape_set, $attribute_type);
+
+    // Disconnect any existing node connected to the port.
+    //
+    DL_disconnectNode( $attrib_plug );
+
+    if ($attribute != "")
+    {
+      // A new attribute is to be connected. Connect it.
+      //
+      DL_connectNodeToMessagePlug( $attribute, $attrib_plug );
+    }
+  }
+}
+
+global proc
+DL_setObjectShaderForSelection(
+  string $shader,
+  string $shader_type)
+{
+  // TODO: Add method header.
+
+  DL_setObjectAttrib($shader, $shader_type, `ls -selection`);
+}
+
+global proc
+DL_setCollectionAttrib(
+  string $attribute,
+  string $attribute_type,
+  string $transforms[],
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure attaches the specified attribute to the shapes under the
+  //  specified transforms as the attribute of the specified type in the context
+  //  of the specified shader collection.
+  //  The attribute will only be attached to shapes to which it is applicable.
+  //
+
+  // Given the array of transforms, get the actual shapes to which the attribute
+  // is to be attached.
+  //
+  string $assignable_nodes[] = 
+    DL_getAssignableNodesForObjectType($attribute_type, $transforms);
+  
+  if (size($assignable_nodes) == 0)
+  {
+    warning("Nothing selected that can be attached to " + $attribute);
+    return;
+  }
+
+  int $last_new_index = 0;
+
+  for ($node in $assignable_nodes)
+  {
+    // Get the shape set containing the specified shape and only the
+    // specified shape. 
+    //
+    string $shape_set;
+    $shape_set = DL_getShapeSetFromShape($node);
+
+    // TODO: How does file referencing affect what we do here?
+    if ($shape_set == "")
+    {
+      //
+      // The node does not yet belong to a shape set.
+      //
+
+      if ($attribute != "") 
+      { 
+        // The node has no shape set. Create a new shape set and put the node
+        // in it.
+        //
+        $shape_set = DL_createShapeSetNode();
+        sets -edit -addElement $shape_set $node;
+      }
+      else
+      {
+        // We are not actually assigning a new attribute to the node so there's
+        // no point in creating a new shape set for the node -- it won't be
+        // needed anyway.
+        //
+        continue;
+      }
+    }
+
+    // Find out at what index the shape set connects to the shader collection.
+    // 
+    int $index = 
+      DL_getShaderCollectionIndexOfShapeSet(
+        $shape_set, 
+        $shader_collection);
+
+    if ($index == -1)
+    {
+      // There is no existing connection between the shape set and the shader
+      // collection.
+      //
+
+      if ($attribute != "") 
+      {
+        // Connect the shape set to the shader collection.
+        //
+
+        // Give the last index we received as a hint to make the search fast.
+        $last_new_index =
+          DL_getFreeShaderCollectionIndex(
+            $shader_collection, $last_new_index );
+
+        connectAttr
+          ($shape_set + ".shaderCollections")
+          ($shader_collection 
+            + ".shaders[" 
+            + $last_new_index
+            + "].shapeSet");
+
+        $index = 
+          DL_getShaderCollectionIndexOfShapeSet(
+            $shape_set, 
+            $shader_collection);
+      }
+      else
+      { 
+        // We are not actually assigning a new attribute to the node so there's
+        // no point in connecting the shape set to the shader collection -- 
+        // it won't be needed anyway.
+        //
+        continue;
+      }
+    }
+
+    // Connect the attribute to the appropriate port of the same index on the
+    // shader collection.
+    //
+    string $plug = 
+      DL_getShaderCollectionAttribPlug(
+        $shader_collection,
+        $index,
+        $attribute_type);
+
+    DL_disconnectNode( $plug );
+
+    if ($attribute != "")
+    {
+      DL_connectNodeToMessagePlug( $attribute, $plug );
+    }
+  }
+}
+
+
+global proc
+DL_setCollectionShaderForSelection(
+  string $shader,
+  string $shader_type,
+  string $shader_collection)
+{
+  // TODO: Add method header.
+
+  DL_setCollectionAttrib(
+    $shader,
+    $shader_type,
+    `ls -selection`,
+    $shader_collection);
+}
+
+global proc
+DL_setOverrideAttrib(
+  string $attribute,
+  string $attribute_type,
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure connects the specified attribute to the specified shader 
+  //  collection as the override attribute of the specified type.
+  //
+
+  string $plug = 
+    DL_getShaderCollectionOverrideAttribPlug(
+      $shader_collection,
+      $attribute_type);
+
+  // Disconnect any existing attribute connected to the port.
+  //
+  DL_disconnectNode( $plug );
+
+  if ($attribute != "")
+  {
+    // Connect the attribute to the override port.
+    //
+    DL_connectNodeToMessagePlug( $attribute, $plug );
+  }
+}
+
+global proc
+DL_setShader(
+  string $shader, 
+  string $assignment_type,
+  string $shader_type, 
+  string $transforms[],
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure sets the shader of the specified assignment type, 
+  //  shader type, and shader collection to the specified shader, for shapes 
+  //  under the specified transforms. 
+  //  This procedure assumes that the arguments it is given are sufficient to
+  //  set the shader without errors. For example, it is assumed that the
+  //  shader collection is specified and valid if the assignment type is
+  //  "collection" or "override". 
+  //
+
+  switch ($assignment_type)
+  {
+    case "object":
+    {
+      DL_setObjectAttrib(
+        $shader, 
+        $shader_type, 
+        $transforms);
+      break;
+    }
+    case "collection":
+    {
+      DL_setCollectionAttrib(
+        $shader, 
+        $shader_type, 
+        $transforms,
+        $shader_collection);
+      break;
+    }
+    case "override":
+    {
+      DL_setOverrideAttrib(
+        $shader, 
+        $shader_type, 
+        $shader_collection);
+      break;
+    }
+  }
+}
+
+global proc
+DL_setShaderForSelection(
+  string $shader, 
+  string $assignment_type,
+  string $shader_type, 
+  string $shader_collection)
+{
+  //
+  // Description:
+  //  This procedure sets the shader of the specified assignment type, 
+  //  shader type, and shader collection to the specified shader, for shapes 
+  //  under the currently selected transforms. 
+  //  This procedure assumes that the arguments it is given are sufficient to
+  //  set the shader without errors. For example, it is assumed that the
+  //  shader collection is specified and valid if the assignment type is
+  //  "collection" or "override". 
+  //
+
+  DL_setShader(
+    $shader, 
+    $assignment_type,
+    $shader_type, 
+    `ls -selection`,
+    $shader_collection);
+}
+
+global int $g_delightDuplicateCleanupPending = false;
+global string $g_delightDuplicatedShapes[];
+
+global proc
+DL_duplicateCleanup()
+{
+  //
+  // Description:
+  //  This procedure is called after the user performs a duplicate. This
+  //  procedure is called once for each duplicate operation.
+  //  The duplicate command in Maya makes sure that duplicated objects belong
+  //  to all the same sets that their originals belonged to. In some cases
+  //  that is a good thing, but when the sets in question are
+  //  delightShapeSets, it is a bad thing. Putting the duplicated object in
+  //  the same shape set as the original means that the duplicated object and
+  //  the original will share exactly the same look in every render pass.
+  //  Furthermore, there is no way via the delight UI to get those objects to 
+  //  stop sharing the same look. To fix the problem, you would have to know
+  //  how things are connected up, and break the right connections in the
+  //  dependency graph.
+  //  This procedure fixes the problem situation left by the duplicate
+  //  command. It determines what delight shader sets the duplicated object
+  //  belongs to, and creates new ones that effectively assign the same 
+  //  shaders to the object. This means a duplicated object will initially
+  //  share the same look as the original object, but the looks of the two
+  //  objects will not be inextricably tied.
+  //  The name of the shapes that have been duplicated by the duplicate 
+  //  operation are stored in the global string array
+  //  $g_delightDuplicatedShapes[] before this procedure gets called.
+  //
+
+  global int $g_delightDuplicateCleanupPending;
+  global string $g_delightDuplicatedShapes[];
+
+  for ($shape in $g_delightDuplicatedShapes)
+  {
+    // For some reason, we can't get the name right for texture references.
+    // Skip them cleanly instead of causing an error.
+    if( !objExists($shape) )
+      continue;
+
+    string $shape_set_plug = DL_getShapeSetPlugFromShape($shape);
+
+    if ($shape_set_plug != "")
+    {
+      string $shape_set = plugNode($shape_set_plug);
+
+      // Create a new shape set. 
+      //
+      string $new_shape_set = DL_createShapeSetNode();
+
+      // Associate the new shape set with all the shaders the old shape set was
+      // associated with.
+      //
+      DL_copyLookFromShapeSetToShapeSet($shape_set, $new_shape_set);
+
+      // Disconnect the shape from the original shape set.
+      //
+      sets -edit -remove $shape_set $shape;
+
+      // Connect the shape to the new shape set.
+      //
+      sets -edit -addElement $new_shape_set $shape;
+    }
+  }
+
+  // The cleanup operation has now been performed. Clear the flag that
+  // indicates such an operation is pending, and clear the list of duplicated
+  // shapes.
+  //
+  $g_delightDuplicateCleanupPending = false;
+  clear($g_delightDuplicatedShapes);
+}
+
+global proc
+DL_scheduleDuplicateCleanup(
+  string $shape)
+{
+  //
+  // Description:
+  //  This procedure is called once for every duplicate shape that is created
+  //  by a duplicate operation. 
+  //  This procedure stores the name of the new shape in the global string
+  //  array $g_delightDuplicatedShapes[] and schedules a call to
+  //  DL_duplicateCleanup() to occur in idle time, if such a call has not
+  //  already been scheduled.
+  //  The reason the call to DL_duplicateCleanup() is deferred is that some
+  //  duplicate operations cause this procedure to be called many times (when
+  //  many copies of the original object are made). We want to handle all of
+  //  the cleanup in one chunk, so it can all be undone as one chunk. We also
+  //  want to perform the cleanup after the entire duplicate operation is
+  //  finished, because the cleanup can interfere with the duplicate operation
+  //  in some cases (when objects are being transformed as they are
+  //  duplicated, for example).
+  //
+
+  global int $g_delightDuplicateCleanupPending;
+  global string $g_delightDuplicatedShapes[];
+
+  $g_delightDuplicatedShapes[size($g_delightDuplicatedShapes)] = $shape;
+
+  if (!$g_delightDuplicateCleanupPending)
+  {
+    $g_delightDuplicateCleanupPending = true;
+    evalDeferred("DL_duplicateCleanup");
+  }
+}
+
+// TODO: Make this utility function available elsewhere?
+global proc string
+delightStrip( string $str )
+{
+  // 
+  // This procedure strips whitespace from the start and end of the specified
+  // string and returns the resulting string.
+  //
+
+  string $result = $str;
+
+  string $startWS = `match "^[ \t\n\r]*" $result`;
+
+  if ( $startWS != $str)
+  {
+    if ( size( $startWS ) > 0 )
+    {
+      $result = substring( $result, size( $startWS ) + 1, size( $result ) );
+    }
+
+    string $endWS = `match "[ \t\n\r]*$" $result`;
+
+    if ( size( $endWS ) > 0 )
+    {
+      $result = substring( $result, 1, size( $result ) - size( $endWS ) );
+    }
+  }
+  else // the whole string is white-space
+    $result = "";
+
+  return $result;
+}
+
+// TODO: Make this utility function available elsewhere?
+global proc string
+floatArrayToString(float $array[])
+{
+  string $result;
+
+  $result = "";
+
+  for ($curr_elem in $array)
+  {
+    $result += $curr_elem;
+    $result += " ";
+  }
+
+  return delightStrip($result);
+}
+
+global proc string
+intArrayToString(int $array[])
+{
+  string $result = "";
+
+  for ($curr_elem in $array)
+  {
+    $result += $curr_elem;
+    $result += " ";
+  }
+
+  return delightStrip($result);
+}
+  
+/*
+  Transforms a point.
+
+  pt: array of 3 values (the point)
+  xform: array of 16 values (transform matrix)
+*/
+global proc float[]
+transformPoint( float $pt[], float $xform[] )
+{
+    float $npt[3] = pointMatrixMult( $pt, $xform );
+
+    /*
+      Stupid MEL somehow thinks that transforming a point by a matrix doesn't
+      include the translation.
+    */
+    $npt[0] += $xform[12];
+    $npt[1] += $xform[13];
+    $npt[2] += $xform[14];
+
+    return $npt;
+}
+
+/*
+  The windows 'shell' doesn't like having a UNC path as current directory.
+  This means that setting the maya project to a UNC path and then running any
+  command with system() will give an error message such as:
+
+  '\\server\path\whatever'
+  CMD.EXE was started with the above path as the current directory.
+  UNC paths are not supported.  Defaulting to Windows directory.
+
+  on windows XP or this on windows 2000:
+
+  CMD.EXE was started with '\\...' as the current directory path.  UNC paths
+  are not supported.  Defaulting to Windows directory.
+
+  The aim of this function is to filter it out.
+*/
+proc string
+DL_filterUNCMessage( string $i_message )
+{
+  // Quick exit for the most common case.
+  if( size( $i_message ) < 100 )
+    return $i_message;
+
+  string $err_msg = match("^'.*'\r\nCMD.EXE was started with the above path as the current directory.\r\nUNC paths are not supported.  Defaulting to Windows directory.\r\n", $i_message);
+
+  if( $err_msg == "" )
+  {
+    // Try the windows 2000 message
+    $err_msg = match("^CMD\.EXE was started with '.*' as the current directory path\.  UNC paths\r\nare not supported\.  Defaulting to Windows directory\.\r\n", $i_message);
+  }
+
+  if( $err_msg == "" )
+  {
+    // Handle this first to get the common case without a substring.
+    return $i_message;
+  }
+  else if( size($err_msg) == size($i_message) )
+  {
+    // We need to handle this separately as substring doesn't seem to like a
+    // starting position after the end of the string to mean 'take nothing'.
+    return "";
+  }
+  else
+  {
+    // Remove the stupid message.
+    return substring( $i_message, size($err_msg) + 1, size($i_message) );
+  }
+}
+
+/*
+  Like maya's system() but with filtering of stupid windows errors.
+*/
+global proc string
+DL_system( string $i_command )
+{
+  return DL_filterUNCMessage( system( $i_command ) );
+}
+
+proc float[]
+arrayMin( float $a1[], float $a2[] )
+{
+  return { min($a1[0], $a2[0]), min($a1[1], $a2[1]), min($a1[2], $a2[2]) }; 
+}
+
+proc float[]
+arrayMax( float $a1[], float $a2[] )
+{
+  return { max($a1[0], $a2[0]), max($a1[1], $a2[1]), max($a1[2], $a2[2]) }; 
+}
+
+/*
+  Procedures that convert a float[16] from / to a matrix[4][4].
+  Attributes like worldMatrix are accessible to a float[16] while Maya handles
+  common matrix operators on the matrix type.
+*/
+global proc matrix
+float16ToMatrix44(float $array[])
+{
+  matrix $mat[4][4];
+  
+  int $i = 0;
+  for($i = 0; $i < 4; $i++)
+  {
+    int $j;
+    for($j = 0; $j < 4; $j++)
+    {
+      $mat[$i][$j] = $array[$i * 4 + $j];
+    }
+  }
+  
+  return $mat;
+}
+
+global proc float[]
+matrix44ToFloat16(matrix $mat)
+{
+  float $array[];
+  clear($array);
+  
+  int $i = 0;
+  for($i = 0; $i < 4; $i++)
+  {
+    int $j;
+    for($j = 0; $j < 4; $j++)
+    {
+      $array[size($array)] = $mat[$i][$j];
+    }
+  }
+  
+  return $array;
+}
+
+
+/*
+  Transforms a bounding box.
+
+  bbox: array of 6 values: xmin ymin zmin xmax ymax zmax
+  xform: array of 16 values (transform matrix)
+*/
+global proc float[]
+transformBBox( float $bbox[], float $xform[] )
+{
+  float $b_min[3] = { $bbox[0], $bbox[1], $bbox[2] };
+  float $b_max[3] = { $bbox[3], $bbox[4], $bbox[5] };
+
+  float $b_c1[3] = { $b_min[0], $b_min[1], $b_min[2] };
+  float $b_c2[3] = { $b_min[0], $b_min[1], $b_max[2] };
+  float $b_c3[3] = { $b_min[0], $b_max[1], $b_min[2] };
+  float $b_c4[3] = { $b_min[0], $b_max[1], $b_max[2] };
+  float $b_c5[3] = { $b_max[0], $b_min[1], $b_min[2] };
+  float $b_c6[3] = { $b_max[0], $b_min[1], $b_max[2] };
+  float $b_c7[3] = { $b_max[0], $b_max[1], $b_min[2] };
+  float $b_c8[3] = { $b_max[0], $b_max[1], $b_max[2] };
+
+  $b_c1 = transformPoint( $b_c1, $xform );
+  $b_c2 = transformPoint( $b_c2, $xform );
+  $b_c3 = transformPoint( $b_c3, $xform );
+  $b_c4 = transformPoint( $b_c4, $xform );
+  $b_c5 = transformPoint( $b_c5, $xform );
+  $b_c6 = transformPoint( $b_c6, $xform );
+  $b_c7 = transformPoint( $b_c7, $xform );
+  $b_c8 = transformPoint( $b_c8, $xform );
+
+  $b_min =
+    arrayMin(
+      arrayMin(
+        arrayMin( $b_c1, $b_c2 ),
+        arrayMin( $b_c3, $b_c4 ) ),
+      arrayMin(
+        arrayMin( $b_c5, $b_c6 ),
+        arrayMin( $b_c7, $b_c8 ) ) );
+
+  $b_max =
+    arrayMax(
+      arrayMax(
+        arrayMax( $b_c1, $b_c2 ),
+        arrayMax( $b_c3, $b_c4 ) ),
+      arrayMax(
+        arrayMax( $b_c5, $b_c6 ),
+        arrayMax( $b_c7, $b_c8 ) ) );
+
+  return
+    { $b_min[0], $b_min[1], $b_min[2], $b_max[0], $b_max[1], $b_max[2] };
+}
+
+// TODO: Rename getSourceShape()?
+global proc string
+DG_getAttachedShape(string $message_attrib)
+{
+  string $attached_shape;
+
+  string $connections[] = `listConnections -source true
+                                           -destination false
+                                           -shapes true
+                                           $message_attrib`;
+
+  if (size($connections) > 0)
+  {
+    $attached_shape = $connections[0];
+  }
+  else
+    $attached_shape = "";
+
+  return $attached_shape;
+}
+
+global proc string
+DG_stringArrayToEnumString(string $array[])
+{
+  string  $enum_statement;
+
+  for ($i = 0; $i < size($array) - 1; $i += 1)
+  {
+    $enum_statement += $array[$i];
+    $enum_statement += ":";
+  }
+
+  $enum_statement += $array[size($array)-1];
+
+  return $enum_statement;
+}
+
+global proc string
+DL_getShapeFromTransform( string $transform )
+{
+  string $shape = "";
+
+  string $all_shapes[];
+
+  $all_shapes = `listRelatives -noIntermediate -shapes -path $transform`;
+
+  if (size($all_shapes) > 0)
+  {
+    // only deal with the first shape
+    $shape = $all_shapes[0];
+  }
+  else // given shape is already a shape
+  {
+    // TODO: this isn't strictly true.. though in the context of DL it's
+    // fine.  In reality if the listRelatives returns an empty list all we
+    // know is that the node has no children that are shapes (eg it could be
+    // a group transform, dg node, etc.
+    $shape = $transform ;
+  }
+
+  return $shape;
+}
+
+global proc int
+DL_isUserSet(string $set)
+{
+  return (    `objExists $set`
+          &&  `objectType $set` == "objectSet"
+          &&  $set != "defaultObjectSet"
+          &&  $set != "defaultLightSet"
+          && !`sets -q -vertices $set`
+          && !`sets -q -edges $set`
+          && !`sets -q -facets $set`
+          && !`sets -q -editPoints $set`
+          && !`sets -q -renderable $set`);
+}
+
+global proc string[]
+DL_getAllUserSets()
+{
+  //
+  // Description:
+  //  This procedure returns all user-space sets in the maya scene.  If you
+  //  want to list all the sets associated with a particular object then use
+  //  the delightListUserSets command
+  //
+  string  $dl_sets[];
+  string  $all_object_sets[];
+  
+  // listSets -allSets doesn't return proper referenced set names, so use
+  // ls instead and try to filter out non-user sets.
+  // Not to mention that lstSets -allSets can crash in Maya 8.5.
+  //
+  $all_object_sets = `ls -type objectSet`;
+  
+  for ($curr_set in $all_object_sets)
+  {
+    if (DL_isUserSet($curr_set))
+    {
+      $dl_sets[size($dl_sets)] = $curr_set;
+    }
+  }
+  
+  return $dl_sets;
+}
+
+/*
+  DL_getPluginName
+
+  Returns the registered name of the 3Delight for Maya plugin. This named can
+  be used with the pluginInfo command.
+*/
+global proc string
+DL_getPluginName()
+{
+  string $plugins[] = `pluginInfo -q -ls`;
+
+  for( $plugin in $plugins )
+  {
+    if( match( "^3delight_for_maya[0-9]+\.[0-9]$", $plugin ) != "" )
+      return $plugin;
+  }
+
+  return "delight";
+}
+
+global proc
+DL_updateVersionAttr(string $node)
+{
+  // Old version number attr was float. New version number is string.
+  string $plug = $node + ".version";
+  
+  if (objExists($plug))
+  {
+    if (`getAttr -type ($plug)` == "float")
+    {
+      float $old_version = getAttr($plug);
+      deleteAttr $plug;
+      addAttr -longName version -dataType "string" $node;
+      setAttr -type "string" $plug $old_version;
+    }
+    else
+    {
+      int $node_version_nums[] = DL_getVersionAttrAsInts($node);
+      int $plugin_version_nums[] = `delightAbout -pluginVersionIntArray`;
+
+      string $msg = "This scene requires 3Delight for Maya " + 
+        getAttr($node + ".version") + " or newer.";
+        
+      if ($node_version_nums[0] < $plugin_version_nums[0])
+        return;
+
+      if ($node_version_nums[0] > $plugin_version_nums[0])
+        error($msg);
+      
+      if ($node_version_nums[1] < $plugin_version_nums[1])
+        return;
+
+      if ($node_version_nums[1] > $plugin_version_nums[1])
+        error($msg);
+        
+      if ($node_version_nums[2] > $plugin_version_nums[2])      
+        error($msg);
+    }
+  }
+}
+
+global proc
+DL_setVersionAttr(string $node)
+{
+  //
+  // Description:
+  //  This procedure is called during the creation of nodes of 3Delight node
+  //  types (such as delightShapeSet, delightShaderCollection,
+  //  delightRenderPass, etc). 
+  //  This procedure adds a dynamic attribute called "version" to the
+  //  specified node and sets its value to the version of the 3Delight plugin
+  //  that is currently loaded. This makes it possible for code to determine
+  //  what version of the plugin was running when a particular node was
+  //  created.
+  //
+
+  if (!objExists($node + ".version"))
+  {
+    addAttr -longName version -dataType "string" $node;
+  }
+
+  string $pluginName = DL_getPluginName();
+  string $version = `pluginInfo -query -version $pluginName`;
+  setAttr -type "string" ($node + ".version") $version;
+}
+
+global proc int[]
+DL_getVersionAttrAsInts(string $node)
+{ 
+  string $version_string = getAttr($node + ".version");
+	
+  int $version_numbers[3];
+  $version_numbers = { 0, 0, 0 };
+  
+  string $tokens[];
+  int $num_tokens = tokenize($version_string, ".", $tokens);
+
+  if ($num_tokens > 3)
+    $num_tokens = 3;
+
+  int $i;
+  for($i = 0; $i < $num_tokens; $i++)
+  {
+    $version_numbers[$i] = $tokens[$i];
+  }
+  
+  return $version_numbers;
+}
+
+global proc
+delightSetPluginVersion(string $node)
+{
+  // Kept for compatibility 
+  DL_setVersionAttr($node);
+}
+
+global proc
+DL_updateAE(string $node)
+{
+  //
+  // Description:
+  //  This procedure opens the attribute editor and focuses it on the
+  //  specified node.
+  //  If the attribute editor is not currently being displayed, it is shown. 
+  //
+
+  if (!isAttributeEditorVisible())
+  {
+    // Open the attribute editor in the most appropriate place, according to
+    // the user's preferences. The attribute editor will be opened either as a
+    // floating window, or in the right hand pane.
+    //
+    openAEWindow; 
+  }
+
+  updateAE($node);
+}
+
+global proc int
+DL_haveMayaUI()
+{
+  global int $g_DL_haveMayaUI;
+
+  if ($g_DL_haveMayaUI >= 0)
+  {
+    return $g_DL_haveMayaUI;
+  }
+  else
+  {
+    string $windows[];
+
+    $windows = `lsUI -windows`;
+
+    if (size($windows) > 0)
+    {
+      if (size($windows) == 1 && $windows[0] == "ConsoleWindow")
+      {
+        $g_DL_haveMayaUI = 0;
+        return 0;
+      }
+      else
+      {
+        $g_DL_haveMayaUI = 1;
+        return 1;
+      }
+    }
+    else
+    {
+      $g_DL_haveMayaUI = 0;
+      return 0;
+    }
+  }
+}
+
+global proc string
+DL_getSceneName()
+{
+  /* Do NOT use -list as it is unbelievably slow with many references. */
+  string $scene_name = `file -q -sceneName`;
+
+  if( $scene_name == "" )
+  {
+    $scene_name = "untitled";
+  }
+  else
+  {
+    $scene_name = basenameEx( $scene_name );
+  }
+
+  return $scene_name;
+}
+
+global proc string
+DL_replaceAllTokens(string $token, string $replacement, string $path)
+{
+  while(match($token, $path) != "")
+  {
+    $path = substitute($token, $path, $replacement);
+  }
+  
+  return $path;
+}
+
+global proc string
+DL_getExpandedString(string $path, string $shape_name, string $pass_name)
+{
+  $path = `delightExpandVariables -t $path`;
+  
+  if ($path != "")
+  {
+    string $project_path;
+    string $scene_name;
+    string $layer_name;
+    
+    $project_path = `workspace -fn`;
+    $scene_name = DL_getSceneName();
+
+    $layer_name = `editRenderLayerGlobals -q -currentRenderLayer`;
+    if ($layer_name == "defaultRenderLayer")
+    {
+      $layer_name = "masterLayer";
+    }
+    
+    $path = DL_replaceAllTokens("<project>", $project_path, $path);
+    $path = DL_replaceAllTokens("<scene>", $scene_name, $path);
+    $path = DL_replaceAllTokens("<layer>", $layer_name, $path);
+    $path = DL_replaceAllTokens("<shape_name>", `DL_legalizeString($shape_name)`, $path);
+    $path = DL_replaceAllTokens("<pass>", $pass_name, $path);
+    
+    string $camera = "";
+    
+    if ($pass_name != "" && `objExists $pass_name`)
+    {
+      string $all_related_passes[] = DRP_getAllRelatedPasses($pass_name);
+      $camera = DRP_getHighestAttrNode("camera", $all_related_passes);
+      $camera = DL_legalizeString($camera);
+    }
+    
+    $path = DL_replaceAllTokens("<camera>", $camera, $path); 
+
+    if (exists("DL_userGetStringTokens"))
+    {
+      string $user_tokens[];
+      string $user_values[];
+
+      DL_userGetStringTokens($user_tokens, $user_values);
+
+      if (size($user_tokens) == size($user_values))
+      {
+        for ($i = 0; $i < size($user_tokens); $i++)
+        {
+          $path = DL_replaceAllTokens($user_tokens[$i], $user_values[$i], $path);
+        }
+      }
+    }
+  }
+  
+  return $path;
+}
+  
+global proc string 
+DL_expandString(string $str, string $shape_name, string $pass_name)
+{
+  if (exists("DL_userGetExpandedString"))
+    return DL_userGetExpandedString($str, $shape_name, $pass_name);
+    
+  return DL_getExpandedString($str, $shape_name, $pass_name);
+}
+
+global proc string
+DL_expandAttrValue(string $attr, string $shape_name, string $pass_name)
+{
+  return DL_expandString( getAttr($attr), $shape_name, $pass_name );
+}
+
+global proc string
+DL_createDir(string $dir)
+{
+  if (`filetest -d $dir` == 0)
+  {
+     sysFile -makeDir $dir;
+  }
+  
+  return $dir;
+}
+
+/*
+  DL_concatPath
+
+  This concatenates two path components, inserting a "/" between them if
+  required (ie. if neither is empty or already contains the "/").
+*/
+global proc string
+DL_concatPath( string $a, string $b )
+{
+  if( $a == "" )
+    return $b;
+  else if( $b == "" )
+    return $a;
+
+  // Avoid some cases of duplicate / or \
+  if( endsWith( $a, "/" ) || endsWith( $a, "\\" ) ||
+      startsWith( $b, "/" ) || startsWith( $b, "\\" ) )
+    return $a + $b;
+
+  return $a + "/" + $b;
+}
+
+global proc int
+DL_isPathAbsolute(string $path)
+{
+  int $is_absolute = 1;
+  
+  if (   (`match "^[\"]*[A-Za-z]:" $path` == "")
+      && (`match "^[\"]*/" $path` == ""))
+  {
+    $is_absolute = 0;
+  }
+  
+  return $is_absolute;
+}
+
+global proc string
+DL_getAbsolutePath(string $path)
+{
+  // This procedure prepends the current project directory to the received 
+  // path if it is relative.
+  //
+  if (!DL_isPathAbsolute($path))
+  {
+    $path = DL_concatPath( `workspace -fn`, $path );
+  }
+
+  return $path;
+}
+
+global proc string
+DL_getExpandedAbsolutePath(
+  string $path, 
+  string $shape_name, 
+  string $pass_name,
+  string $base_dir)
+{
+  // 1- Expand the received path;
+  // 2- If 1 is relative, prepend the base dir to the path;
+  // 3- If 2 is relative, prepend the current project directory to the path
+  //
+  // Note that for 3dfm temporary output files you should call
+  // DL_getExpandedAbsoluteOutputPath instead
+  //
+  $path = DL_expandString($path, $shape_name, $pass_name);
+
+  if (!DL_isPathAbsolute($path))
+  {   
+    $base_dir = DL_expandString($base_dir, $shape_name, $pass_name);
+    $base_dir = DL_getAbsolutePath($base_dir);
+    $path = DL_concatPath( $base_dir, $path );
+  }
+  
+  return $path;
+}
+  
+global proc string
+DL_getExpandedAbsoluteOutputPath(
+  string $path,
+  string $shape_name, 
+  string $pass_name,
+  string $base_dir)
+{
+  // This procedure does the following:
+  // 1 - Expand the received path;
+  // 2 - If 1 is relative, prepend the base dir to the path;
+  // 3 - If 2 is relative, prepend the _3DFM_OUTPUT_PATH env var to the path
+  // 4 - If 3 is relative, prepend the current project directory to the path.
+  //
+
+  $path = DL_expandString($path, $shape_name, $pass_name);    
+
+  if (!DL_isPathAbsolute($path))
+  {
+    $base_dir = DL_expandString($base_dir, $shape_name, $pass_name);
+    
+    if (!DL_isPathAbsolute($base_dir))
+    {
+      string $env_output_path = getenv("_3DFM_OUTPUT_PATH");
+
+      if ($env_output_path != "")
+      {
+        $base_dir = DL_concatPath(
+          DL_expandString($env_output_path, $shape_name, $pass_name),
+          $base_dir );
+      }
+
+      $base_dir = DL_getAbsolutePath($base_dir);
+    }
+
+    $path = DL_concatPath( $base_dir, $path );
+  }
+
+  return $path;
+}
+    
+global proc string
+DL_getExpandedFilename(
+  string $filename, 
+  string $shape_name, 
+  string $pass_name,
+  string $file_type)
+{
+  // Returns an expanded, absolute path to filename, creating directories if
+  // necessary.
+  //
+  if ($filename == "")
+  {
+    return $filename;
+  }
+  
+  // File types which don't have a specific base dir in the project will be
+  // made relative to the project by DL_getExpandedAbsolute[Output]Path below.
+  string $base_dir = "";
+  
+  // Expand any <ext> tags and flag if the constructed path is for a temp file
+  //
+  string $ext;
+  int $use_output_path = 0; 
+  
+  switch($file_type)
+  {
+    case "cineon": $ext = "cin"; break;
+    case "fragment": 
+      $ext = "rib";
+      $base_dir = DL_getRibFragmentsPath();
+      $use_output_path = 1;
+      break;
+    case "photonmap": $ext = "pmap"; $use_output_path = 1; break;
+    case "pointcloud": 
+      $ext = "ptc";
+      $use_output_path = 1;
+      $base_dir = DL_getPointCloudsPath();
+      break;
+    case "radiance": $ext = "rad"; break;
+    case "shadowmap": 
+      $ext = "shw"; 
+      $use_output_path = 1; 
+      $base_dir = DL_getShadowMapsPath();
+      break;
+    case "texture": 
+      $ext = "tdl"; 
+      $base_dir = DL_getTexturesPath();
+      break;
+    case "tiff": $ext = "tif"; break;
+    case "zfile": $ext = "z"; break;
+    default: $ext = $file_type;
+  }
+  
+  $filename = DL_replaceAllTokens("<ext>", $ext, $filename);
+  
+  // Split the path in directory and file components; expand each and create
+  // the dir if needed
+  //
+  string $dir = dirname($filename);  
+  string $file = substring($filename, size($dir) + 1, size($filename));
+
+  if ($use_output_path != 0)
+  {
+    // Need to take _3DFM_OUTPUT_PATH into account here
+    $dir = DL_getExpandedAbsoluteOutputPath(
+      $dir, 
+      $shape_name, 
+      $pass_name, 
+      $base_dir);
+  }
+  else
+  {
+    $dir = DL_getExpandedAbsolutePath($dir, $shape_name, $pass_name, $base_dir);
+  }
+
+  $dir = DL_createDir($dir);
+  $file = DL_hashLongFilename(DL_expandString($file, $shape_name, $pass_name));
+  $filename = DL_concatPath($dir, $file);
+  
+  return $filename;
+}
+
+/*
+  DL_splitPathList
+
+  Takes a colon (or semi-colon on windows) separated list of paths and returns
+  an array of paths.
+*/
+global proc string[]
+DL_splitPathList( string $path_list )
+{
+  string $paths[];
+
+  string $os = `about -operatingSystem`;
+
+  if ($os == "nt" || $os == "win64")
+  {
+    // The operating system is Windows. The delimiter can be ";" or ":"
+    //
+    string $semicolon_delim_paths[];
+    int $nb_semicolon_paths = `tokenize $path_list ";" $semicolon_delim_paths`;
+
+    int $paths_index = 0;
+
+    for ($i = 0; $i < $nb_semicolon_paths; $i++)
+    {
+      string $colon_delim_paths[];
+      int $nb_colon_paths = 
+        `tokenize $semicolon_delim_paths[$i] ":" $colon_delim_paths`;
+
+      for($j = 0; $j < $nb_colon_paths; $j++)
+      {
+        // Rematch strings that are single drive letters with the next string 
+        // which is the remainder of the path
+        if(
+              (`match "^[A-Za-z]$" $colon_delim_paths[$j]` != "")
+           && ($j + 1 < $nb_colon_paths)
+           && (`match "^[/\\]" $colon_delim_paths[$j + 1]` != "")) 
+        {
+          $paths[$paths_index++] = $colon_delim_paths[$j] 
+            + ":" 
+            + $colon_delim_paths[$j 
+            + 1];
+          $j++;
+        }
+        else
+        {
+          $paths[$paths_index++] = $colon_delim_paths[$j];
+        }
+      }
+    }
+  }
+  else
+  {
+    tokenize $path_list ":" $paths;
+  }
+
+  return $paths;
+}
+
+/*
+  DL_addSlashToPaths
+*/
+global proc
+DL_addSlashToPaths( string $paths[] )
+{
+  int $num_paths = size($paths);
+  int $i;
+  for ($i = 0; $i < $num_paths; ++$i)
+  {
+    if (!endsWith($paths[$i], "/"))
+    {
+      // The current path does not end in a slash. Add one.
+      $paths[$i] = $paths[$i] + "/";
+    }
+  }
+}
+
+global proc string
+DL_getShortestFilePath(string $file_path, string $search_paths)
+{
+  // This procedures receives a possibly absolute file path and will returns
+  // the shortest path necessary to locate the file based on the received search
+  // paths.
+  //
+  // While the procedure will take care of env var expansion, the possible "@"
+  // characters should have been replaced with the proper "$DL_zzz_PATH" srting
+  // before this procedure is called.
+  //
+
+  string $render_pass = `delightRenderState -qrn`;
+  $search_paths = DL_expandString($search_paths, "", $render_pass);
+
+  string $search_path_array[] = DL_splitPathList($search_paths);
+
+  for ($curr_search_path in $search_path_array)
+  {
+    if ($curr_search_path != "" && startsWith($file_path, $curr_search_path))
+    {
+      $file_path = substring(
+        $file_path, 
+        size($curr_search_path) + 1, 
+        size($file_path));
+      
+      // If the search path does not end with a slash, we need to remove it
+      if (substring($file_path, 1, 1) == "/")
+        $file_path = substring($file_path, 2, size($file_path));
+
+      break;
+    }
+  }
+  
+  return $file_path;
+}
+      
+global proc string
+DL_hashLongString(string $long_string, int $max_length)
+{
+  /* Protect against very long file names which not all OS can handle. */
+  if( size($long_string) > $max_length )
+  {
+    string $end = substring( $long_string, ($max_length - 11), size($long_string) );
+    string $hashed = `delightHash -hs $end`;
+    $long_string = substring( $long_string, 1, $max_length - 12 ) + $hashed;
+  }
+  
+  return $long_string;
+}
+
+global proc string
+DL_hashLongFilename(string $file)
+{
+  // Hash file names too long and attempt to keep file extensions
+  //
+  // Conservative max lengths - the sum of both should not exceeed 255 for most
+  // file systems
+  //
+  int $max_length = 192;
+  int $max_extensions_length = 40;
+
+  int $file_length = size($file);
+
+  if ($file_length > ($max_length + $max_extensions_length))
+  {
+    // Try to keep multiple extensions (like ".0001.tif")
+    string $extensions = match("\\..*$", $file);
+    
+    if (size($extensions) > $max_extensions_length)
+    {
+      // Keep only the last extension
+      $extensions = match("\\.[^\\.]*$", $extensions);
+      
+      if (size($extensions) > $max_extensions_length)
+      {
+        // too bad for the too long extension
+        $extensions = "";
+      }
+    }
+    
+    $file = substring($file, 1, $file_length - size($extensions));
+    $file = DL_hashLongString($file, $max_length) + $extensions;
+  }
+  
+  return $file;
+}
+
+global proc string
+DL_getShortestUniqueDAGpath(string $path)
+{
+  string $shortest_path[];
+
+  $shortest_path = `ls $path`;
+
+  return $shortest_path[0];
+}
+
+global proc string[]
+DL_stringArrayRemoveDuplicates(string $input_array[])
+{
+  return `delightStringArray -rd $input_array`;
+}
+
+global proc string[]
+DL_stringArrayIntersect(string $a[], string $b[])
+{
+  return `delightStringArray -i $a $b`;
+}
+
+global proc string[]
+DL_stringArrayDifference(string $a[], string $b[])
+{
+  return `delightStringArray -d $a $b`;
+}
+
+/*
+  DL_stringArrayAppend
+
+  Use this: DL_stringArrayAppend( $arr, $foo )
+  instead of: $arr = stringArrayCatenate( $arr, $foo )
+
+  It avoids copying the entire array for every call. This can be the difference
+  between a O(N) and a O(N*N) algorithm. In MEL, these translate into "slow"
+  and "dog slow" :]
+*/
+global proc
+DL_stringArrayAppend( string $arr[], string $new_el[] )
+{
+  for( $el in $new_el )
+  {
+    $arr[size($arr)] = $el;
+  }
+}
+
+global proc string
+DL_stringArrayToStringForEval(string $array[])
+{
+  // Returns the array into a string suitable for usage as a procedure
+  // argument in an eval() statement.
+  //
+  string $eval_string = "{";
+        
+  int $i;
+  for($i = 0; $i < size($array); $i++)
+  {
+    $eval_string += "\"" + $array[$i] + "\"";
+    
+    if ($i < size($array) - 1)
+    $eval_string += ", ";
+  }
+  
+  $eval_string += "}";
+  
+  return $eval_string;
+}
+
+global proc string
+DL_substituteAllString(string $src, string $target, string $replacement)
+{
+  // Just like the substituteAllString MEL script, but faster
+  // Target string must be 1 character long.
+  //
+  string $result = `delightStringOp -substituteAllString $src $target $replacement`;
+  return $result;
+}
+
+/*
+  Applies substitute until there are no more changes.
+*/
+proc string
+DL_substituteAll( string $regexp, string $var, string $replacement )
+{
+  string $prev_result;
+  string $result = $var;
+
+  while( $result != $prev_result )
+  {
+    $prev_result = $result;
+    $result = substitute( $regexp, $prev_result, $replacement );
+  }
+  
+  return $result;
+}
+ 
+
+global proc string[]
+DL_getFlattenedSetMembers(string $set)
+{
+  string $flattened_members[];
+  clear($flattened_members);
+  
+  if ($set == "")
+  {
+    return $flattened_members;
+  }
+  
+  string $set_members[] = `sets -q  $set`;
+  
+  int $i;
+  for($i = 0; $i < size($set_members); $i++)
+  {
+    if (`objectType -isa "objectSet" $set_members[$i]`)
+    {
+      DL_stringArrayAppend(
+        $set_members, 
+        `sets -q  $set_members[$i]`);
+    }
+    else
+    {
+      $flattened_members[size($flattened_members)] = $set_members[$i];
+    }
+  }
+  
+  return DL_stringArrayRemoveDuplicates($flattened_members);
+}
+
+global proc string
+DL_legalizeString(string $path)
+{
+  if ($path != "")
+  {
+    $path = DL_substituteAllString($path, "_", "__");
+    $path = DL_substituteAllString($path, "|", "_");
+    $path = DL_substituteAllString($path, ":", "_ns_");
+  }
+  
+  return $path;
+}
+
+global proc string[]
+DL_getSLincludePath()
+{
+  string $dl_sl_include_path = getenv("_3DFM_SL_INCLUDE_PATH");
+  string $default_path = `getenv DELIGHT` + "/maya/rsl/";
+
+  string $include_paths[];
+
+  if ($dl_sl_include_path != "")
+  {
+    $include_paths = DL_splitPathList( $dl_sl_include_path );
+
+    // Replace a '&' or '@' entry with the default path.
+    int $num_paths = size($include_paths);
+    int $i;
+    for( $i = 0; $i < $num_paths; ++$i )
+    {
+      if( $include_paths[$i] == "&" || $include_paths[$i] == "@" )
+        $include_paths[$i] = $default_path;
+    }
+
+    DL_addSlashToPaths( $include_paths );
+  }
+  else
+  {
+    $include_paths[0] = $default_path;
+  }
+
+  return $include_paths;
+}
+
+// The default procedure called when a conversion to tdl is needed.
+// Override by defining :
+// global proc string DL_userConvertTexture(string $src, string $dest);
+//
+global proc string
+DL_defaultConvertTexture(string $source, string $dest)
+{
+  string $cmd = "tdlmake -newer -mode periodic ";
+  $cmd += "\"" + $source + "\"";
+  $cmd += " ";
+  $cmd += $dest;
+
+  string $tdl_output;
+  $tdl_output = DL_system($cmd);
+  return $tdl_output;
+}
+  
+/*
+  DL_convertTextureName
+
+  Converts a texture into a format recognized by 3Delight and returns the name
+  of the new texture.
+
+  $do_file_conversion controls the conversion of the file. If it is 0, the new
+  name is returned but no file is actually created.
+*/
+global proc string
+DL_convertTextureName(
+  string $source_name,
+  int $do_file_conversion )
+{
+  string $converted_name;
+
+  if( $source_name == "" || match("\.tdl", $source_name) != "" )
+  {
+    // Assume that anything with ".tdl" somewhere in the filename is a valid 
+    // texture. Eventually, we'll have tool to actually check the file.
+    $converted_name = "\"" + $source_name + "\"";
+  }
+  else
+  {
+    string $path = DL_getTexturesPath();
+    $path = DL_createDir(DL_getExpandedAbsoluteOutputPath("", "", "", $path));
+    
+    $converted_name = "\"";
+    $converted_name += $path;
+    $converted_name += "/";
+    $converted_name += basenameEx($source_name);
+    $converted_name += ".tdl";
+    $converted_name += "\"";
+
+    if( $do_file_conversion )
+    {
+      string $conversion_error = "";
+      if (exists("DL_userConvertTexture"))
+      {
+        $conversion_error = 
+          DL_userConvertTexture($source_name, $converted_name);
+      }
+      else
+      { 
+        $conversion_error =
+          DL_defaultConvertTexture($source_name, $converted_name);
+      }
+
+      if( $conversion_error != "" )
+      {
+        warning(
+          "conversion of texture " + $source_name +
+          " failed: " + $conversion_error + "\n" );
+      }    
+    }
+  }
+
+  return $converted_name;
+}
+
+
+/*
+  DL_getFurAttrMapFilePath
+  
+  Returns the absolute path to the attribute map file. Due to some strange 
+  behavior, the attribute may contain an incorrect scene name so we also look 
+  for the file with the current scene name.
+*/
+global proc string
+DL_getFurAttrMapFilePath(
+  string $attr_map,
+  string $feedback_node,
+  string $attr_name)
+{
+  string $full_path_name = DL_getAbsolutePath($attr_map);
+  
+  if (! `filetest -r $full_path_name`)
+  {
+    // Maybe the attribute is made of ouutdated components. Recreate the path
+    // with up-to-date components.
+    //
+    string $list_of_rules[] = `workspace -q -fileRule`;
+    int $found_rule = 0;
+    string $fur_attr_path = ".";
+    
+    for ($curr_rule in $list_of_rules)
+    {
+      if ($found_rule)
+      {
+        $fur_attr_path = $curr_rule;
+        break;
+      }
+      else if ($curr_rule == "furAttrMap")
+      {
+        $found_rule = 1;
+      }
+    }
+    
+    $fur_attr_path += "/" + DL_getSceneName();
+    
+    string $fur_desc_node = `connectionInfo -sfd ($feedback_node + ".Baldness")`;
+    $fur_desc_node = plugNode($fur_desc_node);
+    $fur_desc_node = DL_substituteAllString($fur_desc_node, "|", "_");
+    $fur_desc_node = DL_substituteAllString($fur_desc_node, ":", "_");
+
+    string $shape = `connectionInfo -sfd ($feedback_node + ".inputSurface")`;
+    if ($shape == "")
+    {
+      $shape = `connectionInfo -sfd ($feedback_node + ".inputMesh")`;
+    }
+    
+    if ($shape != "")
+    {
+      $shape = plugNode($shape);
+    }
+    
+    $shape = DL_substituteAllString($shape, "|", "_");
+    $shape = DL_substituteAllString($shape, ":", "_");
+
+    $fur_attr_path += "_" + $shape;
+    $fur_attr_path += "_" + $fur_desc_node;
+    $fur_attr_path += "_" + $attr_name;
+    $fur_attr_path += ".iff";
+    
+    string $alt_full_path_name = DL_getAbsolutePath($fur_attr_path);
+
+    // We return this path wether the file exists or not since it will be created
+    // there if the maps are baked later.
+    return $alt_full_path_name;
+  }
+  
+  return $full_path_name;
+}
+  
+global proc string
+DL_generateImageFile(string $plug)
+{
+  string $node;
+  string $type;
+  string $image_filename;
+  
+  $node = plugNode($plug);
+  $type = nodeType($node);
+
+  // The number of leading 0s for padding is taken from the current value of
+  // the "image filename" attribute of the file noe. This may be incorrect but
+  // 
+  int $replace_frame_number = 0;
+  int $frame_number_length = 0;
+  int $num_padding_zeroes = 0;
+  
+  if ($type == "file" || $type == "psdFileTex")
+  {  
+    // Figure the image file name based on the image sequence options
+    $image_filename = getAttr($node + ".fileTextureName");
+
+    if (getAttr($node + ".useFrameExtension"))
+    {
+      // Extract the frame number from the image filename and replace it
+      // with the current frame number, with the proper padding and offset
+      string $file_no_extension = basenameEx($image_filename);
+      int $file_no_extension_length = size($file_no_extension);
+      
+      string $frame_number = match("[0-9]+$", $file_no_extension);
+
+      int $image_filename_length = size($image_filename);
+      $frame_number_length = size($frame_number);
+      
+      if ($frame_number_length > 0)
+      {
+        $replace_frame_number = 1;
+
+        string $file = basename($image_filename, "");
+        int $file_length = size($file);
+        string $extension = 
+          substring($file, $file_no_extension_length + 1, $file_length);
+        
+        int $frame_and_extension_length = $frame_number_length + size($extension);
+
+        string $base_file = substring(
+          $image_filename, 
+          1,
+          size($image_filename) - $frame_and_extension_length);
+
+        // Create current frame string taking the offset into account
+        int $cur_frame = getAttr($node + ".frameExtension");
+        $cur_frame += getAttr($node + ".frameOffset");
+        
+        string $cur_frame_string = $cur_frame;
+
+        // Pad the cur_frame_string to the image filename frame number string
+        // length if it begins with a leading 0.
+        // i.e. :
+        // "image.0440.tif" -> pad the number to 4 digits: "image.0001.tif", etc.
+        // "image.440.tif" -> no padding: "image.1.tif"
+        // 
+        if (match("^0", $frame_number) != "")
+        {
+          int $i;
+          for ($i = size($cur_frame_string); $i < $frame_number_length; $i++)
+          {
+            $cur_frame_string = "0" + $cur_frame_string;
+          }
+
+          $num_padding_zeroes = $i - 1;
+        }
+
+        $frame_number_length = size($cur_frame_string);
+        $image_filename = $base_file + $cur_frame_string + $extension;
+      }
+    }
+  }
+  else
+  {
+    $image_filename = getAttr(
+      $node + 
+      "." + 
+      substring($plug, size($node) + 2, size($plug)));
+  }
+
+  $image_filename = DL_expandString(
+    $image_filename, 
+    "", 
+    `delightRenderState -qrn`);
+
+  // Convert the texture to a tdl file and strip the double quotes
+  $image_filename = DL_convertTextureName($image_filename, 1);
+
+  if (size($image_filename) > 2)
+    $image_filename = substring($image_filename, 2, size($image_filename) - 1);
+  else
+    $image_filename = "";
+
+  // Convert the frame-numbered file name to something that can be dynamically
+  // expanded in RSL
+  //
+  if ($replace_frame_number > 0 && $frame_number_length > 0)
+  {
+    int $stripped_filename_length = size($image_filename);
+    $stripped_filename_length -= 4; // Remove ".tdl"
+    $stripped_filename_length -= $frame_number_length;
+    
+    $image_filename = substring($image_filename, 1, $stripped_filename_length);
+    $image_filename += "%";
+    
+    if ($num_padding_zeroes > 0)
+      $image_filename += "0" + $frame_number_length;
+    
+    $image_filename += "d.tdl";
+  }
+
+  return $image_filename;
+}
+
+/*
+  DL_connectNodeToMessagePlug
+
+  Connects a message attribute of $node to the $message_plug message plug.
+
+  NOTES
+  - The attribute of $node which is connected is chosen and created by this
+    function. Its specific name should NEVER be relied upon.
+*/
+global proc
+DL_connectNodeToMessagePlug(
+  string $node,
+  string $message_plug )
+{
+  if( !objExists( $node + ".usedBy3dfm" ) )
+  {
+    addAttr 
+      -longName usedBy3dfm 
+      -attributeType message
+      $node;
+  }
+
+  connectAttr ($node + ".usedBy3dfm") $message_plug;
+}
+
+/*
+  DL_connectNodeToMultiMessagePlug
+
+  This is like DL_connectNodeToMessagePlug except that $message_plug can be a
+  multi-attribute created with -indexMatters false. This will allow any number
+  of connections to be made to it. All connections can be broken at once with
+  DL_disconnectNode( $message_plug ) will break all the connections.
+*/
+global proc
+DL_connectNodeToMultiMessagePlug(
+  string $node,
+  string $message_plug )
+{
+  if( !objExists( $node + ".usedBy3dfm" ) )
+  {
+    addAttr 
+      -longName usedBy3dfm 
+      -attributeType message
+      $node;
+  }
+
+  connectAttr -nextAvailable ($node + ".usedBy3dfm") $message_plug;
+}
+
+/*
+  DL_disconnectNode
+
+  Breaks up all connections to the given plug.
+*/
+global proc
+DL_disconnectNode( string $message_attrib )
+{
+  string $old_connections[] =
+    `listConnections -plugs true -connections true $message_attrib`;
+  int $num_conn = size($old_connections) / 2;
+
+  int $i;
+  for( $i = 0; $i < $num_conn; $i++ )
+  {
+    disconnectAttr $old_connections[$i * 2 + 1] $old_connections[$i * 2];
+  }
+}
+
+global proc string[]
+DL_getMessagePlugsConnectedToNode(string $node)
+{
+  // Returns the plugs connected to our message attribute.
+  //
+  string $plugs[];
+  clear($plugs);
+  
+  if (objExists($node + ".usedBy3dfm"))
+    $plugs = `listConnections -plugs true ($node + ".usedBy3dfm")`;
+
+  return $plugs;
+}
+
+global proc string
+DL_highestNodeWithAttrib(string $attrib_name, string $attribs_nodes[])
+{
+  string $which_node;
+
+  for ($curr_node in $attribs_nodes)
+  {
+    if(objExists($curr_node + "." + $attrib_name))
+    {
+      $which_node = $curr_node;
+      break;
+    }
+  }
+
+  return $which_node;
+}
+
+global proc int
+DL_attributeExistsOnAnyNode(string $attrib_name, string $attribs_nodes[])
+{
+  int $exists;
+
+  $exists = 0;
+
+  for ($curr_node in $attribs_nodes)
+  {
+    if(objExists($curr_node + "." + $attrib_name))
+    {
+      $exists = 1;
+      break;
+    }
+  }
+
+  return $exists;
+}
+
+global proc
+DL_viewFile(string $filename, string $type)
+{
+  string $viewer;
+  
+  switch($type)
+  {
+    case "tiff":
+    case "cineon":
+    case "zfile":
+    case "radiance":
+    case "texture": 
+    case "image":
+      $viewer = DPF_getImageViewer();
+      break;
+    case "shadowmap": $viewer = DPF_getShadowmapViewer(); break;
+    case "rib": $viewer = DPF_getRIBViewer(); break;
+    case "log": $viewer = DPF_getLogViewer(); break;
+    case "photonmap":
+    case "pointcloud":
+      $viewer = DPF_getPhotonmapViewer(); 
+      break;
+    case "statistics": $viewer = DPF_getStatisticsViewer(); break;
+    default:
+      error("No viewer defined for file of type " + $type);
+      return;
+  }
+  
+  if ($viewer == "")
+  {
+    // File type known but no viewer specified and no default viewer.
+    // Bring up the preferences window.
+    //
+    warning("Please select an application to view " + $type + " files.");
+    DL_preferencesWindow();
+    return;
+  }
+  
+  string $os = `about -os`;
+
+  switch($os)
+  {
+    case "mac":
+      $filename = DL_substituteAllString($filename, " ", "\\ ");
+      if (endsWith($viewer, ".app"))
+      {
+        exec("open -a " + $viewer + " " + $filename);
+      }
+      else
+      {
+        exec($viewer + " " + $filename);
+      }
+      break;
+      
+    case "nt":
+    case "win64":
+      // Since the filename may contain wildcards, we need to expand these
+      // before invoking the app
+      //
+      //  Figure the dir name and the file name
+      string $file = basename($filename, "");
+      string $dir_name = substring($filename, 1, size($filename) - size($file));
+
+      // Convert the filename to a windows antive path enclosed in double quotes
+      // to deal properly with spaces
+      string $fixed_filename = "\"" + DL_substituteAllString($filename, "/", "\\") + "\"";
+
+      // This returns all the filenames (without directory path) that match what
+      // we received as a filename.
+      // 
+      string $dir_return_val = system("DIR /B " + $fixed_filename);
+
+      // Construct a single string made of the full paths to each file returned
+      // by the DIR command
+      //
+      string $matching_filenames[];
+      tokenize($dir_return_val, $matching_filenames);
+      
+      string $file_list;
+      for($cur_file in $matching_filenames)
+      {
+        $file_list += "\"" + $dir_name + "/" + $cur_file + "\" ";
+      }
+      
+      system("start " + $viewer + " " + $file_list);
+      break;
+      
+    case "linux":
+    case "linux64":
+      $filename = DL_substituteAllString($filename, " ", "\\ ");
+      exec($viewer + " " + $filename);
+      break;
+    default:
+  }
+}
+
+global proc
+DL_viewFileFromAttr(string $attr, string $shape, string $pass, string $type)
+{
+  string $file = getAttr($attr);
+  
+  // Replace frame numbers with *
+  // todo: deal with expressions in {}
+  //
+  $file = DL_substituteAllString($file, "#", "*");
+  $file = DL_substituteAllString($file, "@", "*");
+  
+  $file = DL_getExpandedFilename($file, $shape, $pass, $type);
+  DL_viewFile($file, $type);
+}
+
+global proc string 
+DL_getNodeTypePrefix(string $node)
+{
+  // Return a node type dependent prefix that can be used to build procedure
+  // names.
+  //
+  string $type = nodeType($node);
+
+  switch ($type)
+  {
+    case "delightRenderPass": return "DRP_";
+    case "delightLightAttribs" : return "DLA_";
+    default:
+      string $classifications[] = getClassification(nodeType($node));    
+      int $is_shader = 0;
+  
+      for ($curr_class in $classifications)
+      {
+        if (match("shader/", $curr_class) != "")
+          return "HS_";
+      }
+  }
+
+  return "DGA_";
+}
